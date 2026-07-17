@@ -35,6 +35,10 @@ from axiom_rift.operations.architecture_review_direction import (
 from axiom_rift.operations.effective_axis_projection import (
     effective_axis_resolutions,
 )
+from axiom_rift.operations.historical_family_authority_admission import (
+    HistoricalFamilyAuthorityAdmissionError,
+    require_recorded_historical_family_authority,
+)
 from axiom_rift.operations.replay_projection import (
     ReplayProjectionError,
     obligation_heads,
@@ -85,9 +89,10 @@ from axiom_rift.research.governance import (
     StudyDiagnosis,
 )
 from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyAuthority,
     HistoricalFamilyBindingError,
     HistoricalFamilySpec,
-    historical_family_authority_from_payload,
+    historical_family_core_identity,
     historical_family_from_manifest,
 )
 from axiom_rift.research.portfolio import (
@@ -127,6 +132,10 @@ from axiom_rift.research.replay_obligation import (
     ReplayResumeCondition,
     ReplayResumeConditionKind,
     ReplaySatisfaction,
+)
+from axiom_rift.research.replay_member_assignment import (
+    ReplayMemberAssignment,
+    ReplayMemberAssignmentSet,
 )
 from axiom_rift.research.semantic_question import (
     SemanticQuestionCore,
@@ -263,6 +272,7 @@ class FixedHoldReplayMissionSpec:
     display_name: str
     initiative_lifecycle: ReplayInitiativeLifecycle
     axis_admission: ReplayAxisAdmission
+    additional_obligation_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         for name in (
@@ -309,6 +319,26 @@ class FixedHoldReplayMissionSpec:
             "historical-replay-obligation:"
         ):
             raise ValueError("replay target obligation namespace is invalid")
+        additional = self.additional_obligation_ids
+        if (
+            type(additional) is not tuple
+            or additional != tuple(sorted(set(additional)))
+            or self.target_obligation_id in additional
+            or any(
+                type(item) is not str
+                or not item.startswith("historical-replay-obligation:")
+                for item in additional
+            )
+        ):
+            raise ValueError(
+                "additional replay obligations must be sorted unique identities"
+            )
+
+    @property
+    def replay_obligation_ids(self) -> tuple[str, ...]:
+        return tuple(
+            sorted((self.target_obligation_id, *self.additional_obligation_ids))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -487,6 +517,7 @@ class FixedHoldReplayDesign:
     batch_spec: BatchSpec
     controlled_chassis: ControlledStudyChassis
     criterion_ids: tuple[str, ...]
+    replay_assignments: ReplayMemberAssignmentSet | None = None
     replacement_axis_equivalence_required: bool = False
     semantic_question_lineage: SemanticQuestionLineageProposal | None = None
     protocol_revision: AxisProtocolRevisionProposal | None = None
@@ -510,6 +541,8 @@ class FixedHoldReplayDesign:
                 or self.bridge_decision is None
                 or self.bridge_decision.protocol_revision
                 != self.protocol_revision
+                or self.bridge_decision.replay_obligation_ids
+                != (self.spec.target_obligation_id,)
             ):
                 raise ValueError("replay protocol revision authority is absent")
         elif self.protocol_revision is not None:
@@ -555,6 +588,40 @@ class FixedHoldReplayDesign:
             raise ValueError(
                 "replay Batch statistical family is not canonical"
             )
+        if (
+            self.work_decision.replay_obligation_ids
+            != self.spec.replay_obligation_ids
+        ):
+            raise ValueError(
+                "replay work Decision does not bind every selected obligation"
+            )
+        if self.replay_assignments is not None:
+            if (
+                not isinstance(
+                    self.replay_assignments,
+                    ReplayMemberAssignmentSet,
+                )
+                or self.replay_assignments.mission_id != self.spec.mission_id
+                or self.replay_assignments.primary_obligation_id
+                != self.spec.target_obligation_id
+                or self.replay_assignments.obligation_ids
+                != self.spec.replay_obligation_ids
+                or self.replay_assignments.primary.replay_executable_id
+                != self.target_executable_id
+                or any(
+                    item.replay_executable_id not in executable_ids
+                    for item in self.replay_assignments.assignments
+                )
+                or self.proposal.get("replay_member_assignment_set_id")
+                != self.replay_assignments.identity
+                or self.proposal.get("replay_member_assignments")
+                != self.replay_assignments.to_identity_payload()
+                or self.proposal.get("replay_obligation_ids")
+                != list(self.replay_assignments.obligation_ids)
+            ):
+                raise ValueError("replay member assignment set drifted")
+        elif len(self.spec.replay_obligation_ids) != 1:
+            raise ValueError("plural replay requires exact member assignments")
 
     @property
     def target_member(self) -> FixedHoldReplayMember:
@@ -575,6 +642,42 @@ class FixedHoldReplayDesign:
         if len(matches) != 1:
             raise RuntimeError("replay cache producer is ambiguous")
         return matches[0]
+
+    @property
+    def selected_members(self) -> tuple[FixedHoldReplayMember, ...]:
+        selected_ids = (
+            {self.target_executable_id}
+            if self.replay_assignments is None
+            else set(self.replay_assignments.replay_executable_ids)
+        )
+        return tuple(
+            member
+            for member in self.members
+            if member.executable.identity in selected_ids
+        )
+
+
+def _design_replay_assignments(
+    design: FixedHoldReplayDesign,
+) -> ReplayMemberAssignmentSet | None:
+    value = getattr(design, "replay_assignments", None)
+    if value is not None and not isinstance(value, ReplayMemberAssignmentSet):
+        raise RuntimeError("replay design member assignments are not typed")
+    return value
+
+
+def _design_selected_members(
+    design: FixedHoldReplayDesign,
+) -> tuple[FixedHoldReplayMember, ...]:
+    assignments = _design_replay_assignments(design)
+    if assignments is None:
+        return (design.target_member,)
+    selected_ids = set(assignments.replay_executable_ids)
+    return tuple(
+        member
+        for member in design.members
+        if member.executable.identity in selected_ids
+    )
 
 
 def _operation_record(
@@ -892,6 +995,7 @@ def build_fixed_hold_replay_design(
     controlled_chassis: ControlledStudyChassis,
     historical_family_manifest: Mapping[str, Any],
     historical_family_authority_id: str,
+    additional_historical_family_authority_ids: tuple[str, ...] = (),
     criterion_ids: tuple[str, ...],
     causal_question: str,
     mechanism_family: str,
@@ -900,6 +1004,22 @@ def build_fixed_hold_replay_design(
     semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
 ) -> FixedHoldReplayDesign:
     """Build one exact forest-preserving replay design from durable state."""
+
+    authority_ids = (
+        historical_family_authority_id,
+        *additional_historical_family_authority_ids,
+    )
+    if (
+        type(additional_historical_family_authority_ids) is not tuple
+        or additional_historical_family_authority_ids
+        != tuple(sorted(set(additional_historical_family_authority_ids)))
+        or historical_family_authority_id
+        in additional_historical_family_authority_ids
+        or len(authority_ids) != len(spec.replay_obligation_ids)
+    ):
+        raise RuntimeError(
+            "replay family authorities must bijectively cover selected obligations"
+        )
 
     if (
         semantic_question_lineage is not None
@@ -972,10 +1092,24 @@ def build_fixed_hold_replay_design(
                 spec,
             )
         )
-        family_authority_record = index.get(
-            "historical-family-authority",
-            historical_family_authority_id,
+        family_authority_records = tuple(
+            index.get("historical-family-authority", authority_id)
+            for authority_id in authority_ids
         )
+        try:
+            if any(record is None for record in family_authority_records):
+                raise HistoricalFamilyAuthorityAdmissionError(
+                    "historical family authority is absent"
+                )
+            accepted_family_authorities = tuple(
+                require_recorded_historical_family_authority(index, record)
+                for record in family_authority_records
+                if record is not None
+            )
+        except HistoricalFamilyAuthorityAdmissionError as exc:
+            raise RuntimeError(
+                "prospective replay historical family authority is malformed"
+            ) from exc
         binding_phase = (
             None
             if target is None
@@ -1100,13 +1234,6 @@ def build_fixed_hold_replay_design(
             "prospective replay definition must use Writer-bound family data"
         )
     try:
-        if family_authority_record is None:
-            raise HistoricalFamilyBindingError(
-                "historical family authority is absent"
-            )
-        family_authority = historical_family_authority_from_payload(
-            family_authority_record.payload
-        )
         caller_family = historical_family_from_manifest(
             dict(historical_family_manifest)
         )
@@ -1114,6 +1241,9 @@ def build_fixed_hold_replay_design(
         raise RuntimeError(
             "prospective replay historical family authority is malformed"
         ) from exc
+    family_authority = accepted_family_authorities[0]
+    family_authority_record = family_authority_records[0]
+    assert family_authority_record is not None
     manifest_family = family_authority.family
     if (
         historical_family_authority_id != family_authority.identity
@@ -1133,6 +1263,90 @@ def build_fixed_hold_replay_design(
         raise RuntimeError(
             "prospective replay family differs from durable authority"
         )
+    family_core = historical_family_core_identity(manifest_family)
+    authority_by_obligation: dict[str, HistoricalFamilyAuthority] = {}
+    for record, authority in zip(
+        family_authority_records,
+        accepted_family_authorities,
+        strict=True,
+    ):
+        assert record is not None
+        authority_core = historical_family_core_identity(authority.family)
+        if (
+            record.record_id != authority.identity
+            or record.subject
+            != f"ReplayObligation:{authority.replay_obligation_id}"
+            or record.status != "accepted"
+            or record.fingerprint
+            != authority.identity.removeprefix(
+                "historical-family-authority:"
+            )
+            or authority_core != family_core
+            or authority.reconstruction_source_path
+            != family_authority.reconstruction_source_path
+            or authority.reconstruction_source_sha256
+            != family_authority.reconstruction_source_sha256
+            or authority.reconstruction_only_parameter_names
+            != family_authority.reconstruction_only_parameter_names
+            or authority.replay_obligation_id in authority_by_obligation
+        ):
+            raise RuntimeError(
+                "selected replay authorities do not describe one exact family"
+            )
+        authority_by_obligation[authority.replay_obligation_id] = authority
+    if set(authority_by_obligation) != set(spec.replay_obligation_ids):
+        raise RuntimeError(
+            "selected replay authorities do not cover exact obligations"
+        )
+    member_by_historical_executable = {
+        member.historical_reference_executable_id: member
+        for member in members
+    }
+    if len(member_by_historical_executable) != len(members):
+        raise RuntimeError("replay family historical member mapping is ambiguous")
+    assignments: list[ReplayMemberAssignment] = []
+    for obligation_id in spec.replay_obligation_ids:
+        selected = obligations.get(obligation_id)
+        authority = authority_by_obligation[obligation_id]
+        if selected is None:
+            raise RuntimeError("selected replay obligation is absent")
+        selected_obligation, selected_head = selected
+        member = member_by_historical_executable.get(
+            selected_obligation.original_executable_id
+        )
+        if (
+            selected_head.status not in {"pending", "in_progress"}
+            and not terminal_reconstruction
+        ) or (
+            selected_obligation.original_study_id != spec.original_study_id
+            or selected_obligation.criterion_ids != criterion_ids
+            or member is None
+            or authority.family.target_historical_executable_id
+            != selected_obligation.original_executable_id
+        ):
+            raise RuntimeError(
+                "selected replay obligation differs from its exact family member"
+            )
+        assignments.append(
+            ReplayMemberAssignment(
+                obligation_id=obligation_id,
+                original_executable_id=(
+                    selected_obligation.original_executable_id
+                ),
+                replay_executable_id=member.executable.identity,
+                historical_family_authority_id=authority.identity,
+                criterion_ids=selected_obligation.criterion_ids,
+            )
+        )
+    replay_assignments = (
+        None
+        if len(assignments) == 1
+        else ReplayMemberAssignmentSet(
+            mission_id=spec.mission_id,
+            primary_obligation_id=spec.target_obligation_id,
+            assignments=tuple(assignments),
+        )
+    )
     target_members = tuple(
         member
         for member in members
@@ -1154,6 +1368,11 @@ def build_fixed_hold_replay_design(
         or manifest_references
         != tuple(
             member.historical_reference_executable_id for member in members
+        )
+        or (
+            replay_assignments is not None
+            and replay_assignments.primary.replay_executable_id
+            != target_executable_id
         )
     ):
         raise RuntimeError("replay design differs from its exact obligation")
@@ -1340,9 +1559,12 @@ def build_fixed_hold_replay_design(
         option for option in bridge_options if option is not None
     )
     bridge_basis = [
-        DecisionBasisRecord(
-            kind="historical-replay-obligation",
-            record_id=spec.target_obligation_id,
+        *(
+            DecisionBasisRecord(
+                kind="historical-replay-obligation",
+                record_id=obligation_id,
+            )
+            for obligation_id in spec.replay_obligation_ids
         ),
         DecisionBasisRecord(
             kind="portfolio-snapshot",
@@ -1442,16 +1664,19 @@ def build_fixed_hold_replay_design(
         chosen_option_id="run-exact-concurrent-family",
         options=work_options,
         rationale=(
-            "select only the exact typed replay obligation while peers remain schedulable"
+            "select only the exact typed replay obligations while peers remain schedulable"
         ),
         commitment_batches=1,
         quant_team_review=None if replay_review_mode is False else _quant_team_review(
             option_ids=tuple(option.option_id for option in work_options),
             chosen_option_id="run-exact-concurrent-family",
             basis_records=(
-                DecisionBasisRecord(
-                    kind="historical-replay-obligation",
-                    record_id=spec.target_obligation_id,
+                *(
+                    DecisionBasisRecord(
+                        kind="historical-replay-obligation",
+                        record_id=obligation_id,
+                    )
+                    for obligation_id in spec.replay_obligation_ids
                 ),
                 DecisionBasisRecord(
                     kind="portfolio-snapshot",
@@ -1468,17 +1693,17 @@ def build_fixed_hold_replay_design(
                 "the full family consumes bounded local compute before other work"
             ),
             claim_boundary=(
-                "one replay obligation only; no unrelated claim or candidate authority"
+                "selected replay obligations only; no unrelated claim or candidate authority"
             ),
             resolution_basis=(
                 "exact family recomputation dominates deferral while inputs are available"
             ),
             disagreement_resolution=(
-                "cap work at one Batch and leave peer obligations schedulable"
+                "cap work at one Batch and leave unselected obligations schedulable"
             ),
         ),
         baseline_executable=controlled_chassis.baseline_executable,
-        replay_obligation_ids=(spec.target_obligation_id,),
+        replay_obligation_ids=spec.replay_obligation_ids,
     )
     question = {
         "causal_question": causal_question,
@@ -1508,6 +1733,20 @@ def build_fixed_hold_replay_design(
             "historical_family_identity": manifest_family.identity,
         }
     )
+    if replay_assignments is not None:
+        proposal.update(
+            {
+                "replay_member_assignment_set_id": (
+                    replay_assignments.identity
+                ),
+                "replay_member_assignments": (
+                    replay_assignments.to_identity_payload()
+                ),
+                "replay_obligation_ids": list(
+                    replay_assignments.obligation_ids
+                ),
+            }
+        )
     _require_prospective_semantic_lineage_admission(
         writer,
         spec=spec,
@@ -1573,6 +1812,15 @@ def build_fixed_hold_replay_design(
             "historical_family_authority_id": family_authority.identity,
             "historical_family_identity": manifest_family.identity,
             "replay_obligation_id": spec.target_obligation_id,
+            **(
+                {}
+                if replay_assignments is None
+                else {
+                    "replay_member_assignment_set_id": (
+                        replay_assignments.identity
+                    )
+                }
+            ),
         },
         adaptive_basis={
             "uncertainty": "one historical replay criterion family is unresolved",
@@ -1606,6 +1854,7 @@ def build_fixed_hold_replay_design(
         batch_spec=batch_spec,
         controlled_chassis=controlled_chassis,
         criterion_ids=criterion_ids,
+        replay_assignments=replay_assignments,
         replacement_axis_equivalence_required=(
             replacement_axis_overlay_required
         ),
@@ -2068,21 +2317,155 @@ def _workflow_interpretation(
             disposition=PortfolioAction.PRESERVE,
             reason_code="pre_job_implementation_authority_invalid",
         )
-    if _engineering_failure_member(writer, design) is not None:
+    interpretations: list[ReplayInterpretation] = []
+    assignments = _design_replay_assignments(design)
+    for member in _design_selected_members(design):
+        completion = _member_completion(writer, design, member)
+        if completion is None:
+            interpretations.append(
+                ReplayInterpretation(
+                    all_criteria_recomputed=False,
+                    close_outcome="not_evaluable",
+                    diagnosis_state=EvidenceState.ENGINEERING_GAP,
+                    disposition=PortfolioAction.PRESERVE,
+                    reason_code="selected_member_completion_unavailable",
+                )
+            )
+            continue
+        interpretations.append(
+            interpret_fixed_hold_completion(
+                completion,
+                criterion_ids=(
+                    design.criterion_ids
+                    if assignments is None
+                    else assignments.by_obligation()[
+                        next(
+                            item.obligation_id
+                            for item in assignments.assignments
+                            if item.replay_executable_id
+                            == member.executable.identity
+                        )
+                    ].criterion_ids
+                ),
+            )
+        )
+    recomputed = tuple(
+        item for item in interpretations if item.all_criteria_recomputed
+    )
+    if not recomputed:
+        scientific_gap = all(
+            item.diagnosis_state is EvidenceState.NOT_IDENTIFIABLE
+            for item in interpretations
+        )
         return ReplayInterpretation(
             all_criteria_recomputed=False,
             close_outcome="not_evaluable",
-            diagnosis_state=EvidenceState.ENGINEERING_GAP,
+            diagnosis_state=(
+                EvidenceState.NOT_IDENTIFIABLE
+                if scientific_gap
+                else EvidenceState.ENGINEERING_GAP
+            ),
             disposition=PortfolioAction.PRESERVE,
-            reason_code="unrecovered_same_protocol_engineering_gap",
+            reason_code=(
+                "selected_member_recomputation_unavailable"
+                if scientific_gap
+                else "unrecovered_same_protocol_engineering_gap"
+            ),
         )
-    completion = _member_completion(writer, design, design.target_member)
-    if completion is None:
-        raise RuntimeError("replay target completion is unavailable")
-    return interpret_fixed_hold_completion(
-        completion,
-        criterion_ids=design.criterion_ids,
+    if len(recomputed) != len(interpretations):
+        partial_engineering_gap = any(
+            item.diagnosis_state is EvidenceState.ENGINEERING_GAP
+            for item in interpretations
+        )
+        return ReplayInterpretation(
+            all_criteria_recomputed=False,
+            close_outcome="not_evaluable",
+            diagnosis_state=(
+                EvidenceState.ENGINEERING_GAP
+                if partial_engineering_gap
+                else EvidenceState.NOT_IDENTIFIABLE
+            ),
+            disposition=PortfolioAction.PRESERVE,
+            reason_code=(
+                "selected_member_recomputation_partial_engineering_gap"
+                if partial_engineering_gap
+                else "selected_member_recomputation_partial"
+            ),
+        )
+    if all(
+        item.disposition is PortfolioAction.PRUNE
+        for item in interpretations
+    ):
+        return ReplayInterpretation(
+            all_criteria_recomputed=True,
+            close_outcome="pruned",
+            diagnosis_state=EvidenceState.STABILITY_CONCENTRATION,
+            disposition=PortfolioAction.PRUNE,
+            reason_code="exact_selected_criteria_recomputed_negative",
+        )
+    return ReplayInterpretation(
+        all_criteria_recomputed=True,
+        close_outcome="preserved",
+        diagnosis_state=EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
+        disposition=PortfolioAction.PRESERVE,
+        reason_code="exact_selected_criteria_recomputed",
     )
+
+
+def _study_close_disposition_completion(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> IndexRecord:
+    """Select the completion whose evidence class matches the Study outcome.
+
+    The Study KPI schema intentionally names one completion, while a plural
+    replay Study can contain independently positive, negative, or unavailable
+    selected members.  The named completion is therefore a disposition-driving
+    representative, not a substitute for the diagnosis evidence basis, which
+    retains every Job completion.  Selecting the primary member unconditionally
+    can make a valid mixed family impossible to close when its evidence class
+    differs from the aggregate Study outcome.
+    """
+
+    assignments = _design_replay_assignments(design)
+    target_completion = _member_completion(
+        writer,
+        design,
+        design.target_member,
+    )
+    if assignments is None:
+        if target_completion is None:
+            raise RuntimeError("replay close lacks target completion")
+        return target_completion
+    aggregate = _workflow_interpretation(writer, design)
+    assignment_by_executable = {
+        item.replay_executable_id: item
+        for item in assignments.assignments
+    }
+    candidates: list[IndexRecord] = []
+    for member in _design_selected_members(design):
+        completion = _member_completion(writer, design, member)
+        if completion is None:
+            continue
+        assignment = assignment_by_executable[member.executable.identity]
+        interpretation = interpret_fixed_hold_completion(
+            completion,
+            criterion_ids=assignment.criterion_ids,
+        )
+        if aggregate.all_criteria_recomputed:
+            eligible = (
+                interpretation.all_criteria_recomputed
+                and interpretation.disposition is aggregate.disposition
+            )
+        else:
+            eligible = not interpretation.all_criteria_recomputed
+        if eligible:
+            candidates.append(completion)
+    if not candidates:
+        raise RuntimeError(
+            "plural replay has no completion matching its aggregate Study outcome"
+        )
+    return candidates[0]
 
 
 def _protocol_activation_operation_id(
@@ -2973,17 +3356,6 @@ def operation_steps(
             and completion.payload["scientific"].get("verdict") == "failed"
         )
     }
-    target = _member_completion(
-        writer,
-        design,
-        design.target_member,
-        _index=_index,
-    )
-    engineering_failure = _engineering_failure_member(
-        writer,
-        design,
-        _index=_index,
-    )
     repair_chains = _all_member_repair_chains(
         writer,
         design,
@@ -3012,20 +3384,43 @@ def operation_steps(
                     repair_steps=repair_chains[member.ordinal],
                 )
             )
-    unrecovered_present = any(
-        step.event_kind == "repair_concluded_unrecovered"
-        for chain in repair_chains.values()
-        for step in chain
+    assignment_by_replay_executable = (
+        {}
+        if _design_replay_assignments(design) is None
+        else {
+            item.replay_executable_id: item
+            for item in _design_replay_assignments(design).assignments
+        }
     )
-    recomputed = (
-        engineering_failure is None
-        and not unrecovered_present
-        and target is not None
-        and interpret_fixed_hold_completion(
-            target,
-            criterion_ids=design.criterion_ids,
-        ).all_criteria_recomputed
+    selected_recomputed = tuple(
+        member.ordinal
+        for member in _design_selected_members(design)
+        if (
+            (
+                completion := _member_completion(
+                    writer,
+                    design,
+                    member,
+                    _index=_index,
+                )
+            )
+            is not None
+            and interpret_fixed_hold_completion(
+                completion,
+                criterion_ids=(
+                    design.criterion_ids
+                    if _design_replay_assignments(design) is None
+                    else assignment_by_replay_executable[
+                        member.executable.identity
+                    ].criterion_ids
+                ),
+            ).all_criteria_recomputed
+        )
     )
+    all_selected_recomputed = (
+        len(selected_recomputed) == len(_design_selected_members(design))
+    )
+    some_selected_recomputed = bool(selected_recomputed)
     base_steps: list[OperationStep] = []
     if (
         design.spec.initiative_lifecycle
@@ -3357,7 +3752,9 @@ def operation_steps(
                 prefix + "resolve-replay",
                 (
                     "historical_replay_obligations_resolved"
-                    if recomputed
+                    if all_selected_recomputed
+                    else "historical_replay_obligations_disposed"
+                    if some_selected_recomputed
                     else "historical_replay_obligations_deferred"
                 ),
                 DIAGNOSE_STAGE,
@@ -3608,7 +4005,7 @@ def materialize_replay_implementation_preflight_request(
         scientific_bindings=tuple(
             member.job_plan.scientific_binding() for member in members
         ),
-        replay_obligation_ids=(spec.target_obligation_id,),
+        replay_obligation_ids=spec.replay_obligation_ids,
         replacement_for_preflight_id=replacement_for_preflight_id,
     )
 
@@ -3733,7 +4130,7 @@ def _prospective_replay_study_payload(
             replay_axis.primary_research_layer.value
         ),
         "question": dict(question),
-        "replay_obligation_ids": [spec.target_obligation_id],
+        "replay_obligation_ids": list(spec.replay_obligation_ids),
         "semantic_proposal": dict(proposal),
         "semantic_question_core_id": core.identity,
     }
@@ -4427,12 +4824,14 @@ def _apply_study_close_step(
                 kpi_completion_record_id=failed_completion.record_id,
                 operation_id=operation_id,
             )
-        completion = _member_completion(writer, design, design.target_member)
-        if completion is None:
-            raise RuntimeError("replay close lacks target completion")
-        interpretation = interpret_fixed_hold_completion(
-            completion,
-            criterion_ids=design.criterion_ids,
+        completion = _study_close_disposition_completion(writer, design)
+        interpretation = (
+            _workflow_interpretation(writer, design)
+            if _design_replay_assignments(design) is not None
+            else interpret_fixed_hold_completion(
+                completion,
+                criterion_ids=design.criterion_ids,
+            )
         )
         return writer.close_study(
             outcome=interpretation.close_outcome,
@@ -4495,6 +4894,35 @@ def _diagnosis(
             {},
         ).get("state")
     )
+    assignment_by_replay_executable = (
+        {}
+        if _design_replay_assignments(design) is None
+        else {
+            item.replay_executable_id: item
+            for item in _design_replay_assignments(design).assignments
+        }
+    )
+    recomputed_selected_count = sum(
+        interpret_fixed_hold_completion(
+            selected_completion,
+            criterion_ids=(
+                design.criterion_ids
+                if _design_replay_assignments(design) is None
+                else assignment_by_replay_executable[
+                    member.executable.identity
+                ].criterion_ids
+            ),
+        ).all_criteria_recomputed
+        for member in _design_selected_members(design)
+        if (
+            selected_completion := _member_completion(
+                writer,
+                design,
+                member,
+            )
+        )
+        is not None
+    )
     if preflight_rejection is not None:
         rationale = (
             "The exact family failed prospective implementation authority "
@@ -4513,8 +4941,17 @@ def _diagnosis(
         )
     elif engineering_failure is not None:
         rationale = (
-            "A typed unrecovered Repair ended execution without creating "
-            "scientific evidence; this is an engineering gap."
+            (
+                "A typed unrecovered Repair ended the family after "
+                f"{recomputed_selected_count} selected member results were "
+                "validly recomputed. Those results remain usable while only "
+                "the unresolved selected members retain an engineering gap."
+            )
+            if recomputed_selected_count
+            else (
+                "A typed unrecovered Repair ended execution without creating "
+                "scientific evidence; this is an engineering gap."
+            )
         )
         counterfactual = (
             "A same-protocol engineering Repair could make the exact family "
@@ -4730,6 +5167,199 @@ def _replay_resolution(
     )
 
 
+def _plural_replay_resolutions(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> tuple[tuple[ReplaySatisfaction, ...], tuple[ReplayDeferral, ...]]:
+    """Resolve each selected member independently under one family diagnosis."""
+
+    assignments = _design_replay_assignments(design)
+    if assignments is None:
+        raise RuntimeError("plural replay resolution lacks member assignments")
+    preflight_rejection = _implementation_preflight_rejection(writer, design)
+    engineering_failure = _engineering_failure_member(writer, design)
+    diagnosis = _diagnosis_record(writer, design)
+    close_record = _study_close_record(writer, design)
+    member_by_executable = {
+        member.executable.identity: member for member in design.members
+    }
+    satisfactions: list[ReplaySatisfaction] = []
+    deferrals: list[ReplayDeferral] = []
+    with writer.open_stable_index() as (_control, index):
+        pairs = {
+            obligation.identity: (obligation, head)
+            for obligation, head in obligation_heads(
+                index,
+                mission_id=design.spec.mission_id,
+            )
+        }
+        replay_study = index.get("study-open", design.spec.study_id)
+        if replay_study is None:
+            raise RuntimeError("plural replay Study projection is absent")
+        for assignment in assignments.assignments:
+            pair = pairs.get(assignment.obligation_id)
+            member = member_by_executable.get(
+                assignment.replay_executable_id
+            )
+            trial = index.get("trial", assignment.replay_executable_id)
+            completion = (
+                None
+                if member is None
+                else _member_completion(
+                    writer,
+                    design,
+                    member,
+                    _index=index,
+                )
+            )
+            if pair is None or member is None:
+                raise RuntimeError(
+                    "plural replay assignment lost its obligation or member"
+                )
+            obligation, obligation_head = pair
+            if trial is None:
+                if (
+                    preflight_rejection is None
+                    or obligation_head.status != "pending"
+                ):
+                    raise RuntimeError(
+                        "plural replay selected trial is unexpectedly absent"
+                    )
+                from axiom_rift.operations.replay_projection import (
+                    ReplayAuthorityError,
+                    require_pending_replay_preflight_invalidation,
+                )
+
+                try:
+                    require_pending_replay_preflight_invalidation(
+                        index,
+                        mission_id=design.spec.mission_id,
+                        study=replay_study,
+                        diagnosis=diagnosis,
+                        obligation_id=assignment.obligation_id,
+                    )
+                except ReplayAuthorityError as exc:
+                    raise RuntimeError(str(exc)) from exc
+                deferrals.append(
+                    ReplayDeferral(
+                        obligation_id=assignment.obligation_id,
+                        basis=ReplayDeferralBasis(
+                            kind=ReplayDeferralBasisKind.STUDY_DIAGNOSIS,
+                            record_id=diagnosis.record_id,
+                            subject_id=design.spec.study_id,
+                        ),
+                        reason_codes=(
+                            "pre_job_implementation_authority_invalid",
+                        ),
+                        resume_conditions=(
+                            ReplayResumeCondition(
+                                kind=(
+                                    ReplayResumeConditionKind
+                                    .REPLACEMENT_PROSPECTIVE_IMPLEMENTATION
+                                ),
+                                protocol_id=design.spec.job_protocol,
+                                original_executable_ids=tuple(
+                                    item.historical_reference_executable_id
+                                    for item in design.members
+                                ),
+                                criterion_ids=obligation.criterion_ids,
+                            ),
+                        ),
+                        execution_binding=None,
+                    )
+                )
+                continue
+            evidence_ids = replay_evidence_record_ids(
+                diagnosis=diagnosis,
+                close_record=close_record,
+                trial=trial,
+            )
+            interpretation = (
+                None
+                if completion is None
+                else interpret_fixed_hold_completion(
+                    completion,
+                    criterion_ids=assignment.criterion_ids,
+                )
+            )
+            if (
+                interpretation is not None
+                and interpretation.all_criteria_recomputed
+            ):
+                facts = _scientific_facts(completion)
+                assert facts is not None
+                criterion_ids = (
+                    validated_fixed_hold_recomputed_criterion_ids(facts)
+                )
+                if criterion_ids != obligation.criterion_ids:
+                    raise RuntimeError(
+                        "plural replay criteria differ from their obligation"
+                    )
+                satisfactions.append(
+                    ReplaySatisfaction(
+                        obligation_id=assignment.obligation_id,
+                        resolution_scope=ReplayResolutionScope.SCIENTIFIC,
+                        portfolio_decision_id=design.work_decision.identity,
+                        replay_study_id=design.spec.study_id,
+                        replay_executable_id=assignment.replay_executable_id,
+                        replay_study_close_record_id=close_record.record_id,
+                        study_diagnosis_id=diagnosis.record_id,
+                        satisfied_criterion_ids=criterion_ids,
+                        evidence_record_ids=evidence_ids,
+                    )
+                )
+                continue
+            if preflight_rejection is not None:
+                resume_kinds = (
+                    ReplayResumeConditionKind
+                    .REPLACEMENT_PROSPECTIVE_IMPLEMENTATION,
+                )
+                reason_code = "pre_job_implementation_authority_invalid"
+            elif engineering_failure is not None or completion is None:
+                resume_kinds = (
+                    ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,
+                )
+                reason_code = "unrecovered_same_protocol_engineering_gap"
+            else:
+                resume_kinds = (
+                    ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
+                    ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,
+                )
+                assert interpretation is not None
+                reason_code = interpretation.reason_code
+            deferrals.append(
+                ReplayDeferral(
+                    obligation_id=assignment.obligation_id,
+                    basis=ReplayDeferralBasis(
+                        kind=ReplayDeferralBasisKind.STUDY_DIAGNOSIS,
+                        record_id=diagnosis.record_id,
+                        subject_id=design.spec.study_id,
+                    ),
+                    reason_codes=(reason_code,),
+                    resume_conditions=tuple(
+                        ReplayResumeCondition(
+                            kind=kind,
+                            protocol_id=design.spec.job_protocol,
+                            original_executable_ids=tuple(
+                                item.historical_reference_executable_id
+                                for item in design.members
+                            ),
+                            criterion_ids=obligation.criterion_ids,
+                        )
+                        for kind in resume_kinds
+                    ),
+                    execution_binding=ReplayDeferralExecutionBinding(
+                        portfolio_decision_id=design.work_decision.identity,
+                        replay_study_id=design.spec.study_id,
+                        replay_executable_id=assignment.replay_executable_id,
+                        replay_study_close_record_id=close_record.record_id,
+                        study_diagnosis_id=diagnosis.record_id,
+                    ),
+                )
+            )
+    return tuple(satisfactions), tuple(deferrals)
+
+
 def _disposition_decision(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -4856,6 +5486,26 @@ def _apply_diagnose_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "resolve-replay":
+        if _design_replay_assignments(design) is not None:
+            satisfactions, deferrals = _plural_replay_resolutions(
+                writer,
+                design,
+            )
+            if satisfactions and deferrals:
+                return writer.dispose_historical_replay_obligations(
+                    satisfactions=satisfactions,
+                    deferrals=deferrals,
+                    operation_id=operation_id,
+                )
+            if satisfactions:
+                return writer.resolve_historical_replay_obligations(
+                    satisfactions=satisfactions,
+                    operation_id=operation_id,
+                )
+            return writer.defer_historical_replay_obligations(
+                deferrals=deferrals,
+                operation_id=operation_id,
+            )
         resolution = _replay_resolution(writer, design)
         if isinstance(resolution, ReplaySatisfaction):
             return writer.resolve_historical_replay_obligations(
@@ -4957,6 +5607,8 @@ def _require_scientific_study_close_projection(
         not in {
             "original_criterion_recomputation_incomplete",
             "original_criterion_recomputation_unavailable",
+            "selected_member_recomputation_partial",
+            "selected_member_recomputation_unavailable",
         }
     ):
         raise RuntimeError(
@@ -5046,15 +5698,21 @@ def verify_study_close_postconditions(
                 or set(outputs) != set(member.job_plan.expected_outputs())
             ):
                 raise RuntimeError("replay member completion output drifted")
-        target = completions[design.target_member.ordinal - 1]
-        assert target is not None
-        interpretation = interpret_fixed_hold_completion(
-            target,
-            criterion_ids=design.criterion_ids,
+        disposition_completion = _study_close_disposition_completion(
+            writer,
+            design,
+        )
+        interpretation = (
+            _workflow_interpretation(writer, design)
+            if _design_replay_assignments(design) is not None
+            else interpret_fixed_hold_completion(
+                disposition_completion,
+                criterion_ids=design.criterion_ids,
+            )
         )
         _require_scientific_study_close_projection(
             close_record=close_record,
-            completion=target,
+            completion=disposition_completion,
             study_kpi=study_kpi,
             interpretation=interpretation,
         )
@@ -5100,9 +5758,22 @@ def verify_study_close_postconditions(
             raise RuntimeError(
                 "replay engineering gap lacks typed Batch, Study, or KPI terminal"
             )
-    target_head = heads.get(design.spec.target_obligation_id)
-    if target_head is None or target_head.status != "in_progress":
-        raise RuntimeError("replay obligation is not exactly in progress")
+    selected_heads = tuple(
+        heads.get(obligation_id)
+        for obligation_id in design.spec.replay_obligation_ids
+    )
+    allowed_selected_statuses = (
+        {"pending", "in_progress"}
+        if preflight_rejection is not None
+        else {"in_progress"}
+    )
+    if any(
+        head is None or head.status not in allowed_selected_statuses
+        for head in selected_heads
+    ):
+        raise RuntimeError(
+            "selected replay obligations are not exactly executable"
+        )
     _verify_no_candidate_or_holdout(writer, design)
     return {
         "candidate_created": False,
@@ -5238,6 +5909,10 @@ def verify_diagnose_postconditions(
             )
         }
         target = obligations.get(design.spec.target_obligation_id)
+        selected = {
+            obligation_id: obligations.get(obligation_id)
+            for obligation_id in design.spec.replay_obligation_ids
+        }
         pending = sorted(
             obligation_id
             for obligation_id, head in obligations.items()
@@ -5303,6 +5978,10 @@ def verify_diagnose_postconditions(
         or target is None
         or target.status not in {"satisfied", "deferred"}
         or any(
+            head is None or head.status not in {"satisfied", "deferred"}
+            for head in selected.values()
+        )
+        or any(
             control.get("scientific", {}).get(name) is not None
             for name in (
                 "active_batch",
@@ -5334,6 +6013,11 @@ def verify_diagnose_postconditions(
         "architecture_review_trigger_id": trigger_id,
         "pending_replay_obligation_ids": pending,
         "replay_obligation_status": target.status,
+        "replay_obligation_statuses": {
+            obligation_id: head.status
+            for obligation_id, head in selected.items()
+            if head is not None
+        },
     }
 
 
@@ -5404,6 +6088,7 @@ def run_diagnose_stage(
             cursor = recovered
         if step.event_kind in {
             "study_diagnosis_recorded",
+            "historical_replay_obligations_disposed",
             "historical_replay_obligations_resolved",
             "historical_replay_obligations_deferred",
         }:

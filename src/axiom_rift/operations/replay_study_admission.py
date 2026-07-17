@@ -406,7 +406,7 @@ def inspect_replay_study_registration(
         )
     }
 
-    def legacy_lineage_matches(
+    def exact_member_lineage_matches(
         executable: object,
         recorded_obligation_ids: object,
     ) -> bool:
@@ -458,8 +458,10 @@ def inspect_replay_study_registration(
             ValueError,
         ):
             return False
+        if len(matched) > 1:
+            return False
         return (
-            recorded_obligation_ids == sorted(matched)
+            recorded_obligation_ids == matched
             if matched
             else recorded_obligation_ids is None
         )
@@ -486,13 +488,13 @@ def inspect_replay_study_registration(
         recorded_replay_obligation_ids = (
             None if trial is None else trial.payload.get("replay_obligation_ids")
         )
-        full_lineage = recorded_replay_obligation_ids == replay_obligation_ids
-        legacy_lineage = (
-            not full_lineage
-            and legacy_lineage_matches(
-                trial_executable,
-                recorded_replay_obligation_ids,
-            )
+        exact_member_lineage = exact_member_lineage_matches(
+            trial_executable,
+            recorded_replay_obligation_ids,
+        )
+        legacy_full_lineage = (
+            not exact_member_lineage
+            and recorded_replay_obligation_ids == replay_obligation_ids
         )
         accounting_id = (
             canonical_digest(
@@ -566,7 +568,7 @@ def inspect_replay_study_registration(
             or trial.payload.get("scientific_eligible") is not True
             or trial.payload.get("scheduler_eligible") is not False
             or trial.payload.get("material_identity") != material_identity
-            or (not full_lineage and not legacy_lineage)
+            or (not exact_member_lineage and not legacy_full_lineage)
             or any(
                 trial.payload.get(name) != value
                 for name, value in study_lineage.items()
@@ -612,8 +614,14 @@ def inspect_replay_study_registration(
                 registered=tuple(registered),
                 detail="replay trial stream is not the exact frozen family prefix",
             )
+        # The historical full-Study projection is unambiguous for a singleton
+        # replay Study because the one selected obligation is also the exact
+        # member obligation.  Keep those durable prefixes resumable.  A plural
+        # Study that copied the complete obligation list onto every member is
+        # genuinely ambiguous and must not continue under exact member lineage.
         legacy_lineage_projection = (
-            legacy_lineage_projection or not full_lineage
+            legacy_lineage_projection
+            or (legacy_full_lineage and len(replay_obligation_ids) > 1)
         )
         registered.append(executable_id)
         prior_authority_sequence = trial.authority_sequence

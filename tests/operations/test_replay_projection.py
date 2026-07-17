@@ -24,8 +24,10 @@ from axiom_rift.operations.replay_projection import (
     initial_obligation_record,
     is_exact_replay_protocol_revision_selection,
     obligation_heads,
+    prepare_disposition,
     prepare_execution_progress,
     prepare_satisfaction_invalidation,
+    prepare_sibling_evidence_recertification,
     replay_evidence_record_ids,
     require_recorded_satisfaction,
     require_satisfaction,
@@ -45,8 +47,14 @@ from axiom_rift.research.historical_family_binding import (
     HistoricalMemberSpec,
 )
 from axiom_rift.research.replay_obligation import (
+    ReplayDeferral,
+    ReplayDeferralBasis,
+    ReplayDeferralBasisKind,
+    ReplayDeferralExecutionBinding,
     ReplayObligationStatus,
     ReplayResolutionScope,
+    ReplayResumeCondition,
+    ReplayResumeConditionKind,
     ReplaySatisfaction,
     derive_historical_replay_obligation,
 )
@@ -503,6 +511,126 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
         )
         self.assertEqual(post_family, ())
         self.assertEqual(post_family_records, [])
+
+    def test_mixed_disposition_is_one_exact_atomic_selected_transition(
+        self,
+    ) -> None:
+        first_executable_id = self._register_matching_trial(1)
+        second_executable_id = self._register_matching_trial(2)
+        first, second = self.obligations[:2]
+        diagnosis_id = "diagnosis:" + "a" * 64
+        close_record_id = "b" * 64
+        satisfaction = ReplaySatisfaction(
+            obligation_id=first.identity,
+            resolution_scope=ReplayResolutionScope.SCIENTIFIC,
+            portfolio_decision_id=DECISION_ID,
+            replay_study_id=self.study.record_id,
+            replay_executable_id=first_executable_id,
+            replay_study_close_record_id=close_record_id,
+            study_diagnosis_id=diagnosis_id,
+            satisfied_criterion_ids=first.criterion_ids,
+            evidence_record_ids=("evidence-a",),
+        )
+        deferral = ReplayDeferral(
+            obligation_id=second.identity,
+            basis=ReplayDeferralBasis(
+                kind=ReplayDeferralBasisKind.STUDY_DIAGNOSIS,
+                record_id=diagnosis_id,
+                subject_id=self.study.record_id,
+            ),
+            reason_codes=("selected_member_recomputation_partial",),
+            resume_conditions=(
+                ReplayResumeCondition(
+                    kind=(
+                        ReplayResumeConditionKind
+                        .REGISTERED_DEVELOPMENT_MATERIAL
+                    ),
+                    protocol_id="python.source.fixture.v1",
+                    original_executable_ids=(
+                        first.original_executable_id,
+                        second.original_executable_id,
+                    ),
+                    criterion_ids=second.criterion_ids,
+                ),
+            ),
+            execution_binding=ReplayDeferralExecutionBinding(
+                portfolio_decision_id=DECISION_ID,
+                replay_study_id=self.study.record_id,
+                replay_executable_id=second_executable_id,
+                replay_study_close_record_id=close_record_id,
+                study_diagnosis_id=diagnosis_id,
+            ),
+        )
+        selected_ids = sorted((first.identity, second.identity))
+        next_action = {
+            "kind": "resolve_historical_replay_obligations",
+            "replay_obligation_ids": selected_ids,
+            "resume_next_action": {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": "portfolio:" + "c" * 64,
+            },
+            "study_diagnosis_id": diagnosis_id,
+            "study_id": self.study.record_id,
+        }
+        patches = (
+            patch(
+                "axiom_rift.operations.replay_projection.require_satisfaction"
+            ),
+            patch(
+                "axiom_rift.operations.replay_projection."
+                "_require_resume_condition_surface"
+            ),
+            patch(
+                "axiom_rift.operations.replay_projection."
+                "_require_in_progress_deferral_basis"
+            ),
+        )
+        with patches[0], patches[1], patches[2]:
+            records, constraints, result = prepare_disposition(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                satisfactions=(satisfaction,),
+                deferrals=(deferral,),
+            )
+
+        self.assertEqual(
+            {
+                record.payload["obligation_id"]: (
+                    record.status,
+                    record.payload["prior_status"],
+                )
+                for record in records
+            },
+            {
+                first.identity: ("satisfied", "in_progress"),
+                second.identity: ("deferred", "in_progress"),
+            },
+        )
+        self.assertEqual(
+            result,
+            {
+                "deferred_replay_obligation_ids": [second.identity],
+                "effective_scope_overlay_ids": [],
+                "satisfied_replay_obligation_ids": [first.identity],
+            },
+        )
+        assert constraints is not None
+        self.assertEqual(
+            constraints["pending_replay_obligation_ids"],
+            sorted(item.identity for item in self.obligations[2:]),
+        )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "exact next action",
+        ):
+            prepare_disposition(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action={**next_action, "replay_obligation_ids": [first.identity]},
+                satisfactions=(satisfaction,),
+                deferrals=(deferral,),
+            )
 
     def test_selected_p0_family_admits_only_exact_frozen_p1_controls(self) -> None:
         payloads: list[dict[str, object]] = []
@@ -1358,6 +1486,8 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
         project_registration: bool = True,
         project_durable_batch_binding: bool = False,
         durable_batch_binding_mutation: str | None = None,
+        historical_reference_by_member: dict[int, str] | None = None,
+        project_batch_stream: bool = False,
     ):
         historical_payload = {
             "adjudication": {
@@ -1467,6 +1597,14 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
                         }
                     }
                 },
+                **(
+                    {
+                        "event_stream": f"study-batches:{self.STUDY_ID}",
+                        "event_sequence": 1,
+                    }
+                    if project_batch_stream
+                    else {}
+                ),
             ),
         ]
         completion_ids: list[str] = []
@@ -1599,7 +1737,12 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
                 "parameters": {},
                 "schema": "multiplicity_replay_fixture.v1",
             }
-            if executable_id == target_id:
+            historical_reference = (
+                obligation.original_executable_id
+                if executable_id == target_id
+                else (historical_reference_by_member or {}).get(ordinal)
+            )
+            if historical_reference is not None:
                 executable["component_manifests"] = [
                     {
                         "spec": {
@@ -1611,7 +1754,7 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
                 ]
                 executable["parameters"][
                     "historical_reference_executable_id"
-                ] = obligation.original_executable_id
+                ] = historical_reference
             records.extend(
                 (
                     IndexRecord(
@@ -1625,6 +1768,16 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
                             "replay_obligation_ids": [obligation.identity],
                             "study_id": self.STUDY_ID,
                         },
+                        **(
+                            {
+                                "event_stream": (
+                                    f"batch-trials:{self.BATCH_ID}"
+                                ),
+                                "event_sequence": ordinal,
+                            }
+                            if project_batch_stream
+                            else {}
+                        ),
                     ),
                     IndexRecord(
                         kind="job-declared",
@@ -1875,6 +2028,148 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
             allow_legacy_decision_binding=False,
             satisfaction_head=head,
         )
+
+    def _add_pending_sibling_obligation(
+        self,
+        *,
+        source_obligation,
+        original_executable_id: str,
+        original_study_id: str | None = None,
+    ):
+        source_adjudication = self.index.get(
+            "historical-scientific-adjudication",
+            source_obligation.historical_adjudication_id,
+        )
+        self.assertIsNotNone(source_adjudication)
+        assert source_adjudication is not None
+        payload = deepcopy(source_adjudication.payload)
+        payload.update(
+            {
+                "audit_artifact_hash": "9" * 64,
+                "completion_record_id": "a" * 64,
+                "executable_id": original_executable_id,
+                "measurement_artifact_hash": "b" * 64,
+                "study_close_record_id": "c" * 64,
+                "study_id": (
+                    source_obligation.original_study_id
+                    if original_study_id is None
+                    else original_study_id
+                ),
+                "validation_plan_hash": "d" * 64,
+            }
+        )
+        adjudication_id = "historical-adjudication:" + "9" * 64
+        sibling = derive_historical_replay_obligation(
+            governing_mission_id=MISSION_ID,
+            historical_adjudication_id=adjudication_id,
+            adjudication_payload=payload,
+        )
+        self.index.put_many(
+            (
+                IndexRecord(
+                    kind="historical-scientific-adjudication",
+                    record_id=adjudication_id,
+                    subject=f"Study:{sibling.original_study_id}",
+                    status="replay_required",
+                    fingerprint="9" * 64,
+                    payload=payload,
+                ),
+                initial_obligation_record(sibling),
+            )
+        )
+        return sibling
+
+    def test_exact_omitted_sibling_recertifies_without_new_authority_delta(
+        self,
+    ) -> None:
+        sibling_reference = "executable:" + "a" * 64
+        source_obligation, source_satisfaction = self._seed_satisfied(
+            historical_reference_by_member={2: sibling_reference},
+            project_batch_stream=True,
+        )
+        sibling = self._add_pending_sibling_obligation(
+            source_obligation=source_obligation,
+            original_executable_id=sibling_reference,
+        )
+
+        derived, records, constraints, result = (
+            prepare_sibling_evidence_recertification(
+                self.index,
+                mission_id=MISSION_ID,
+                source_satisfaction_ids=(source_satisfaction.identity,),
+                obligation_ids=(sibling.identity,),
+            )
+        )
+
+        self.assertEqual(len(derived), 1)
+        self.assertEqual(derived[0].obligation_id, sibling.identity)
+        self.assertNotEqual(
+            derived[0].replay_executable_id,
+            source_satisfaction.replay_executable_id,
+        )
+        self.assertEqual(
+            [record.kind for record in records],
+            ["historical-replay-obligation-resolution"],
+        )
+        self.assertIsNone(constraints)
+        self.assertEqual(
+            result,
+            {
+                "candidate_delta": 0,
+                "holdout_reveal_delta": 0,
+                "satisfied_replay_obligation_ids": [sibling.identity],
+                "source_satisfaction_ids": [source_satisfaction.identity],
+                "trial_delta": 0,
+            },
+        )
+
+    def test_ambiguous_omitted_sibling_family_fails_closed(self) -> None:
+        sibling_reference = "executable:" + "a" * 64
+        source_obligation, source_satisfaction = self._seed_satisfied(
+            historical_reference_by_member={
+                2: sibling_reference,
+                3: sibling_reference,
+            },
+            project_batch_stream=True,
+        )
+        sibling = self._add_pending_sibling_obligation(
+            source_obligation=source_obligation,
+            original_executable_id=sibling_reference,
+        )
+
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "one exact closed family member",
+        ):
+            prepare_sibling_evidence_recertification(
+                self.index,
+                mission_id=MISSION_ID,
+                source_satisfaction_ids=(source_satisfaction.identity,),
+                obligation_ids=(sibling.identity,),
+            )
+
+    def test_mismatched_omitted_sibling_family_fails_closed(self) -> None:
+        sibling_reference = "executable:" + "a" * 64
+        source_obligation, source_satisfaction = self._seed_satisfied(
+            historical_reference_by_member={2: sibling_reference},
+            project_batch_stream=True,
+        )
+        sibling = self._add_pending_sibling_obligation(
+            source_obligation=source_obligation,
+            original_executable_id=sibling_reference,
+            original_study_id="STU-HIST-OTHER",
+        )
+
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "one exact closed family member",
+        ):
+            prepare_sibling_evidence_recertification(
+                self.index,
+                mission_id=MISSION_ID,
+                source_satisfaction_ids=(source_satisfaction.identity,),
+                obligation_ids=(sibling.identity,),
+            )
 
     def test_recorded_satisfaction_ignores_future_protocol_implementation(
         self,

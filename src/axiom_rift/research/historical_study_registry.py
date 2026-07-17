@@ -105,8 +105,40 @@ HISTORICAL_FAMILY_IDENTITY_BY_MODULE = {
     ),
 }
 
+# A family authority is target-specific, while the frozen reconstruction
+# source describes one immutable concurrent family.  Core identities let a
+# sibling obligation bind another exact member without copying or rerunning
+# the family and without weakening source-byte authentication.
+HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE = {
+    "historical_family_stu0016.py": (
+        "historical-family-core:"
+        "0a322604d8bbd3bcf774cf2d659caa37f0b5d30747b55efeaec63e496584f58a"
+    ),
+    "historical_family_stu0017.py": (
+        "historical-family-core:"
+        "35c6c924b3b258f04492e8ff384dbb8bfcaf31ecc11c5bd447f1cc1506021d12"
+    ),
+    "historical_family_stu0032.py": (
+        "historical-family-core:"
+        "658594295b68a2617f17740c6f16128ef1f73af31ffe9caf9969c9c8eb526af0"
+    ),
+    "historical_family_stu0048.py": (
+        "historical-family-core:"
+        "aaac80b29b829208c71953aa7bfc95c749985b62ba2ba350b26790e26efcf4c6"
+    ),
+    "historical_family_stu0051.py": (
+        "historical-family-core:"
+        "85ca66933fd366cee158bd8abc10b37b2ba057219a5a6d331081c1213586f5fa"
+    ),
+    "historical_family_stu0061.py": (
+        "historical-family-core:"
+        "71f058b171cd0600fea08e423fe5471e4da0f5d08407bfefae626c049e70f9e5"
+    ),
+}
+
 
 __all__ = [
+    "HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE",
     "HISTORICAL_FAMILY_IDENTITY_BY_MODULE",
     "HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256",
 ]

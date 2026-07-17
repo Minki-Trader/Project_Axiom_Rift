@@ -1438,17 +1438,24 @@ def validated_replay_job_scientific_surface(
             "stop_rule",
         },
     )
-    acceptance = _exact_surface_keys(
+    raw_acceptance = _mapping(
         "replay scientific acceptance profile",
         batch.get("acceptance_profile"),
-        {
-            "candidate_authority",
-            "concurrent_family",
-            "exact_original_criteria",
-            "historical_family_authority_id",
-            "historical_family_identity",
-            "replay_obligation_id",
-        },
+    )
+    acceptance_fields = {
+        "candidate_authority",
+        "concurrent_family",
+        "exact_original_criteria",
+        "historical_family_authority_id",
+        "historical_family_identity",
+        "replay_obligation_id",
+    }
+    if "replay_member_assignment_set_id" in raw_acceptance:
+        acceptance_fields.add("replay_member_assignment_set_id")
+    acceptance = _exact_surface_keys(
+        "replay scientific acceptance profile",
+        raw_acceptance,
+        acceptance_fields,
     )
     concurrent = _exact_surface_keys(
         "replay scientific concurrent family",
@@ -1470,6 +1477,15 @@ def validated_replay_job_scientific_surface(
         acceptance.get("historical_family_identity"),
         "historical-family:",
     )
+    assignment_set_id = acceptance.get(
+        "replay_member_assignment_set_id"
+    )
+    if assignment_set_id is not None:
+        _prefixed(
+            "replay member assignment set",
+            assignment_set_id,
+            "replay-member-assignment-set:",
+        )
     members = value.get("members")
     if not isinstance(members, list) or not members:
         raise ReplayJobImplementationPreflightError(

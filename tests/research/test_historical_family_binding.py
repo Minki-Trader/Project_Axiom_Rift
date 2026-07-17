@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from importlib import import_module
 
 import pytest
 
@@ -12,7 +13,11 @@ from axiom_rift.research.historical_family_binding import (
     HistoricalFamilySpec,
     HistoricalMemberSpec,
     historical_family_authority_from_payload,
+    historical_family_core_identity,
     historical_family_from_manifest,
+)
+from axiom_rift.research.historical_study_registry import (
+    HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE,
 )
 
 
@@ -94,6 +99,94 @@ def test_typed_family_manifest_round_trips_exact_identity_and_values() -> None:
     ) == tuple(member.parameter_values() for member in family.members)
     assert tuple(control.manifest() for control in rebuilt.controls) == tuple(
         control.manifest() for control in family.controls
+    )
+
+
+def test_family_core_identity_is_independent_of_selected_target() -> None:
+    primary = _family()
+    sibling_target = HistoricalFamilySpec(
+        original_study_id=primary.original_study_id,
+        original_batch_id=primary.original_batch_id,
+        target_historical_executable_id=_executable(1),
+        members=primary.members,
+        controls=primary.controls,
+    )
+
+    assert primary.identity != sibling_target.identity
+    assert historical_family_core_identity(primary) == (
+        historical_family_core_identity(sibling_target)
+    )
+
+
+def test_family_core_identity_changes_with_exact_membership() -> None:
+    primary = _family()
+    replacement_reference = _executable(5)
+    replacement_members = (
+        HistoricalMemberSpec(
+            ordinal=1,
+            configuration_id="configuration-1",
+            historical_reference_executable_id=replacement_reference,
+            parameters=primary.members[0].parameter_values(),
+        ),
+        *primary.members[1:],
+    )
+    replacement_controls = (
+        ControlBinding(
+            subject_historical_executable_id=replacement_reference,
+            opposite_historical_executable_id=_executable(2),
+            feature_historical_executable_ids=(_executable(3),),
+        ),
+        ControlBinding(
+            subject_historical_executable_id=_executable(2),
+            opposite_historical_executable_id=replacement_reference,
+            feature_historical_executable_ids=(_executable(4),),
+        ),
+        ControlBinding(
+            subject_historical_executable_id=_executable(3),
+            opposite_historical_executable_id=_executable(4),
+            feature_historical_executable_ids=(replacement_reference,),
+        ),
+        ControlBinding(
+            subject_historical_executable_id=_executable(4),
+            opposite_historical_executable_id=_executable(3),
+            feature_historical_executable_ids=(_executable(2),),
+        ),
+    )
+    changed_membership = HistoricalFamilySpec(
+        original_study_id=primary.original_study_id,
+        original_batch_id=primary.original_batch_id,
+        target_historical_executable_id=_executable(4),
+        members=replacement_members,
+        controls=replacement_controls,
+    )
+
+    assert historical_family_core_identity(primary) != (
+        historical_family_core_identity(changed_membership)
+    )
+
+
+@pytest.mark.parametrize(
+    "module_filename",
+    tuple(sorted(HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE)),
+)
+def test_registered_historical_family_core_matches_frozen_module(
+    module_filename: str,
+) -> None:
+    module = import_module(
+        "axiom_rift.research." + module_filename.removesuffix(".py")
+    )
+    historical_families = tuple(
+        value
+        for name, value in vars(module).items()
+        if name.endswith("_HISTORICAL_FAMILY")
+    )
+    assert len(historical_families) == 1
+    bound_family = historical_family_from_manifest(
+        historical_families[0].manifest()
+    )
+
+    assert historical_family_core_identity(bound_family) == (
+        HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE[module_filename]
     )
 
 

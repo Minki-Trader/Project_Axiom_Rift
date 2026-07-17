@@ -181,6 +181,7 @@ def require_replay_initiative_binding(
             frozenset(
                 {
                     "historical_replay_obligations_deferred",
+                    "historical_replay_obligations_disposed",
                     "historical_replay_obligations_resolved",
                 }
             ),

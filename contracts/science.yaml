@@ -629,7 +629,15 @@ project_goal_audit_v2_protocol:
     first_trial_or_position_fallback_allowed: false
     one_new_executable_satisfies_at_most_one_original: true
     family_level_evidence_satisfies_unmatched_member: false
+    selected_family_members_require_exact_obligation_bijection: true
+    unselected_controls_remain_statistical_but_not_obligation_members: true
+    pending_member_family_authority_is_registration_not_scientific_evidence: true
+    family_authority_registration_may_be_batched_without_research_credit: true
     satisfaction_requires_recomputed_original_criteria: true
+    already_computed_sibling_satisfaction_requires_exact_closed_member_evidence: true
+    caller_asserted_or_family_fallback_sibling_satisfaction_allowed: false
+    partial_family_engineering_failure_preserves_valid_member_science: true
+    unresolved_selected_members_are_deferred_individually: true
     defer_requires_typed_exact_resume_condition: true
     satisfied_authority_reaudit:
       additive_original_records_preserved: true

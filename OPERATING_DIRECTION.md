@@ -1076,6 +1076,33 @@ runtime_eligible; semantic change requires a new source contract.
   priority overlay bound to that exact invalidity, satisfaction, adjudication,
   and audit. The scheduler uses the effective priority; no demotion, duplicate
   obligation, rewritten lineage, or scientific credit is allowed.
+- [MUST] OD-AUD-045 One concurrent replay Batch may progress multiple selected
+  ReplayObligations only through a canonical one-to-one assignment from each
+  obligation to its original Executable, prospective Executable, exact
+  criteria, and target-specific historical-family authority. Unselected
+  statistical controls remain in the preregistered family but progress no
+  ReplayObligation. Copying the full obligation list onto every trial is not
+  lineage authority.
+- [MUST] OD-AUD-046 When an already-closed replay Study actually executed and
+  validly adjudicated an omitted sibling member, the Writer may grant additive
+  satisfaction without rerunning computation only by deriving it from the
+  exact current source satisfaction, Decision, Study, Batch, trial, successful
+  completion, close, diagnosis, criteria, multiplicity, and target-specific
+  frozen-family authority whose immutable family core and source bytes match
+  the source Study authority. Caller-provided satisfaction, family fallback,
+  new trial, candidate, holdout, or claim credit is forbidden.
+- [MUST] OD-AUD-047 A partially completed replay family preserves every selected
+  member whose exact criteria were validly recomputed and defers only unresolved
+  selected members. The Writer commits mixed satisfaction and deferral in one
+  event, advances the shared diagnosed next action once, and never discards
+  valid evidence merely because a later member had an engineering failure.
+- [MUST] OD-AUD-048 Target-specific historical-family authority for pending
+  replay members is admitted once per exact immutable family, in one bounded
+  Writer event when useful. Admission reauthenticates source bytes, original
+  Study, Batch, member order, parameters, controls, and current pending heads;
+  it creates no trial, claim, candidate, holdout, satisfaction, or scheduling
+  change. Missing admission authority cannot justify repeating a family per
+  member.
 
 ## 23. Governing Principle
 

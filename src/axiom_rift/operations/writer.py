@@ -16288,10 +16288,10 @@ class StateWriter:
                     **(
                         {
                             "replay_obligation_ids": list(
-                                study_replay_obligation_ids
+                                progressed_replay_obligation_ids
                             )
                         }
-                        if study_replay_obligation_ids
+                        if progressed_replay_obligation_ids
                         else {}
                     ),
                 },
@@ -20083,12 +20083,9 @@ class StateWriter:
         from axiom_rift.research.replay_satisfaction_invalidation import (
             replay_satisfaction_invalidation_manifest_from_bytes,
         )
-        from axiom_rift.research.historical_study_registry import (
-            HISTORICAL_FAMILY_IDENTITY_BY_MODULE,
-            HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
-        )
-        from axiom_rift.research.replay_obligation import (
-            historical_replay_obligation_from_identity_payload,
+        from axiom_rift.operations.historical_family_authority_admission import (
+            HistoricalFamilyAuthorityAdmissionError,
+            prepare_historical_family_authority_record,
         )
 
         if (
@@ -20133,183 +20130,14 @@ class StateWriter:
                 raise TransitionError(
                     "historical family authority targets another obligation"
                 )
-            relative = family_authority.reconstruction_source_path
-            expected_prefix = "src/axiom_rift/research/"
-            if (
-                not relative.startswith(expected_prefix)
-                or "/" in relative.removeprefix(expected_prefix)
-            ):
-                raise TransitionError(
-                    "historical family authority source is outside the frozen registry"
-                )
-            source = self.root / relative
             try:
-                resolved_root = self.root.resolve(strict=True)
-                resolved_source = source.resolve(strict=True)
-                resolved_source.relative_to(resolved_root)
-                content = resolved_source.read_bytes()
-            except (OSError, ValueError) as exc:
-                raise TransitionError(
-                    "historical family authority source is unavailable"
-                ) from exc
-            observed_sha256 = sha256(content).hexdigest()
-            registered_sha256 = HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256.get(
-                resolved_source.name
-            )
-            registered_family_identity = (
-                HISTORICAL_FAMILY_IDENTITY_BY_MODULE.get(
-                    resolved_source.name
+                return prepare_historical_family_authority_record(
+                    repository_root=self.root,
+                    index=index,
+                    authority=family_authority,
                 )
-            )
-            if (
-                source.is_symlink()
-                or observed_sha256
-                != family_authority.reconstruction_source_sha256
-                or registered_sha256 != observed_sha256
-                or registered_family_identity
-                != family_authority.family.identity
-            ):
-                raise TransitionError(
-                    "historical family authority source differs from frozen history"
-                )
-            initial = index.get("historical-replay-obligation", obligation_id)
-            raw_obligation = (
-                None if initial is None else initial.payload.get("obligation")
-            )
-            try:
-                obligation = historical_replay_obligation_from_identity_payload(
-                    raw_obligation
-                )
-            except (TypeError, ValueError) as exc:
-                raise RecoveryRequired(
-                    "historical family authority obligation is malformed"
-                ) from exc
-            family = family_authority.family
-            batch = index.get("batch-open", family.original_batch_id)
-            study = index.get("study-open", family.original_study_id)
-            batch_spec = None if batch is None else batch.payload.get("spec")
-            batch_digest = (
-                None
-                if not isinstance(batch_spec, Mapping)
-                else canonical_digest(
-                    domain="batch-spec",
-                    payload=dict(batch_spec),
-                )
-            )
-            stream = f"batch-trials:{family.original_batch_id}"
-            head = index.event_head(stream)
-            if (
-                initial is None
-                or obligation.identity != obligation_id
-                or family.original_study_id != obligation.original_study_id
-                or family.target_historical_executable_id
-                != obligation.original_executable_id
-                or batch is None
-                or batch.kind != "batch-open"
-                or batch.record_id != family.original_batch_id
-                or batch.subject != f"Study:{family.original_study_id}"
-                or batch.status != "open"
-                or batch_digest is None
-                or batch.record_id != f"batch:{batch_digest}"
-                or batch.fingerprint != batch_digest
-                or batch.payload.get("batch_hash") != batch_digest
-                or batch_spec.get("max_trials") != family.family_size
-                or study is None
-                or study.kind != "study-open"
-                or study.record_id != family.original_study_id
-                or study.subject != f"Study:{family.original_study_id}"
-                or batch_spec.get("study_hash") != study.fingerprint
-                or head is None
-                or head.sequence != family.family_size
-            ):
-                raise TransitionError(
-                    "historical family authority differs from obligation history"
-                )
-            for ordinal, member in enumerate(family.members, start=1):
-                trial = index.event_record(stream, ordinal)
-                executable = (
-                    None if trial is None else trial.payload.get("executable")
-                )
-                executable_parameters = (
-                    None
-                    if not isinstance(executable, Mapping)
-                    else executable.get("parameters")
-                )
-                expected_parameters = member.parameter_values()
-                missing_parameters = (
-                    set()
-                    if not isinstance(executable_parameters, Mapping)
-                    else set(expected_parameters).difference(
-                        executable_parameters
-                    )
-                )
-                if (
-                    trial is None
-                    or trial.kind != "trial"
-                    or trial.status != "evaluated"
-                    or trial.record_id
-                    != member.historical_reference_executable_id
-                    or trial.subject != f"Batch:{family.original_batch_id}"
-                    or trial.event_stream != stream
-                    or trial.event_sequence != ordinal
-                    or trial.payload.get("study_id")
-                    != family.original_study_id
-                    or not isinstance(executable, Mapping)
-                    or trial.record_id
-                    != "executable:"
-                    + canonical_digest(
-                        domain="executable",
-                        payload=dict(executable),
-                    )
-                    or trial.fingerprint
-                    != trial.record_id.removeprefix("executable:")
-                    or not isinstance(executable_parameters, Mapping)
-                    or missing_parameters
-                    != set(
-                        family_authority.reconstruction_only_parameter_names
-                    )
-                    or any(
-                        executable_parameters.get(name) != value
-                        for name, value in expected_parameters.items()
-                        if name not in missing_parameters
-                    )
-                ):
-                    raise TransitionError(
-                        "historical family authority member order differs from history"
-                    )
-            final_trial = index.event_record(stream, family.family_size)
-            if (
-                final_trial is None
-                or final_trial.record_id != head.record_id
-                or final_trial.fingerprint != head.fingerprint
-            ):
-                raise TransitionError(
-                    "historical family authority trial head is inconsistent"
-                )
-            if index.get(
-                "historical-family-authority",
-                family_authority.identity,
-            ) is not None:
-                raise RecoveryRequired(
-                    "historical family authority identity already exists"
-                )
-            if index.records_by_subject_status(
-                f"ReplayObligation:{obligation_id}",
-                "accepted",
-            ):
-                raise RecoveryRequired(
-                    "replay obligation already has accepted family authority"
-                )
-            return IndexRecord(
-                kind="historical-family-authority",
-                record_id=family_authority.identity,
-                subject=f"ReplayObligation:{obligation_id}",
-                status="accepted",
-                fingerprint=family_authority.identity.removeprefix(
-                    "historical-family-authority:"
-                ),
-                payload=family_authority.to_identity_payload(),
-            )
+            except HistoricalFamilyAuthorityAdmissionError as exc:
+                raise TransitionError(str(exc)) from exc
         self._require_study_close_delivery_guard()
 
         def prepare(current: dict[str, Any] | None, index: LocalIndex):
@@ -20419,6 +20247,155 @@ class StateWriter:
             prepare=prepare,
         )
 
+    @staticmethod
+    def _require_replay_scheduler_boundary(
+        current: Mapping[str, Any] | None,
+        index: LocalIndex,
+        *,
+        operation_name: str,
+    ) -> tuple[str, Mapping[str, Any]]:
+        """Authenticate one idle Mission scheduler boundary without mutation."""
+
+        from axiom_rift.operations.replay_projection import scheduler_constraints
+
+        if current is None:
+            raise TransitionError(f"{operation_name} requires control")
+        science = current["scientific"]
+        mission_id = science.get("active_mission")
+        next_action = current.get("next_action")
+        if (
+            not isinstance(mission_id, str)
+            or not isinstance(next_action, Mapping)
+            or next_action.get("kind")
+            not in {
+                "choose_next_initiative_or_terminal",
+                "portfolio_decision",
+            }
+            or any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            )
+        ):
+            raise TransitionError(
+                f"{operation_name} requires a stable scheduler boundary"
+            )
+        current_constraints = scheduler_constraints(
+            index,
+            mission_id=mission_id,
+        )
+        projected_constraints = {
+            name: next_action.get(name)
+            for name in (
+                "pending_replay_obligation_ids",
+                "required_replay_priority",
+            )
+            if next_action.get(name) is not None
+        }
+        if projected_constraints != (current_constraints or {}):
+            raise TransitionError(
+                f"{operation_name} scheduler authority is stale"
+            )
+        return mission_id, next_action
+
+    def register_historical_replay_family_authorities(
+        self,
+        *,
+        historical_family_authorities: Sequence[HistoricalFamilyAuthority],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Register exact pending-member family authority without research credit."""
+
+        from axiom_rift.operations.historical_family_authority_admission import (
+            HistoricalFamilyAuthorityAdmissionError,
+            prepare_historical_family_authority_record,
+        )
+        from axiom_rift.operations.replay_projection import obligation_heads
+
+        normalized = tuple(
+            sorted(
+                historical_family_authorities,
+                key=lambda item: getattr(item, "replay_obligation_id", ""),
+            )
+        )
+        obligation_ids = tuple(
+            item.replay_obligation_id
+            for item in normalized
+            if isinstance(item, HistoricalFamilyAuthority)
+        )
+        if (
+            not normalized
+            or len(obligation_ids) != len(normalized)
+            or len(set(obligation_ids)) != len(obligation_ids)
+        ):
+            raise TransitionError(
+                "historical family authority registration request is invalid"
+            )
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            mission_id, _next_action = self._require_replay_scheduler_boundary(
+                current,
+                index,
+                operation_name="historical family authority registration",
+            )
+            heads = {
+                obligation.identity: head
+                for obligation, head in obligation_heads(
+                    index,
+                    mission_id=mission_id,
+                )
+            }
+            if any(
+                heads.get(obligation_id) is None
+                or heads[obligation_id].status != "pending"
+                for obligation_id in obligation_ids
+            ):
+                raise TransitionError(
+                    "historical family authority target is not exactly pending"
+                )
+            try:
+                records = [
+                    prepare_historical_family_authority_record(
+                        repository_root=self.root,
+                        index=index,
+                        authority=authority,
+                    )
+                    for authority in normalized
+                ]
+            except HistoricalFamilyAuthorityAdmissionError as exc:
+                raise TransitionError(str(exc)) from exc
+            return self._body(current), records, {
+                "candidate_delta": 0,
+                "historical_family_authority_ids": [
+                    record.record_id for record in records
+                ],
+                "holdout_reveal_delta": 0,
+                "replay_obligation_ids": list(obligation_ids),
+                "scientific_claim_delta": 0,
+                "scientific_trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="historical_replay_family_authorities_registered",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "historical_family_authorities": [
+                    item.to_identity_payload() for item in normalized
+                ]
+            },
+            prepare=prepare,
+        )
+
     def resolve_historical_replay_obligations(
         self,
         *,
@@ -20474,6 +20451,125 @@ class StateWriter:
             subject="Mission:active",
             payload={
                 "satisfactions": [item.to_identity_payload() for item in normalized]
+            },
+            prepare=prepare,
+        )
+
+    def recertify_historical_replay_sibling_evidence(
+        self,
+        *,
+        source_satisfaction_ids: Sequence[str],
+        historical_family_authorities: Sequence[HistoricalFamilyAuthority],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Credit omitted exact siblings without new trials or caller verdicts."""
+
+        from axiom_rift.operations.historical_family_authority_admission import (
+            HistoricalFamilyAuthorityAdmissionError,
+            prepare_historical_family_authority_record,
+            require_sibling_recertification_family_core,
+        )
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_sibling_evidence_recertification,
+        )
+
+        normalized_sources = tuple(sorted(set(source_satisfaction_ids)))
+        normalized_authorities = tuple(
+            sorted(
+                historical_family_authorities,
+                key=lambda item: getattr(item, "replay_obligation_id", ""),
+            )
+        )
+        obligation_ids = tuple(
+            item.replay_obligation_id
+            for item in normalized_authorities
+            if isinstance(item, HistoricalFamilyAuthority)
+        )
+        if (
+            not normalized_sources
+            or len(normalized_sources) != len(source_satisfaction_ids)
+            or not normalized_authorities
+            or len(obligation_ids) != len(normalized_authorities)
+            or len(set(obligation_ids)) != len(obligation_ids)
+        ):
+            raise TransitionError(
+                "historical sibling recertification request is invalid"
+            )
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            mission_id, next_action = self._require_replay_scheduler_boundary(
+                current,
+                index,
+                operation_name="historical sibling recertification",
+            )
+            try:
+                (
+                    _derived_satisfactions,
+                    satisfaction_records,
+                    constraints,
+                    result,
+                ) = prepare_sibling_evidence_recertification(
+                    index,
+                    mission_id=mission_id,
+                    source_satisfaction_ids=normalized_sources,
+                    obligation_ids=obligation_ids,
+                )
+                family_records = [
+                    prepare_historical_family_authority_record(
+                        repository_root=self.root,
+                        index=index,
+                        authority=authority,
+                    )
+                    for authority in normalized_authorities
+                ]
+                authority_by_obligation = {
+                    authority.replay_obligation_id: authority
+                    for authority in normalized_authorities
+                }
+                for satisfaction in _derived_satisfactions:
+                    target_authority = authority_by_obligation.get(
+                        satisfaction.obligation_id
+                    )
+                    if target_authority is None:
+                        raise HistoricalFamilyAuthorityAdmissionError(
+                            "sibling recertification target authority is absent"
+                        )
+                    require_sibling_recertification_family_core(
+                        index,
+                        target_authority=target_authority,
+                        source_replay_study_id=satisfaction.replay_study_id,
+                    )
+            except HistoricalFamilyAuthorityAdmissionError as exc:
+                raise TransitionError(str(exc)) from exc
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                next_action,
+                constraints,
+            )
+            return body, [*family_records, *satisfaction_records], {
+                **result,
+                "historical_family_authority_ids": [
+                    record.record_id for record in family_records
+                ],
+            }
+
+        return self._commit(
+            event_kind="historical_replay_sibling_evidence_recertified",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "historical_family_authorities": [
+                    item.to_identity_payload()
+                    for item in normalized_authorities
+                ],
+                "source_satisfaction_ids": list(normalized_sources),
             },
             prepare=prepare,
         )
@@ -20539,6 +20635,104 @@ class StateWriter:
             subject="Mission:active",
             payload={
                 "deferrals": [item.to_identity_payload() for item in normalized]
+            },
+            prepare=prepare,
+        )
+
+    def dispose_historical_replay_obligations(
+        self,
+        *,
+        satisfactions: Sequence[Any],
+        deferrals: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Atomically satisfy completed members and defer unresolved peers."""
+
+        from axiom_rift.research.replay_obligation import (
+            ReplayDeferral,
+            ReplaySatisfaction,
+        )
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_disposition,
+        )
+
+        normalized_satisfactions = tuple(
+            sorted(
+                satisfactions,
+                key=lambda item: getattr(item, "obligation_id", ""),
+            )
+        )
+        normalized_deferrals = tuple(
+            sorted(
+                deferrals,
+                key=lambda item: getattr(item, "obligation_id", ""),
+            )
+        )
+        satisfaction_ids = {
+            item.obligation_id
+            for item in normalized_satisfactions
+            if isinstance(item, ReplaySatisfaction)
+        }
+        deferral_ids = {
+            item.obligation_id
+            for item in normalized_deferrals
+            if isinstance(item, ReplayDeferral)
+        }
+        if (
+            not normalized_satisfactions
+            or not normalized_deferrals
+            or len(satisfaction_ids) != len(normalized_satisfactions)
+            or len(deferral_ids) != len(normalized_deferrals)
+            or satisfaction_ids.intersection(deferral_ids)
+        ):
+            raise TransitionError("mixed replay disposition request is invalid")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("mixed replay disposition requires control")
+            mission_id = current["scientific"].get("active_mission")
+            next_action = current.get("next_action")
+            if not isinstance(mission_id, str) or not isinstance(
+                next_action,
+                dict,
+            ):
+                raise TransitionError(
+                    "mixed replay disposition requires an active Mission"
+                )
+            try:
+                records, constraints, result = prepare_disposition(
+                    index,
+                    mission_id=mission_id,
+                    next_action=next_action,
+                    satisfactions=normalized_satisfactions,
+                    deferrals=normalized_deferrals,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                next_action["resume_next_action"],
+                constraints,
+            )
+            return body, records, result
+
+        return self._commit(
+            event_kind="historical_replay_obligations_disposed",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "deferrals": [
+                    item.to_identity_payload()
+                    for item in normalized_deferrals
+                ],
+                "satisfactions": [
+                    item.to_identity_payload()
+                    for item in normalized_satisfactions
+                ],
             },
             prepare=prepare,
         )

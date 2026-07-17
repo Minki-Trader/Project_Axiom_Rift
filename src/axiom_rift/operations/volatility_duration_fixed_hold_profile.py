@@ -6,6 +6,7 @@ from axiom_rift.operations.bound_fixed_hold_profile import (
     BoundFixedHoldExposureContext,
     project_bound_fixed_hold_exposure_context,
     require_bound_fixed_hold_family_authority,
+    require_bound_fixed_hold_family_authorities,
     require_bound_fixed_hold_registration_prefix,
 )
 from axiom_rift.operations.fixed_hold_replay_workflow import (
@@ -155,12 +156,17 @@ def build_volatility_duration_fixed_hold_profile_design(
     spec: FixedHoldReplayMissionSpec,
     historical_family_authority_id: str,
     semantic_question_lineage: SemanticQuestionLineageProposal,
+    additional_historical_family_authority_ids: tuple[str, ...] = (),
 ) -> FixedHoldReplayDesign:
-    family_authority = require_volatility_duration_fixed_hold_family_authority(
+    family_authorities = require_bound_fixed_hold_family_authorities(
         writer,
         spec=spec,
         historical_family_authority_id=historical_family_authority_id,
+        additional_historical_family_authority_ids=(
+            additional_historical_family_authority_ids
+        ),
     )
+    family_authority = family_authorities[0]
     exposure = project_volatility_duration_fixed_hold_exposure_context(
         writer,
         spec=spec,
@@ -207,6 +213,12 @@ def build_volatility_duration_fixed_hold_profile_design(
         ),
         historical_family_manifest=family_authority.family.manifest(),
         historical_family_authority_id=family_authority.identity,
+        additional_historical_family_authority_ids=tuple(
+            sorted(
+                authority.identity
+                for authority in family_authorities[1:]
+            )
+        ),
         criterion_ids=criterion_ids,
         causal_question=VOLATILITY_DURATION_FIXED_HOLD_CAUSAL_QUESTION,
         mechanism_family=(

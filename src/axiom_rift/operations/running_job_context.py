@@ -11,9 +11,11 @@ from typing import Any, Protocol
 
 import axiom_rift.operations.recorded_transition_authority as recorded_transition_authority_module
 import axiom_rift.operations.scientific_history as scientific_history_module
+import axiom_rift.operations.historical_family_authority_admission as historical_family_authority_admission_module
 from axiom_rift.operations import completion_validity_projection
 import axiom_rift.research.historical_family_binding as historical_family_binding_module
 import axiom_rift.research.replay_exposure as replay_exposure_module
+import axiom_rift.research.replay_member_assignment as replay_member_assignment_module
 import axiom_rift.research.replay_obligation as replay_obligation_module
 import axiom_rift.research.replay_satisfaction_invalidation as replay_satisfaction_invalidation_module
 import axiom_rift.research.semantic_question as semantic_question_module
@@ -45,11 +47,14 @@ from axiom_rift.operations.completion_validity_projection import (
     CompletionValidityProjectionError,
     current_completion_validity_invalidation,
 )
+from axiom_rift.operations.historical_family_authority_admission import (
+    HistoricalFamilyAuthorityAdmissionError,
+    require_recorded_historical_family_authority,
+)
 from axiom_rift.research.replay_exposure import FrozenFamilyExposureContext
 from axiom_rift.research.historical_family_binding import (
-    HistoricalFamilyBindingError,
     HistoricalFamilySpec,
-    historical_family_authority_from_payload,
+    historical_family_core_identity,
 )
 from axiom_rift.research.replay_obligation import (
     ReplayExecutionBinding,
@@ -57,6 +62,11 @@ from axiom_rift.research.replay_obligation import (
     ReplayResolutionScope,
     ReplaySatisfaction,
     historical_replay_obligation_from_identity_payload,
+)
+from axiom_rift.research.replay_member_assignment import (
+    ReplayMemberAssignmentError,
+    ReplayMemberAssignmentSet,
+    assignment_set_from_semantic_proposal,
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
     ReplayCompletionValidityDefect,
@@ -267,7 +277,9 @@ def _require_v2_scientific_satisfaction(
             expected_event_kinds=frozenset(
                 {
                     "historical_replay_correction_recorded",
+                    "historical_replay_obligations_disposed",
                     "historical_replay_obligations_resolved",
+                    "historical_replay_sibling_evidence_recertified",
                 }
             ),
         )
@@ -635,15 +647,27 @@ def _require_replay_deferral_transition(
             index,
             record=record,
             expected_event_kinds=frozenset(
-                {"historical_replay_obligations_deferred"}
+                {
+                    "historical_replay_obligations_deferred",
+                    "historical_replay_obligations_disposed",
+                }
             ),
             require_current_head=False,
         )
     except RecordedTransitionAuthorityError as exc:
         raise RunningJobAuthorityError(str(exc)) from exc
     deferred_ids = result.get("deferred_replay_obligation_ids")
+    expected_result_fields = (
+        {
+            "deferred_replay_obligation_ids",
+            "effective_scope_overlay_ids",
+            "satisfied_replay_obligation_ids",
+        }
+        if _event_kind == "historical_replay_obligations_disposed"
+        else {"deferred_replay_obligation_ids"}
+    )
     if (
-        set(result) != {"deferred_replay_obligation_ids"}
+        set(result) != expected_result_fields
         or not isinstance(deferred_ids, list)
         or any(type(item) is not str for item in deferred_ids)
         or deferred_ids != sorted(set(deferred_ids))
@@ -1167,6 +1191,30 @@ class RunningJobExecutionContext:
                 if not isinstance(study_payload, Mapping)
                 else study_payload.get("question")
             )
+            try:
+                assignment_set = (
+                    None
+                    if not isinstance(proposal, Mapping)
+                    else assignment_set_from_semantic_proposal(proposal)
+                )
+            except ReplayMemberAssignmentError as exc:
+                raise RunningJobAuthorityError(
+                    "fixed-hold replay member assignments are malformed"
+                ) from exc
+            base_proposal_fields = {
+                "candidate_eligible",
+                "concurrent_family",
+                "historical_family_authority_id",
+                "historical_family_identity",
+                "historical_obligation_id",
+                "mechanism",
+                "original_study_id",
+            }
+            assignment_proposal_fields = {
+                "replay_member_assignment_set_id",
+                "replay_member_assignments",
+                "replay_obligation_ids",
+            }
             if (
                 study is None
                 or study.kind != "study-open"
@@ -1177,15 +1225,11 @@ class RunningJobExecutionContext:
                 or not isinstance(proposal, Mapping)
                 or not isinstance(question, Mapping)
                 or set(proposal)
-                != {
-                    "candidate_eligible",
-                    "concurrent_family",
-                    "historical_family_authority_id",
-                    "historical_family_identity",
-                    "historical_obligation_id",
-                    "mechanism",
-                    "original_study_id",
-                }
+                != (
+                    base_proposal_fields
+                    if assignment_set is None
+                    else base_proposal_fields | assignment_proposal_fields
+                )
                 or canonical_digest(
                     domain="study-question",
                     payload=dict(question),
@@ -1215,10 +1259,29 @@ class RunningJobExecutionContext:
             replay_obligation_id = proposal.get("historical_obligation_id")
             if (
                 type(obligation_ids) is not list
-                or obligation_ids != [replay_obligation_id]
+                or obligation_ids
+                != (
+                    [replay_obligation_id]
+                    if assignment_set is None
+                    else list(assignment_set.obligation_ids)
+                )
                 or type(replay_obligation_id) is not str
                 or type(family_authority_id) is not str
                 or proposal.get("candidate_eligible") is not False
+                or (
+                    assignment_set is not None
+                    and (
+                        assignment_set.mission_id != bound.mission_id
+                        or assignment_set.primary_obligation_id
+                        != replay_obligation_id
+                        or proposal.get("replay_member_assignment_set_id")
+                        != assignment_set.identity
+                        or proposal.get("replay_obligation_ids")
+                        != list(assignment_set.obligation_ids)
+                        or assignment_set.primary.historical_family_authority_id
+                        != family_authority_id
+                    )
+                )
             ):
                 raise RunningJobAuthorityError(
                     "fixed-hold replay Study binding is incomplete"
@@ -1277,15 +1340,17 @@ class RunningJobExecutionContext:
             )
             try:
                 if family_record is None:
-                    raise HistoricalFamilyBindingError(
+                    raise HistoricalFamilyAuthorityAdmissionError(
                         "historical family authority is absent"
                     )
-                family_authority = historical_family_authority_from_payload(
-                    family_record.payload
+                family_authority = require_recorded_historical_family_authority(
+                    index,
+                    family_record,
                 )
-            except HistoricalFamilyBindingError as exc:
+            except HistoricalFamilyAuthorityAdmissionError as exc:
                 raise RunningJobAuthorityError(
-                    "fixed-hold historical family authority is malformed"
+                    "fixed-hold historical family authority is malformed: "
+                    f"{exc}"
                 ) from exc
             family = family_authority.family
             if (
@@ -1315,6 +1380,98 @@ class RunningJobExecutionContext:
                 raise RunningJobAuthorityError(
                     "fixed-hold historical family differs from its obligation"
                 )
+            selected_assignment_bindings: list[tuple[Any, Any, Any]] = []
+            if assignment_set is not None:
+                primary_family_core = historical_family_core_identity(family)
+                for assignment in assignment_set.assignments:
+                    selected_obligation_record = index.get(
+                        "historical-replay-obligation",
+                        assignment.obligation_id,
+                    )
+                    selected_obligation_payload = (
+                        None
+                        if selected_obligation_record is None
+                        else selected_obligation_record.payload.get(
+                            "obligation"
+                        )
+                    )
+                    selected_family_record = index.get(
+                        "historical-family-authority",
+                        assignment.historical_family_authority_id,
+                    )
+                    try:
+                        if not isinstance(
+                            selected_obligation_payload,
+                            Mapping,
+                        ) or selected_family_record is None:
+                            raise ReplayObligationError(
+                                "selected replay authority is absent"
+                            )
+                        selected_obligation = (
+                            historical_replay_obligation_from_identity_payload(
+                                selected_obligation_payload
+                            )
+                        )
+                        selected_family_authority = (
+                            require_recorded_historical_family_authority(
+                                index,
+                                selected_family_record,
+                            )
+                        )
+                    except (
+                        HistoricalFamilyAuthorityAdmissionError,
+                        ReplayObligationError,
+                    ) as exc:
+                        raise RunningJobAuthorityError(
+                            f"selected replay authority is malformed: {exc}"
+                        ) from exc
+                    selected_family = selected_family_authority.family
+                    selected_family_core = historical_family_core_identity(
+                        selected_family
+                    )
+                    if (
+                        selected_obligation_record.record_id
+                        != assignment.obligation_id
+                        or selected_obligation_record.subject
+                        != f"Mission:{bound.mission_id}"
+                        or selected_obligation_record.status != "pending"
+                        or selected_obligation.identity
+                        != assignment.obligation_id
+                        or selected_obligation.governing_mission_id
+                        != bound.mission_id
+                        or selected_obligation.original_executable_id
+                        != assignment.original_executable_id
+                        or selected_obligation.criterion_ids
+                        != assignment.criterion_ids
+                        or selected_family_record.record_id
+                        != assignment.historical_family_authority_id
+                        or selected_family_record.subject
+                        != f"ReplayObligation:{assignment.obligation_id}"
+                        or selected_family_record.status != "accepted"
+                        or selected_family_authority.identity
+                        != assignment.historical_family_authority_id
+                        or selected_family_authority.replay_obligation_id
+                        != assignment.obligation_id
+                        or selected_family.target_historical_executable_id
+                        != assignment.original_executable_id
+                        or selected_family_core != primary_family_core
+                        or selected_family_authority.reconstruction_source_path
+                        != family_authority.reconstruction_source_path
+                        or selected_family_authority.reconstruction_source_sha256
+                        != family_authority.reconstruction_source_sha256
+                        or selected_family_authority.reconstruction_only_parameter_names
+                        != family_authority.reconstruction_only_parameter_names
+                    ):
+                        raise RunningJobAuthorityError(
+                            "selected replay authority differs from its assignment"
+                        )
+                    selected_assignment_bindings.append(
+                        (
+                            assignment,
+                            selected_obligation,
+                            selected_family_record,
+                        )
+                    )
             try:
                 original_family_end_global_exposure_count = (
                     project_historical_family_end_global_exposure_count(
@@ -1352,6 +1509,18 @@ class RunningJobExecutionContext:
                 if not isinstance(acceptance, Mapping)
                 else acceptance.get("concurrent_family")
             )
+            expected_acceptance_fields = {
+                "candidate_authority",
+                "concurrent_family",
+                "exact_original_criteria",
+                "historical_family_authority_id",
+                "historical_family_identity",
+                "replay_obligation_id",
+            }
+            if assignment_set is not None:
+                expected_acceptance_fields.add(
+                    "replay_member_assignment_set_id"
+                )
             active_batch = science.get("active_batch")
             if (
                 batch is None
@@ -1377,15 +1546,14 @@ class RunningJobExecutionContext:
                 or acceptance.get("candidate_authority") != "none"
                 or acceptance.get("exact_original_criteria")
                 != list(obligation.criterion_ids)
-                or set(acceptance)
-                != {
-                    "candidate_authority",
-                    "concurrent_family",
-                    "exact_original_criteria",
-                    "historical_family_authority_id",
-                    "historical_family_identity",
-                    "replay_obligation_id",
-                }
+                or set(acceptance) != expected_acceptance_fields
+                or (
+                    assignment_set is not None
+                    and acceptance.get(
+                        "replay_member_assignment_set_id"
+                    )
+                    != assignment_set.identity
+                )
                 or not isinstance(concurrent_family, Mapping)
                 or concurrent_family.get("schema")
                 != "concurrent_family_manifest.v1"
@@ -1448,6 +1616,20 @@ class RunningJobExecutionContext:
                 raise RunningJobAuthorityError(
                     "fixed-hold prospective family differs from its Batch"
                 )
+            registered_by_historical_executable = {
+                historical_id: executable_id
+                for executable_id, historical_id in registered_bindings
+            }
+            if assignment_set is not None and any(
+                registered_by_historical_executable.get(
+                    assignment.original_executable_id
+                )
+                != assignment.replay_executable_id
+                for assignment in assignment_set.assignments
+            ):
+                raise RunningJobAuthorityError(
+                    "selected replay assignments differ from registered members"
+                )
             try:
                 (
                     execution_prefix_executable_ids,
@@ -1484,6 +1666,14 @@ class RunningJobExecutionContext:
             target_prospective_executable_id = registered_ids[
                 target_ordinal - 1
             ]
+            if (
+                assignment_set is not None
+                and assignment_set.primary.replay_executable_id
+                != target_prospective_executable_id
+            ):
+                raise RunningJobAuthorityError(
+                    "primary replay assignment differs from its family target"
+                )
             if (
                 current_obligation is None
                 or current_obligation.subject != f"Mission:{bound.mission_id}"
@@ -1531,6 +1721,74 @@ class RunningJobExecutionContext:
                 family_record=family_record,
                 require_current_head=False,
             )
+            for (
+                assignment,
+                selected_obligation,
+                selected_family_record,
+            ) in selected_assignment_bindings:
+                if assignment.obligation_id == replay_obligation_id:
+                    continue
+                selected_stream = (
+                    "historical-replay-obligation:"
+                    + assignment.obligation_id
+                )
+                selected_head = index.event_head(selected_stream)
+                selected_current = (
+                    None
+                    if selected_head is None
+                    else index.get(
+                        selected_head.record_kind,
+                        selected_head.record_id,
+                    )
+                )
+                if (
+                    selected_current is None
+                    or selected_current.subject
+                    != f"Mission:{bound.mission_id}"
+                    or selected_current.event_stream != selected_stream
+                    or selected_current.event_sequence
+                    != selected_head.sequence
+                    or selected_current.status != "in_progress"
+                    or (
+                        selected_current.record_id
+                        != assignment.obligation_id
+                        and selected_current.payload.get("obligation_id")
+                        != assignment.obligation_id
+                    )
+                ):
+                    raise RunningJobAuthorityError(
+                        "selected replay obligation is not in progress"
+                    )
+                selected_progress = _require_replay_progress_transition(
+                    index,
+                    obligation=selected_obligation,
+                    record=selected_current,
+                    require_current_head=True,
+                )
+                if (
+                    selected_progress.portfolio_decision_id
+                    != study_payload.get("portfolio_decision_id")
+                    or selected_progress.replay_study_id != study_id
+                    or selected_progress.replay_executable_id
+                    != assignment.replay_executable_id
+                ):
+                    raise RunningJobAuthorityError(
+                        "selected replay progress differs from its assignment"
+                    )
+                selected_invalidation = (
+                    _require_correction_invalidation_route(
+                        index,
+                        obligation=selected_obligation,
+                        current_progress=selected_current,
+                    )
+                )
+                _require_correction_pending_invalidation(
+                    index,
+                    obligation=selected_obligation,
+                    record=selected_invalidation,
+                    family_record=selected_family_record,
+                    require_current_head=False,
+                )
         return RunningJobFixedHoldReplayContext(
             family_authority_id=family_authority_id,
             replay_obligation_id=replay_obligation_id,
@@ -1614,9 +1872,13 @@ def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
                 _THIS_FILE,
                 Path(completion_validity_projection.__file__).resolve(),
                 Path(evidence_module.__file__).resolve(),
+                Path(
+                    historical_family_authority_admission_module.__file__
+                ).resolve(),
                 Path(historical_family_binding_module.__file__).resolve(),
                 Path(historical_scientific_validity.__file__).resolve(),
                 Path(replay_exposure_module.__file__).resolve(),
+                Path(replay_member_assignment_module.__file__).resolve(),
                 Path(replay_obligation_module.__file__).resolve(),
                 Path(replay_satisfaction_invalidation_module.__file__).resolve(),
                 Path(semantic_question_module.__file__).resolve(),

@@ -2248,7 +2248,7 @@ def test_fixed_hold_replay_v2_accepts_same_event_family_authority(
     ("tamper", "message"),
     (
         ("v2_family_not_prior", "does not predate"),
-        ("v2_family_writer", "does not predate"),
+        ("v2_family_writer", "same-event Writer authority"),
         ("v2_duplicate_family", "same-event Writer authority"),
         ("v2_satisfaction_writer", "exact scientific satisfaction"),
         ("v2_observation", "stale or unrelated"),

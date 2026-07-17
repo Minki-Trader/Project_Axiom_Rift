@@ -1268,6 +1268,7 @@ def require_pending_replay_preflight_invalidation(
     study: IndexRecord,
     diagnosis: IndexRecord | None = None,
     obligation_head: IndexRecord | None = None,
+    obligation_id: str | None = None,
 ) -> _PendingReplayPreflightInvalidation:
     """Authenticate a partial legacy replay stopped before its target trial."""
 
@@ -1275,21 +1276,32 @@ def require_pending_replay_preflight_invalidation(
     if (
         not isinstance(mission_id, str)
         or not isinstance(obligation_ids, list)
-        or len(obligation_ids) != 1
+        or not obligation_ids
         or any(type(item) is not str for item in obligation_ids)
+        or obligation_ids != sorted(set(obligation_ids))
     ):
         raise ReplayTransitionError(
-            "pending replay preflight invalidation lacks one exact obligation"
+            "pending replay preflight invalidation lacks exact obligations"
         )
+    selected_obligation_id = (
+        obligation_ids[0]
+        if obligation_id is None and len(obligation_ids) == 1
+        else obligation_id
+    )
+    if selected_obligation_id not in obligation_ids:
+        raise ReplayTransitionError(
+            "pending replay preflight invalidation target is ambiguous"
+        )
+    assert isinstance(selected_obligation_id, str)
     pairs = {
         obligation.identity: (obligation, head)
         for obligation, head in obligation_heads(index, mission_id=mission_id)
     }
-    pair = pairs.get(obligation_ids[0])
+    pair = pairs.get(selected_obligation_id)
     current_head = None if pair is None else pair[1]
     head = current_head if obligation_head is None else obligation_head
     obligation = None if pair is None else pair[0]
-    stream = obligation_stream(obligation_ids[0])
+    stream = obligation_stream(selected_obligation_id)
     supplied_predecessor_invalid = bool(
         obligation_head is not None
         and (
@@ -2822,7 +2834,9 @@ def require_recorded_satisfaction(
         record=stored,
         expected_event_kinds={
             "historical_replay_correction_recorded",
+            "historical_replay_obligations_disposed",
             "historical_replay_obligations_resolved",
+            "historical_replay_sibling_evidence_recertified",
         },
         require_current_head=require_current_head,
     )
@@ -2844,6 +2858,8 @@ def require_recorded_satisfaction(
         allow_legacy_decision_binding=(
             allow_legacy_decision_binding
             or event_kind == "historical_replay_correction_recorded"
+            or event_kind
+            == "historical_replay_sibling_evidence_recertified"
         ),
     )
 
@@ -3676,6 +3692,199 @@ def prepare_resolution(
     }
 
 
+def prepare_sibling_evidence_recertification(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    source_satisfaction_ids: Sequence[str],
+    obligation_ids: Sequence[str],
+) -> tuple[
+    tuple[ReplaySatisfaction, ...],
+    list[IndexRecord],
+    dict[str, Any] | None,
+    dict[str, Any],
+]:
+    """Derive omitted sibling credit from already-closed exact family evidence."""
+
+    normalized_sources = tuple(sorted(set(source_satisfaction_ids)))
+    normalized_obligations = tuple(sorted(set(obligation_ids)))
+    if (
+        not normalized_sources
+        or len(normalized_sources) != len(source_satisfaction_ids)
+        or not normalized_obligations
+        or len(normalized_obligations) != len(obligation_ids)
+    ):
+        raise ReplayTransitionError(
+            "sibling evidence recertification request is empty or duplicated"
+        )
+    heads = {
+        obligation.identity: (obligation, head)
+        for obligation, head in obligation_heads(index, mission_id=mission_id)
+    }
+    source_bindings: list[
+        tuple[HistoricalReplayObligation, ReplaySatisfaction, IndexRecord]
+    ] = []
+    for satisfaction_id in normalized_sources:
+        matches = tuple(
+            (obligation, head)
+            for obligation, head in heads.values()
+            if head.status == ReplayObligationStatus.SATISFIED.value
+            and head.record_id == satisfaction_id
+        )
+        if len(matches) != 1:
+            raise ReplayTransitionError(
+                "sibling recertification source satisfaction is not current"
+            )
+        source_obligation, source_head = matches[0]
+        source_satisfaction = _satisfaction_from_head(
+            obligation=source_obligation,
+            head=source_head,
+        )
+        require_recorded_satisfaction(
+            index,
+            obligation=source_obligation,
+            satisfaction=source_satisfaction,
+            allow_legacy_decision_binding=False,
+            satisfaction_head=source_head,
+        )
+        source_bindings.append(
+            (source_obligation, source_satisfaction, source_head)
+        )
+    derived: list[ReplaySatisfaction] = []
+    records: list[IndexRecord] = []
+    for obligation_id in normalized_obligations:
+        pair = heads.get(obligation_id)
+        if pair is None or pair[1].status != ReplayObligationStatus.PENDING.value:
+            raise ReplayTransitionError(
+                "sibling recertification target is not pending"
+            )
+        obligation, head = pair
+        candidates: list[ReplaySatisfaction] = []
+        for source_obligation, source_satisfaction, _source_head in source_bindings:
+            if source_obligation.original_study_id != obligation.original_study_id:
+                continue
+            study = index.get("study-open", source_satisfaction.replay_study_id)
+            decision = index.get(
+                "portfolio-decision",
+                source_satisfaction.portfolio_decision_id,
+            )
+            if study is None or decision is None:
+                continue
+            decision_obligations = decision.payload.get(
+                "replay_obligation_ids"
+            )
+            if (
+                study.payload.get("replay_obligation_ids")
+                != [source_obligation.identity]
+                or not isinstance(decision_obligations, list)
+                or source_obligation.identity not in decision_obligations
+                or obligation.identity in decision_obligations
+            ):
+                continue
+            batch_head = index.event_head(
+                f"study-batches:{study.record_id}"
+            )
+            batch = (
+                None
+                if batch_head is None
+                else index.get(batch_head.record_kind, batch_head.record_id)
+            )
+            trial_head = (
+                None
+                if batch is None
+                else index.event_head(f"batch-trials:{batch.record_id}")
+            )
+            if batch is None or trial_head is None:
+                continue
+            matching_trials = []
+            for ordinal in range(1, trial_head.sequence + 1):
+                trial = index.event_record(
+                    f"batch-trials:{batch.record_id}",
+                    ordinal,
+                )
+                if trial is None:
+                    continue
+                reference = typed_replay_reference_executable_id(
+                    trial.payload.get("executable", {})
+                )
+                if reference == obligation.original_executable_id:
+                    matching_trials.append(trial)
+            if len(matching_trials) != 1:
+                continue
+            trial = matching_trials[0]
+            if (
+                trial.payload.get("study_id") != study.record_id
+                or trial.payload.get("replay_obligation_ids")
+                != [source_obligation.identity]
+            ):
+                continue
+            close_record = index.get(
+                "study-close",
+                source_satisfaction.replay_study_close_record_id,
+            )
+            diagnosis = index.get(
+                "study-diagnosis",
+                source_satisfaction.study_diagnosis_id,
+            )
+            if close_record is None or diagnosis is None:
+                continue
+            candidate = ReplaySatisfaction(
+                obligation_id=obligation.identity,
+                resolution_scope=ReplayResolutionScope.SCIENTIFIC,
+                portfolio_decision_id=decision.record_id,
+                replay_study_id=study.record_id,
+                replay_executable_id=trial.record_id,
+                replay_study_close_record_id=close_record.record_id,
+                study_diagnosis_id=diagnosis.record_id,
+                satisfied_criterion_ids=obligation.criterion_ids,
+                evidence_record_ids=replay_evidence_record_ids(
+                    diagnosis=diagnosis,
+                    close_record=close_record,
+                    trial=trial,
+                ),
+            )
+            try:
+                require_satisfaction(
+                    index,
+                    obligation=obligation,
+                    satisfaction=candidate,
+                    allow_legacy_decision_binding=True,
+                )
+            except ReplayTransitionError:
+                continue
+            candidates.append(candidate)
+        if len(candidates) != 1:
+            raise ReplayTransitionError(
+                "sibling evidence does not identify one exact closed family member"
+            )
+        satisfaction = candidates[0]
+        derived.append(satisfaction)
+        records.append(
+            satisfaction_record(
+                obligation=obligation,
+                satisfaction=satisfaction,
+                prior_status=ReplayObligationStatus.PENDING,
+                sequence=(head.event_sequence or 0) + 1,
+            )
+        )
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
+            obligation
+            for obligation, head in heads.values()
+            if head.status == ReplayObligationStatus.PENDING.value
+            and obligation.identity not in normalized_obligations
+        ),
+    )
+    return tuple(derived), records, constraints, {
+        "candidate_delta": 0,
+        "holdout_reveal_delta": 0,
+        "satisfied_replay_obligation_ids": list(normalized_obligations),
+        "source_satisfaction_ids": list(normalized_sources),
+        "trial_delta": 0,
+    }
+
+
 def replay_obligation_capability_id(obligation_id: str) -> str:
     """Return the exact Mission capability name used by external blockers."""
 
@@ -4435,6 +4644,140 @@ def prepare_deferral(
     }
 
 
+def prepare_disposition(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    next_action: Mapping[str, Any],
+    satisfactions: Sequence[ReplaySatisfaction],
+    deferrals: Sequence[ReplayDeferral],
+) -> tuple[list[IndexRecord], dict[str, Any] | None, dict[str, Any]]:
+    """Atomically retain valid member results and defer only unresolved peers."""
+
+    satisfaction_by_id = {
+        item.obligation_id: item for item in satisfactions
+    }
+    deferral_by_id = {item.obligation_id: item for item in deferrals}
+    selected_ids = tuple(
+        sorted((*satisfaction_by_id, *deferral_by_id))
+    )
+    if (
+        not satisfaction_by_id
+        or not deferral_by_id
+        or len(satisfaction_by_id) != len(satisfactions)
+        or len(deferral_by_id) != len(deferrals)
+        or set(satisfaction_by_id).intersection(deferral_by_id)
+        or next_action.get("kind")
+        != "resolve_historical_replay_obligations"
+        or next_action.get("replay_obligation_ids") != list(selected_ids)
+        or not isinstance(next_action.get("resume_next_action"), dict)
+    ):
+        raise ReplayTransitionError(
+            "mixed replay disposition is not the exact next action"
+        )
+    heads = {
+        obligation.identity: (obligation, head)
+        for obligation, head in obligation_heads(index, mission_id=mission_id)
+    }
+    ordered_records: list[tuple[str, IndexRecord]] = []
+    for obligation_id in selected_ids:
+        pair = heads.get(obligation_id)
+        if pair is None:
+            raise ReplayTransitionError(
+                "mixed replay disposition lacks its obligation"
+            )
+        obligation, head = pair
+        satisfaction = satisfaction_by_id.get(obligation_id)
+        if satisfaction is not None:
+            if head.status != ReplayObligationStatus.IN_PROGRESS.value:
+                raise ReplayTransitionError(
+                    "mixed replay satisfaction is not in progress"
+                )
+            require_satisfaction(
+                index,
+                obligation=obligation,
+                satisfaction=satisfaction,
+                allow_legacy_decision_binding=False,
+            )
+            ordered_records.append(
+                (
+                    obligation_id,
+                    satisfaction_record(
+                        obligation=obligation,
+                        satisfaction=satisfaction,
+                        prior_status=ReplayObligationStatus.IN_PROGRESS,
+                        sequence=(head.event_sequence or 0) + 1,
+                    ),
+                )
+            )
+            continue
+        deferral = deferral_by_id[obligation_id]
+        if head.status not in {
+            ReplayObligationStatus.PENDING.value,
+            ReplayObligationStatus.IN_PROGRESS.value,
+        }:
+            raise ReplayTransitionError(
+                "mixed replay deferral lacks an unresolved obligation"
+            )
+        _require_resume_condition_surface(
+            obligation=obligation,
+            deferral=deferral,
+        )
+        if head.status == ReplayObligationStatus.PENDING.value:
+            _require_pending_deferral_basis(
+                index,
+                obligation=obligation,
+                deferral=deferral,
+            )
+        else:
+            _require_in_progress_deferral_basis(
+                index,
+                obligation=obligation,
+                head=head,
+                deferral=deferral,
+            )
+        ordered_records.append(
+            (
+                obligation_id,
+                deferral_record(
+                    obligation=obligation,
+                    deferral=deferral,
+                    prior_status=ReplayObligationStatus(head.status),
+                    sequence=(head.event_sequence or 0) + 1,
+                ),
+            )
+        )
+    records = [record for _obligation_id, record in ordered_records]
+    audit_satisfactions = tuple(
+        item
+        for item in satisfactions
+        if item.resolution_scope is ReplayResolutionScope.AUDIT_ONLY
+    )
+    overlay_ids: list[str] = []
+    if audit_satisfactions:
+        overlay_records = prepare_audit_only_scope_overlays(
+            index,
+            mission_id=mission_id,
+            satisfactions=audit_satisfactions,
+        )
+        records.extend(overlay_records)
+        overlay_ids.extend(item.record_id for item in overlay_records)
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
+            obligation
+            for obligation, head in heads.values()
+            if head.status == ReplayObligationStatus.PENDING.value
+            and obligation.identity not in deferral_by_id
+        ),
+    )
+    return records, constraints, {
+        "deferred_replay_obligation_ids": sorted(deferral_by_id),
+        "effective_scope_overlay_ids": overlay_ids,
+        "satisfied_replay_obligation_ids": sorted(satisfaction_by_id),
+    }
+
+
 def _require_later_trigger(
     *,
     deferral_head: IndexRecord,
@@ -5172,10 +5515,12 @@ __all__ = [
     "prepare_audit_only_scope_overlay",
     "prepare_audit_only_scope_overlays",
     "prepare_deferral",
+    "prepare_disposition",
     "prepare_execution_progress",
     "prepare_resume",
     "prepare_resolution",
     "prepare_satisfaction_invalidation",
+    "prepare_sibling_evidence_recertification",
     "replay_obligation_capability_id",
     "replay_priority_escalation_record",
     "replay_priority_stream",

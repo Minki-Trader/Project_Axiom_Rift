@@ -208,15 +208,18 @@ def terminal_replay_reconstruction_allowed(
 
     if target_head.status not in {"satisfied", "deferred"}:
         return False
-    resolution_event = (
-        "historical_replay_obligations_resolved"
-        if target_head.status == "satisfied"
-        else "historical_replay_obligations_deferred"
-    )
+    resolution_events = {
+        "historical_replay_obligations_disposed",
+        (
+            "historical_replay_obligations_resolved"
+            if target_head.status == "satisfied"
+            else "historical_replay_obligations_deferred"
+        ),
+    }
     trigger_id = diagnosis_architecture_review_trigger(index, spec)
     expected: tuple[tuple[str, set[str]], ...] = (
         ("diagnose-study", {"study_diagnosis_recorded"}),
-        ("resolve-replay", {resolution_event}),
+        ("resolve-replay", resolution_events),
     )
     if (
         trigger_id is None
@@ -502,6 +505,7 @@ def replay_resolution_operation_present(
         frozenset(
             {
                 "historical_replay_obligations_deferred",
+                "historical_replay_obligations_disposed",
                 "historical_replay_obligations_resolved",
             }
         ),

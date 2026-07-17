@@ -570,6 +570,112 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
                     "implementation", diagnosis.reopen_condition.lower()
                 )
 
+    def test_plural_close_names_completion_matching_aggregate_disposition(
+        self,
+    ) -> None:
+        members = tuple(
+            SimpleNamespace(
+                executable=SimpleNamespace(
+                    identity=f"executable:{ordinal:064x}"
+                )
+            )
+            for ordinal in (1, 2)
+        )
+        assignments = workflow_module.ReplayMemberAssignmentSet(
+            mission_id="MIS-PLURAL-CLOSE",
+            primary_obligation_id=(
+                "historical-replay-obligation:" + "1" * 64
+            ),
+            assignments=(
+                workflow_module.ReplayMemberAssignment(
+                    obligation_id=(
+                        "historical-replay-obligation:" + "1" * 64
+                    ),
+                    original_executable_id="executable:" + "3" * 64,
+                    replay_executable_id=members[0].executable.identity,
+                    historical_family_authority_id=(
+                        "historical-family-authority:" + "5" * 64
+                    ),
+                    criterion_ids=("criterion-a",),
+                ),
+                workflow_module.ReplayMemberAssignment(
+                    obligation_id=(
+                        "historical-replay-obligation:" + "2" * 64
+                    ),
+                    original_executable_id="executable:" + "4" * 64,
+                    replay_executable_id=members[1].executable.identity,
+                    historical_family_authority_id=(
+                        "historical-family-authority:" + "6" * 64
+                    ),
+                    criterion_ids=("criterion-a",),
+                ),
+            ),
+        )
+        design = SimpleNamespace(
+            members=members,
+            replay_assignments=assignments,
+            target_member=members[0],
+        )
+        completions = {
+            members[0].executable.identity: SimpleNamespace(
+                record_id="completion-primary-negative"
+            ),
+            members[1].executable.identity: SimpleNamespace(
+                record_id="completion-sibling-positive"
+            ),
+        }
+        aggregate = ReplayInterpretation(
+            all_criteria_recomputed=True,
+            close_outcome="preserved",
+            diagnosis_state=(
+                workflow_module.EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION
+            ),
+            disposition=workflow_module.PortfolioAction.PRESERVE,
+            reason_code="exact_selected_criteria_recomputed",
+        )
+        negative = ReplayInterpretation(
+            all_criteria_recomputed=True,
+            close_outcome="pruned",
+            diagnosis_state=workflow_module.EvidenceState.STABILITY_CONCENTRATION,
+            disposition=workflow_module.PortfolioAction.PRUNE,
+            reason_code="exact_original_criteria_recomputed_negative",
+        )
+        positive = ReplayInterpretation(
+            all_criteria_recomputed=True,
+            close_outcome="preserved",
+            diagnosis_state=(
+                workflow_module.EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION
+            ),
+            disposition=workflow_module.PortfolioAction.PRESERVE,
+            reason_code="exact_original_criteria_recomputed",
+        )
+
+        def completion_for(_writer, _design, member):
+            return completions[member.executable.identity]
+
+        def interpretation_for(completion, *, criterion_ids):
+            self.assertEqual(criterion_ids, ("criterion-a",))
+            return (
+                negative
+                if completion.record_id == "completion-primary-negative"
+                else positive
+            )
+
+        with patch.multiple(
+            workflow_module,
+            _member_completion=Mock(side_effect=completion_for),
+            _workflow_interpretation=Mock(return_value=aggregate),
+            interpret_fixed_hold_completion=Mock(
+                side_effect=interpretation_for
+            ),
+        ):
+            selected = workflow_module._study_close_disposition_completion(
+                object(),
+                design,
+            )
+
+        self.assertEqual(selected.record_id, "completion-sibling-positive")
+
     def test_candidate_postcondition_uses_exact_executable_history(self) -> None:
         executable_id = "executable:" + "a" * 64
         stream = f"candidate:{executable_id}"
@@ -1240,6 +1346,9 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             "portfolio_axes_from_projection": Mock(
                 return_value=(source_axis,)
             ),
+            "require_recorded_historical_family_authority": Mock(
+                return_value=authority
+            ),
             "PortfolioAxis": Mock(
                 side_effect=_AcceptedHistoricalFamilyAuthorityReached
             ),
@@ -1578,7 +1687,9 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             "replay_axis": None,
             "bridge_decision": SimpleNamespace(),
             "expanded_snapshot": None,
-            "work_decision": None,
+            "work_decision": SimpleNamespace(
+                replay_obligation_ids=self._spec().replay_obligation_ids
+            ),
             "members": members,
             "target_executable_id": execution_ids[-1],
             "question": {},

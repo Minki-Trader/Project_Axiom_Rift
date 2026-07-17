@@ -229,6 +229,20 @@ unbound scientific work.
   original event and apply the writer-derived effective evidence-scope and axis
   overlays. Match each new Executable to at most one exact original Executable;
   never bind by position, first trial, display order, or Study membership.
+- Admit a multi-obligation replay only with one canonical member-assignment set.
+  The full Batch family remains statistical authority, while each selected
+  obligation progresses through exactly one original/prospective Executable
+  pair and one target-specific family authority. Never schedule one identical
+  complete family per sibling obligation.
+- If pending siblings lack target-specific family authority, register all exact
+  locally reconstructible authorities in one stable-boundary Writer event.
+  This is zero-credit admission and must not alter the next action or justify
+  serial per-member family execution.
+- At a stable scheduler boundary, an already-computed omitted sibling may move
+  pending to satisfied only through the Writer-derived additive recertification
+  event. It binds a current accepted source satisfaction and rederives the exact
+  closed member evidence with zero trial, candidate, holdout, or claim delta.
+  Mixed valid and unresolved members are satisfied/deferred atomically.
 - Project an already canonical satisfied replay from its exact stored stream
   predecessor, same-event successful writer operation, immutable lineage, and
   recorded evidence identities. Do not rerun the current scientific validator,

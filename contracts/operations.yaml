@@ -754,6 +754,38 @@ replay_implementation_admission:
     current_protocol_activation_and_authority_manifest_required: true
     current_source_closure_authority_required: true
     complete_family_still_required_before_first_job: true
+  selected_member_assignment:
+    schema: replay_member_assignment_set.v1
+    obligation_original_executable_prospective_executable_authority_and_criteria_bijection_required: true
+    full_statistical_family_remains_batch_and_multiplicity_authority: true
+    unselected_control_progresses_replay_obligation: false
+    trial_records_only_its_exact_selected_obligation: true
+    plural_full_study_obligation_list_on_each_trial_is_usable: false
+    legacy_singleton_full_list_remains_unambiguous: true
+    batch_acceptance_binds_assignment_set_identity: true
+    runtime_revalidates_all_selected_current_heads_and_progress_bindings: true
+  pending_family_authority_registration:
+    single_writer_event: historical_replay_family_authorities_registered
+    stable_scheduler_boundary_and_current_pending_heads_required: true
+    source_bytes_original_study_batch_member_order_parameters_and_controls_reauthenticated: true
+    multiple_exact_member_authorities_may_share_one_bounded_event: true
+    next_action_and_scheduler_constraints_change: false
+    scientific_trial_claim_candidate_holdout_and_satisfaction_delta: 0
+  sibling_evidence_recertification:
+    single_writer_event: historical_replay_sibling_evidence_recertified
+    source_satisfaction_must_be_current_and_writer_authenticated: true
+    writer_derives_satisfaction_from_closed_family_evidence: true
+    caller_supplied_satisfaction_allowed: false
+    target_specific_frozen_family_authority_required: true
+    source_and_target_frozen_family_core_and_source_bytes_must_match: true
+    only_legacy_exception_is_original_decision_omission: true
+    exact_study_batch_trial_completion_close_diagnosis_criteria_and_multiplicity_required: true
+    trial_candidate_holdout_and_claim_delta: 0
+  mixed_member_disposition:
+    single_writer_event: historical_replay_obligations_disposed
+    satisfactions_and_deferrals_are_disjoint_and_cover_exact_diagnosed_action: true
+    valid_completed_members_are_not_discarded_by_later_engineering_failure: true
+    next_action_advances_once_atomically: true
   replacement_required_terminal:
     same_identity_repair_or_protocol_rebind_is_terminal_authority: false
     nonrestorable_semantic_or_implementation_replacement_evidence_required: true
@@ -917,6 +949,10 @@ project_goal_audit_v2_operations:
         current_scientific_or_multiplicity_protocol_reexecution_allowed: false
         current_reaudit_only_through_explicit_satisfaction_invalidation_plan: true
         pending_invalidation_rederives_current_manifest_on_routine_read: false
+      selected_member_assignment_is_one_to_one: true
+      mixed_satisfaction_and_deferral_is_atomic: true
+      exact_closed_sibling_evidence_may_be_additively_recertified: true
+      recertification_may_invent_or_rerun_scientific_evidence: false
   validation_economics:
     routine_mode: fast_bounded_suffix
     full_maintenance_mode: explicit_complete_reconstruction

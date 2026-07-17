@@ -350,6 +350,29 @@ Bind the exact original Study, adjudication, Executable, criteria, and evidence
   gets the highest-information-value bounded opportunity without freezing
   unrelated valid forest work.
 
+When one exact concurrent family covers more than one pending replay subject,
+select the bounded obligation subset once and bind a canonical member assignment:
+each selected obligation maps to one original Executable, one prospective
+Executable, its exact criteria, and one target-specific historical-family
+authority. Keep every preregistered control in Batch multiplicity, but attach no
+obligation lineage to an unselected control. Never run the same complete family
+once per member.
+
+Register missing target-specific authorities for the selected pending members
+once, through the bounded Writer registration event. Treat that event only as
+historical admission: it changes no scheduler action and grants no science,
+trial, claim, satisfaction, candidate, or holdout credit.
+
+If a prior closed replay Study already executed and validly adjudicated omitted
+siblings, use only the Writer-derived sibling-evidence recertification route.
+It must reauthenticate the current source satisfaction and exact Decision,
+Study, Batch, member trial, successful completion, close, diagnosis, criteria,
+multiplicity, and frozen family authority. The source and target authorities
+must share the exact immutable family core and reconstruction source bytes. It
+adds no trial or candidate and accepts no caller-built satisfaction. On a later
+engineering failure, atomically satisfy valid completed selected members and
+defer only unresolved selected members.
+
 Before any replay trial or Job consumes authority, require the exact Writer
 admission defined by `contracts/operations.yaml` under
 `replay_implementation_admission`. Route a legacy registration-only prefix

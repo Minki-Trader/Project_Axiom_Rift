@@ -23,6 +23,7 @@ from axiom_rift.core.identity import canonical_digest
 HISTORICAL_MEMBER_SCHEMA = "historical_family_member.v1"
 CONTROL_BINDING_SCHEMA = "historical_family_control_binding.v1"
 HISTORICAL_FAMILY_SCHEMA = "historical_family_spec.v1"
+HISTORICAL_FAMILY_CORE_SCHEMA = "historical_family_core.v1"
 HISTORICAL_FAMILY_AUTHORITY_SCHEMA = "historical_family_authority.v2"
 
 
@@ -213,6 +214,27 @@ class ControlBinding:
                 self.subject_historical_executable_id
             ),
         }
+
+
+def historical_family_core_identity(family: HistoricalFamilySpec) -> str:
+    """Identify immutable family membership independently of one target."""
+
+    if not isinstance(family, HistoricalFamilySpec):
+        raise HistoricalFamilyBindingError(
+            "historical family core requires a typed family"
+        )
+    return "historical-family-core:" + canonical_digest(
+        domain="historical-family-core",
+        payload={
+            "controls": [
+                control.manifest() for control in family.controls
+            ],
+            "members": [member.manifest() for member in family.members],
+            "original_batch_id": family.original_batch_id,
+            "original_study_id": family.original_study_id,
+            "schema": HISTORICAL_FAMILY_CORE_SCHEMA,
+        },
+    )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -722,6 +744,7 @@ __all__ = [
     "CONTROL_BINDING_SCHEMA",
     "ControlBinding",
     "HISTORICAL_FAMILY_SCHEMA",
+    "HISTORICAL_FAMILY_CORE_SCHEMA",
     "HISTORICAL_FAMILY_AUTHORITY_SCHEMA",
     "HISTORICAL_MEMBER_SCHEMA",
     "HistoricalFamilyBindingError",
@@ -731,6 +754,7 @@ __all__ = [
     "HistoricalFamilySpec",
     "HistoricalMemberSpec",
     "historical_family_authority_from_payload",
+    "historical_family_core_identity",
     "historical_family_from_manifest",
     "historical_reference_executable_id_from_manifest",
 ]
