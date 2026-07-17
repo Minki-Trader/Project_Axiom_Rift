@@ -503,12 +503,17 @@ def _authority_bindings(
             "authority manifests differ from the reviewed old-to-final boundary"
         )
     bindings = tuple(
-        AuthorityFileBinding(
-            path=relative,
-            predecessor_sha256=sha256(predecessor[relative]).hexdigest(),
-            prospective_sha256=sha256(prospective[relative]).hexdigest(),
+        sorted(
+            (
+                AuthorityFileBinding(
+                    path=relative,
+                    predecessor_sha256=sha256(predecessor[relative]).hexdigest(),
+                    prospective_sha256=sha256(prospective[relative]).hexdigest(),
+                )
+                for relative in paths
+            ),
+            key=lambda item: item.path,
         )
-        for relative in paths
     )
     changed = {
         item.path: (item.predecessor_sha256, item.prospective_sha256)

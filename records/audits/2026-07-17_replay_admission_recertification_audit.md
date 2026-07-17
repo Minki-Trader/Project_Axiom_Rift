@@ -88,6 +88,12 @@ prospective_validator: validator:5323ccc0517a5c99d9352fba7146e231c69a748cd1f3cd8
     and plan-bound ``origin/main`` commit. Writer reauthenticates that local
     observation before each transition without fetch or push. The actual
     remote remained at the predecessor commit throughout diagnosis.
+18. The first successful isolated two-event apply exposed a false drift on
+    prefix-two reentry. The durable core stores authority files in canonical
+    path order, while revalidation compared them with the control document's
+    presentation order. Binding construction now canonicalizes the inventory
+    once, and a full durable-core rebuild test covers completed reentry. The
+    rejected reentry appended no event and changed no canonical state.
 
 ## Authority Transition
 
@@ -122,7 +128,7 @@ prospective_validator: validator:5323ccc0517a5c99d9352fba7146e231c69a748cd1f3cd8
 
 - replay admission, correction, and dependent historical runner regression:
   170 passed, 258 subtests passed
-- authority activation unit and full 5410-event shadow replay: 10 passed,
+- authority activation unit and full 5410-event shadow replay: 11 passed,
   3 subtests passed
 - content-addressed correction, authority migration, and Study-close Git guard:
   74 passed, 1 skipped, 27 subtests passed

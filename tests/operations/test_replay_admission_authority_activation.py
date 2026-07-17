@@ -449,6 +449,25 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         self.require_shadow_fixture()
         self.assertIs(self.preappend_unchanged, True)
 
+    def test_durable_core_reentry_preserves_canonical_authority_order(self):
+        module = self.module
+        self.require_shadow_fixture()
+        material = self.shadow_material
+        prior = (
+            material.prior_protocol_record_id,
+            material.protocol_ordinal - 1,
+            dict(material.scientific_inventory),
+        )
+        rebuilt = module._material_from_core(
+            material.core,
+            prior_protocol=prior,
+        )
+        self.assertEqual(rebuilt.core, material.core)
+        self.assertEqual(
+            [item.path for item in rebuilt.core.authority_files],
+            sorted(item.path for item in rebuilt.core.authority_files),
+        )
+
     def test_unsafe_apply_is_rejected_before_project_imports(self):
         completed = subprocess.run(
             (sys.executable, str(SCRIPT), "--apply"),
