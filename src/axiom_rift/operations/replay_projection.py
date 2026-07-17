@@ -912,6 +912,34 @@ def validate_decision_selection(
     return constraints
 
 
+def is_exact_replay_protocol_revision_selection(
+    *,
+    constraints: Mapping[str, Any] | None,
+    selected_obligation_ids: Sequence[str],
+    action: str,
+    protocol_revision_obligation_id: object,
+) -> bool:
+    """Recognize the exact queue-bound protocol-revision structural exit."""
+
+    if (
+        action != "revise_protocol"
+        or type(protocol_revision_obligation_id) is not str
+        or not isinstance(constraints, Mapping)
+    ):
+        return False
+    pending = constraints.get("pending_replay_obligation_ids")
+    priority = constraints.get("required_replay_priority")
+    return (
+        tuple(selected_obligation_ids)
+        == (protocol_revision_obligation_id,)
+        and isinstance(pending, list)
+        and all(type(item) is str for item in pending)
+        and pending == sorted(set(pending))
+        and protocol_revision_obligation_id in pending
+        and priority in {ReplayPriority.P0.value, ReplayPriority.P1.value}
+    )
+
+
 def validate_replay_review_basis(
     *,
     constraints: Mapping[str, Any] | None,
@@ -5138,6 +5166,7 @@ __all__ = [
     "derive_obligation_from_record",
     "effective_replay_priority",
     "initial_obligation_record",
+    "is_exact_replay_protocol_revision_selection",
     "obligation_heads",
     "prepare_correction",
     "prepare_audit_only_scope_overlay",

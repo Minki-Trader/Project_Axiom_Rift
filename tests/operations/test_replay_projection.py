@@ -22,6 +22,7 @@ from axiom_rift.operations.replay_projection import (
     build_satisfaction_invalidation_plan,
     constraints_for_pending,
     initial_obligation_record,
+    is_exact_replay_protocol_revision_selection,
     obligation_heads,
     prepare_execution_progress,
     prepare_satisfaction_invalidation,
@@ -1026,6 +1027,55 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                 target_axis_id=self.unrelated_axis_id,
                 work_actions=work_actions,
             )
+
+    def test_exact_protocol_revision_can_structurally_exit_prior_diagnosis(
+        self,
+    ) -> None:
+        obligation_id = self.obligations[0].identity
+        constraints = {
+            "pending_replay_obligation_ids": [obligation_id],
+            "required_replay_priority": "p0",
+        }
+        self.assertTrue(
+            is_exact_replay_protocol_revision_selection(
+                constraints=constraints,
+                selected_obligation_ids=(obligation_id,),
+                action="revise_protocol",
+                protocol_revision_obligation_id=obligation_id,
+            )
+        )
+        invalid_cases = (
+            {
+                "selected_obligation_ids": (),
+            },
+            {
+                "action": "deepen",
+            },
+            {
+                "protocol_revision_obligation_id": (
+                    "historical-replay-obligation:" + "0" * 64
+                ),
+            },
+            {
+                "constraints": {
+                    "pending_replay_obligation_ids": [obligation_id],
+                    "required_replay_priority": "caller_priority",
+                },
+            },
+        )
+        defaults = {
+            "constraints": constraints,
+            "selected_obligation_ids": (obligation_id,),
+            "action": "revise_protocol",
+            "protocol_revision_obligation_id": obligation_id,
+        }
+        for override in invalid_cases:
+            with self.subTest(override=override):
+                self.assertFalse(
+                    is_exact_replay_protocol_revision_selection(
+                        **{**defaults, **override}
+                    )
+                )
 
     def test_quant_team_review_considers_p1_without_forcing_allocation(self) -> None:
         constraints = constraints_for_pending(self.obligations)

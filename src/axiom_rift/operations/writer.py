@@ -17336,6 +17336,7 @@ class StateWriter:
             from axiom_rift.operations.replay_projection import (
                 ReplayProjectionError,
                 ReplayTransitionError,
+                is_exact_replay_protocol_revision_selection,
                 validate_decision_selection,
                 validate_replay_review_basis,
             )
@@ -18069,11 +18070,26 @@ class StateWriter:
                     )
                     in diagnosis_basis
                 )
+                replay_protocol_revision = (
+                    is_exact_replay_protocol_revision_selection(
+                        constraints=replay_constraints,
+                        selected_obligation_ids=(
+                            decision.replay_obligation_ids
+                        ),
+                        action=chosen_action,
+                        protocol_revision_obligation_id=(
+                            None
+                            if protocol_revision is None
+                            else protocol_revision.replay_obligation_id
+                        ),
+                    )
+                )
                 if not (
                     same_axis_disposition
                     or branch_match
                     or forest_diversion
                     or engineering_reentry
+                    or replay_protocol_revision
                 ):
                     raise TransitionError(
                         "Portfolio Decision does not follow or structurally exit its diagnosis"
