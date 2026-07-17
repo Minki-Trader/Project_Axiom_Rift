@@ -2680,6 +2680,42 @@ def _workflow_interpretation(
     )
 
 
+def _completion_has_stop_batch_decision(
+    writer: StateWriter,
+    completion: IndexRecord,
+    *,
+    _index: LocalIndexView | None = None,
+) -> bool:
+    """Authenticate whether one completion drove the final Batch stop."""
+
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
+    )
+    with index_context as (_control, index):
+        job_id = completion.payload.get("job_id")
+        decisions = tuple(
+            record
+            for record in index.records_by_fingerprint(
+                completion.fingerprint
+            )
+            if record.kind == "job-evidence-decision"
+            and record.payload.get("completion_record_id")
+            == completion.record_id
+        )
+    if (
+        type(job_id) is not str
+        or len(decisions) != 1
+        or decisions[0].subject != f"Job:{job_id}"
+        or decisions[0].status not in {"continue_batch", "stop_batch"}
+    ):
+        raise RuntimeError(
+            "replay completion lacks one exact Batch evidence decision"
+        )
+    return decisions[0].status == "stop_batch"
+
+
 def _study_close_disposition_completion(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -2733,7 +2769,16 @@ def _study_close_disposition_completion(
         raise RuntimeError(
             "plural replay has no completion matching its aggregate Study outcome"
         )
-    return candidates[0]
+    stop_candidates = tuple(
+        completion
+        for completion in candidates
+        if _completion_has_stop_batch_decision(writer, completion)
+    )
+    if len(stop_candidates) != 1:
+        raise RuntimeError(
+            "plural replay aggregate outcome and stop_batch evidence diverge"
+        )
+    return stop_candidates[0]
 
 
 def _protocol_activation_operation_id(

@@ -720,6 +720,12 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         with patch.multiple(
             workflow_module,
             _member_completion=Mock(side_effect=completion_for),
+            _completion_has_stop_batch_decision=Mock(
+                side_effect=lambda _writer, completion: (
+                    completion.record_id
+                    == "completion-sibling-positive"
+                )
+            ),
             _workflow_interpretation=Mock(return_value=aggregate),
             interpret_fixed_hold_completion=Mock(
                 side_effect=interpretation_for
