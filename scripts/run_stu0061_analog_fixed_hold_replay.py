@@ -25,6 +25,9 @@ from axiom_rift.operations.running_job import RunningJobAuthority  # noqa: E402
 from axiom_rift.operations.recorded_transition_authority import (  # noqa: E402
     require_same_event_operation_result,
 )
+from axiom_rift.operations.replay_workflow_recovery import (  # noqa: E402
+    derive_replay_admission_boundary_identity,
+)
 from axiom_rift.operations.scientific_history import (  # noqa: E402
     project_frozen_family_exposure_context,
     project_historical_family_end_global_exposure_count,
@@ -188,32 +191,15 @@ def derive_replay_boundary(
 ) -> ReplayAuthorityBoundary:
     """Bind the live stable head, or reconstruct the first operation parent."""
 
-    first = index.get("operation", OPERATION_PREFIX + "open-initiative")
-    if first is None:
-        head = control.get("heads", {}).get("journal", {})
-        return ReplayAuthorityBoundary(
-            sequence=int(head["sequence"]),
-            event_id=str(head["event_id"]),
-        )
-    if (
-        first.status != "success"
-        or first.authority_sequence is None
-        or first.authority_event_id is None
-        or first.authority_offset is None
-        or first.authority_sequence < 2
-    ):
-        raise RuntimeError("replay first-operation authority is incomplete")
-    event = writer.journal.read_event_at(
-        offset=first.authority_offset,
-        expected_sequence=first.authority_sequence,
-        expected_event_id=first.authority_event_id,
+    sequence, event_id = derive_replay_admission_boundary_identity(
+        writer,
+        index=index,
+        control=control,
+        first_operation_id=OPERATION_PREFIX + "open-initiative",
     )
-    previous = event.get("previous_event_id")
-    if type(previous) is not str:
-        raise RuntimeError("replay predecessor event is unavailable")
     return ReplayAuthorityBoundary(
-        sequence=first.authority_sequence - 1,
-        event_id=previous,
+        sequence=sequence,
+        event_id=event_id,
     )
 
 

@@ -13,7 +13,7 @@ from axiom_rift.core.component_surface import (
     component_manifest_surfaces,
 )
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
-from axiom_rift.operations.writer import StateWriter
+from axiom_rift.operations.writer import StateWriter, TransitionError
 
 
 class WriterHistoryQueryTests(unittest.TestCase):
@@ -175,6 +175,135 @@ class WriterHistoryQueryTests(unittest.TestCase):
             ),
             index.lookups,
         )
+
+    def test_replacement_baseline_requires_exact_accepted_authority(self) -> None:
+        executable = self._executable()
+        axis_identity = "axis:" + "f" * 64
+        preflight_id = "job-implementation-preflight:" + "1" * 64
+        replacement_executable_id = "executable:" + "9" * 64
+        equivalence = {
+            "accepted_replacement_preflight_id": preflight_id,
+            "replacement_baseline_executable_id": executable.identity,
+            "replacement_executable_ids": [replacement_executable_id],
+            "target_axis_identity": axis_identity,
+        }
+        decision = SimpleNamespace(
+            payload={
+                "baseline_executable": executable.to_identity_payload(),
+                "baseline_executable_id": executable.identity,
+                "baseline_provenance": {
+                    "kind": "accepted_replay_replacement",
+                    "record_id": preflight_id,
+                },
+                "replacement_architecture_equivalence": equivalence,
+                "target_axis_identity": axis_identity,
+            }
+        )
+        writer = object.__new__(StateWriter)
+        component_record = writer._component_manifest_record(
+            component_id=executable.component_identities[0],
+            manifest=executable.components[0].to_identity_payload(),
+        )
+
+        class ExactIndex:
+            def get(self, kind: str, record_id: str):
+                if (kind, record_id) == (
+                    "component-manifest",
+                    component_record.record_id,
+                ):
+                    return component_record
+                return None
+
+        with (
+            patch.object(
+                StateWriter,
+                "_prior_scientific_baseline",
+                side_effect=AssertionError("replacement queried prior science"),
+            ),
+            patch.object(
+                StateWriter,
+                "_require_component_manifest_projection",
+                return_value=None,
+            ),
+        ):
+            writer._require_registered_chassis_baseline(
+                index=ExactIndex(),
+                controlled_chassis=SimpleNamespace(
+                    baseline_executable=executable,
+                ),
+                decision=decision,
+            )
+            attacked = SimpleNamespace(
+                payload={
+                    **decision.payload,
+                    "baseline_provenance": {
+                        "kind": "accepted_replay_replacement",
+                        "record_id": (
+                            "job-implementation-preflight:" + "2" * 64
+                        ),
+                    },
+                }
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "replacement baseline authority",
+            ):
+                writer._require_registered_chassis_baseline(
+                    index=ExactIndex(),
+                    controlled_chassis=SimpleNamespace(
+                        baseline_executable=executable,
+                    ),
+                    decision=attacked,
+                )
+            for malformed_replacement_ids in (
+                [],
+                [replacement_executable_id, replacement_executable_id],
+                ["not-an-executable"],
+            ):
+                malformed = SimpleNamespace(
+                    payload={
+                        **decision.payload,
+                        "replacement_architecture_equivalence": {
+                            **equivalence,
+                            "replacement_executable_ids": malformed_replacement_ids,
+                        },
+                    }
+                )
+                with self.subTest(
+                    malformed_replacement_ids=malformed_replacement_ids
+                ), self.assertRaisesRegex(
+                    TransitionError,
+                    "replacement baseline authority",
+                ):
+                    writer._require_registered_chassis_baseline(
+                        index=ExactIndex(),
+                        controlled_chassis=SimpleNamespace(
+                            baseline_executable=executable,
+                        ),
+                        decision=malformed,
+                    )
+            wrong_baseline = SimpleNamespace(
+                payload={
+                    **decision.payload,
+                    "replacement_architecture_equivalence": {
+                        **equivalence,
+                        "replacement_baseline_executable_id": (
+                            "executable:" + "8" * 64
+                        ),
+                    },
+                }
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "replacement baseline authority",
+            ):
+                writer._require_registered_chassis_baseline(
+                    index=ExactIndex(),
+                    controlled_chassis=SimpleNamespace(
+                        baseline_executable=executable,
+                    ),
+                    decision=wrong_baseline,
+                )
 
     def test_full_history_reads_are_restricted_to_explicit_boundaries(self) -> None:
         source_path = Path(inspect.getsourcefile(StateWriter) or "")

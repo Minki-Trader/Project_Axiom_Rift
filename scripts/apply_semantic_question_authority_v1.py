@@ -217,6 +217,23 @@ TRANSFORMS: dict[str, Callable[[str], str]] = {
     "contracts/operations.yaml": _operations_contract,
     "contracts/science.yaml": _science_contract,
 }
+SUCCESSOR_MARKERS = {
+    "OPERATING_DIRECTION.md": (
+        "OD-TAX-010",
+        "OD-TAX-011",
+        "OD-TAX-012",
+    ),
+    "contracts/operations.yaml": (
+        "semantic_question_registry:",
+        "activation_event: semantic_question_registry_backfilled",
+        "repeated_exact_core_without_typed_lineage_allowed: false",
+    ),
+    "contracts/science.yaml": (
+        "semantic_question_registry:",
+        "one_study_one_core: true",
+        "semantic_revision_resolves_predecessor_estimand: false",
+    ),
+}
 
 
 def _read_audit_report(root: Path = ROOT) -> bytes:
@@ -240,6 +257,12 @@ def desired_replacements(root: Path = ROOT) -> tuple[dict[str, bytes], str]:
         relative: sha256(content).hexdigest()
         for relative, content in current.items()
     }
+    materialized = all(
+        all(marker.encode("ascii") in current[relative] for marker in markers)
+        for relative, markers in SUCCESSOR_MARKERS.items()
+    )
+    if materialized:
+        return current, "already_materialized"
     if observed == EXPECTED_SUCCESSOR_SHA256:
         return current, "already_materialized"
     if observed != EXPECTED_PREDECESSOR_SHA256:

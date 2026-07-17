@@ -21,10 +21,12 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     _accepted_decision_review_mode,
     _all_member_repair_chains,
     _canonical_statistical_family_ids,
+    _decision_action_review_basis,
     _member_repair_chain_complete,
     _protocol_activation_operation_id,
     _projection_payloads,
     _recorded_protocol_activation_operation_ids,
+    _require_prospective_semantic_lineage_admission,
     _require_scientific_study_close_projection,
     _study_close_record,
     _terminal_replay_reconstruction_allowed,
@@ -36,6 +38,12 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     operation_steps,
 )
 from axiom_rift.operations.replay_projection import with_scheduler_constraints
+from axiom_rift.operations.replay_workflow_recovery import (
+    derive_replay_admission_boundary_identity,
+)
+from axiom_rift.operations.semantic_question_registry import (
+    SemanticQuestionRegistryError,
+)
 from axiom_rift.operations.strict_operation_chain import OperationStep
 from axiom_rift.research.historical_family_binding import (
     ControlBinding,
@@ -55,6 +63,80 @@ class _StableSnapshot:
 
     def __exit__(self, *_exc_info: object) -> None:
         return None
+
+
+class ReplayAdmissionBoundaryIdentityTests(unittest.TestCase):
+    def test_uses_current_stable_head_before_first_operation(self) -> None:
+        index = SimpleNamespace(get=Mock(return_value=None))
+        writer = SimpleNamespace(journal=Mock())
+
+        actual = derive_replay_admission_boundary_identity(
+            writer,
+            index=index,
+            control={
+                "heads": {
+                    "journal": {"event_id": "a" * 64, "sequence": 41}
+                }
+            },
+            first_operation_id="fixture-replay-open",
+        )
+
+        self.assertEqual(actual, (41, "a" * 64))
+        writer.journal.read_event_at.assert_not_called()
+
+    def test_recovers_exact_parent_after_first_operation(self) -> None:
+        first = SimpleNamespace(
+            authority_event_id="b" * 64,
+            authority_offset=99,
+            authority_sequence=42,
+            status="success",
+        )
+        index = SimpleNamespace(get=Mock(return_value=first))
+        journal = SimpleNamespace(
+            read_event_at=Mock(
+                return_value={"previous_event_id": "a" * 64}
+            )
+        )
+
+        actual = derive_replay_admission_boundary_identity(
+            SimpleNamespace(journal=journal),
+            index=index,
+            control={},
+            first_operation_id="fixture-replay-open",
+        )
+
+        self.assertEqual(actual, (41, "a" * 64))
+        journal.read_event_at.assert_called_once_with(
+            offset=99,
+            expected_sequence=42,
+            expected_event_id="b" * 64,
+        )
+
+    def test_rejects_malformed_current_or_recorded_authority(self) -> None:
+        writer = SimpleNamespace(journal=Mock())
+        with self.assertRaisesRegex(RuntimeError, "current authority"):
+            derive_replay_admission_boundary_identity(
+                writer,
+                index=SimpleNamespace(get=Mock(return_value=None)),
+                control={"heads": {"journal": {"sequence": 0}}},
+                first_operation_id="fixture-replay-open",
+            )
+        with self.assertRaisesRegex(RuntimeError, "incomplete"):
+            derive_replay_admission_boundary_identity(
+                writer,
+                index=SimpleNamespace(
+                    get=Mock(
+                        return_value=SimpleNamespace(
+                            authority_event_id=None,
+                            authority_offset=None,
+                            authority_sequence=None,
+                            status="success",
+                        )
+                    )
+                ),
+                control={},
+                first_operation_id="fixture-replay-open",
+            )
 
 
 def _snapshot_writer(index: object, *, control: dict | None = None):
@@ -138,7 +220,6 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
     def test_pre_study_admission_binds_current_replacement_trigger(self) -> None:
         obligation_id = "historical-replay-obligation:" + "1" * 64
         replaced_id = "job-implementation-preflight:" + "2" * 64
-        accepted_id = "job-implementation-preflight:" + "3" * 64
         stream = (
             "replay-job-implementation-preflight-replacement:"
             + replaced_id
@@ -156,8 +237,16 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             "source_closure_authority": {"schema": "fixture.v1"},
             "study_id": None,
         }
+        accepted_fingerprint = workflow_module.canonical_digest(
+            domain="replay-job-implementation-preflight",
+            payload=accepted_payload,
+        )
+        accepted_id = (
+            "job-implementation-preflight:" + accepted_fingerprint
+        )
         trigger = SimpleNamespace(
             event_stream=stream,
+            fingerprint=accepted_fingerprint,
             payload=accepted_payload,
             record_id=accepted_id,
             status="accepted",
@@ -665,6 +754,91 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             }
         )
         self.assertTrue(_accepted_decision_review_mode(index, operation_id))
+
+    def test_accepted_decision_context_survives_execute_restart(self) -> None:
+        decision_id = "decision:" + "a" * 64
+        diagnosis_id = "diagnosis:" + "b" * 64
+        diagnosis = SimpleNamespace(payload={})
+        decision = SimpleNamespace(
+            payload={
+                "architecture_review_id": None,
+                "scheduler_constraints": None,
+                "study_diagnosis_id": diagnosis_id,
+            }
+        )
+        records = {
+            ("portfolio-decision", decision_id): decision,
+            ("study-diagnosis", diagnosis_id): diagnosis,
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+        control = {
+            "next_action": {
+                "decision_id": decision_id,
+                "kind": "execute_portfolio_decision",
+            }
+        }
+        self.assertEqual(
+            tuple(
+                item.to_identity_payload()
+                for item in _decision_action_review_basis(index, control)
+            ),
+            (
+                {
+                    "kind": "study-diagnosis",
+                    "record_id": diagnosis_id,
+                },
+            ),
+        )
+        control["next_action"]["study_diagnosis_id"] = "diagnosis:" + "c" * 64
+        with self.assertRaisesRegex(RuntimeError, "context drifted"):
+            _decision_action_review_basis(index, control)
+
+    def test_lineage_is_admitted_before_replay_authority(self) -> None:
+        spec = self._spec()
+        question = {
+            "causal_question": "Does the typed replay remain admissible?",
+            "changed_variables": ["execution"],
+            "controlled_variables": ["model"],
+            "done_conditions": ["resolve the exact family"],
+            "evidence_modes": ["atomic_bundle"],
+        }
+        core = workflow_module.SemanticQuestionCore.from_question_manifest(
+            question
+        )
+        lineage = workflow_module.SemanticQuestionLineageProposal(
+            predecessor_study_id="STU-PREDECESSOR",
+            successor_study_id=spec.study_id,
+            predecessor_core_id=core.identity,
+            successor_core_id=core.identity,
+            relation=workflow_module.SemanticQuestionRelation.ENGINEERING_REENTRY,
+            rationale="Retry only after the exact engineering gap is repaired.",
+            basis_record_ids=("study-open:STU-PREDECESSOR",),
+        )
+        writer = _snapshot_writer(SimpleNamespace(), control={})
+        with (
+            patch(
+                "axiom_rift.operations.semantic_question_registry."
+                "require_semantic_question_registry_activation",
+                return_value=SimpleNamespace(),
+            ),
+            patch(
+                "axiom_rift.operations.semantic_question_registry."
+                "semantic_question_prospective_lineage_record",
+                side_effect=SemanticQuestionRegistryError("bad basis"),
+            ) as admit,
+            self.assertRaisesRegex(RuntimeError, "prospectively admissible"),
+        ):
+            _require_prospective_semantic_lineage_admission(
+                writer,
+                spec=spec,
+                question=question,
+                lineage=lineage,
+            )
+        prospective = admit.call_args.args[1]
+        self.assertEqual(prospective.record_id, spec.study_id)
+        self.assertEqual(prospective.payload["question"], question)
 
     def test_terminal_reconstruction_requires_complete_exact_diagnosis_chain(
         self,
@@ -1386,7 +1560,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
         return_value=None,
     )
-    def test_protocol_activation_is_not_retroactively_inserted_before_trials(
+    def test_unbacked_registration_operation_does_not_suppress_protocol_activation(
         self,
         _completion,
         _activation_needed,
@@ -1417,7 +1591,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
 
         operation_ids = tuple(step.operation_id for step in steps)
         self.assertIn(registration_id, operation_ids)
-        self.assertNotIn(_protocol_activation_operation_id(design), operation_ids)
+        self.assertIn(_protocol_activation_operation_id(design), operation_ids)
 
     @patch(
         "axiom_rift.operations.fixed_hold_replay_workflow."

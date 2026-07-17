@@ -43,10 +43,79 @@ from axiom_rift.storage.index import LocalIndex, LocalIndexView
 PREFLIGHT_SCHEMA = "replay_job_implementation_preflight.v1"
 SCIENTIFIC_SURFACE_SCHEMA = "replay_job_scientific_surface.v2"
 SCIENTIFIC_SURFACE_HASH_DOMAIN = "replay-job-scientific-surface"
+SCIENTIFIC_EQUIVALENCE_SCHEMA = (
+    "replay_job_scientific_equivalence.v1"
+)
+SCIENTIFIC_EQUIVALENCE_HASH_DOMAIN = (
+    "replay-job-scientific-equivalence"
+)
 SAME_IDENTITY_REPAIR = "same_identity_repair"
 REPLACEMENT_REQUIRED = "replacement_required"
 _CONTEXT_ONLY_PARAMETER = (
     "historical_context_prior_global_exposure_count"
+)
+_ORIGINAL_FAMILY_CONTEXT_PARAMETER = (
+    "original_family_end_global_exposure_count"
+)
+_CONTEXT_ONLY_PARAMETERS = frozenset(
+    {
+        _CONTEXT_ONLY_PARAMETER,
+        _ORIGINAL_FAMILY_CONTEXT_PARAMETER,
+    }
+)
+_FIXED_HOLD_RUNTIME_PREFIXES = ("numpy", "pandas", "python", "scipy")
+_FIXED_HOLD_ENGINE_SHAPES = {
+    "stu0051_volatility_duration_replay_v1": frozenset(
+        {
+            "adapter",
+            "catalog",
+            "loader",
+            "selection",
+            "shared",
+            "trace_engine",
+        }
+    ),
+    "volatility_duration_fixed_hold_v1": frozenset(
+        {
+            "adapter",
+            "loader",
+            "selection",
+            "shared",
+            "trace_engine",
+        }
+    ),
+}
+_FIXED_HOLD_ENGINE_SEMANTIC_FAMILY = (
+    "stu0051_volatility_duration_fixed_hold_replay"
+)
+_FIXED_HOLD_REPLAY_PROTOCOL_ID = (
+    "volatility_duration.concurrent_four_config.replay.v1"
+)
+_FIXED_HOLD_CONTEXT_OWNER_PROTOCOL = (
+    "portfolio.concurrent_fixed_hold_family_inference.v2"
+)
+_FIXED_HOLD_PRODUCER_ROLE_SHAPES = frozenset(
+    {
+        frozenset(
+            {
+                "adapter_sha256",
+                "catalog_sha256",
+                "discovery_sha256",
+                "loader_sha256",
+                "trace_engine_sha256",
+            }
+        ),
+        frozenset(
+            {
+                "adapter_sha256",
+                "discovery_sha256",
+                "loader_sha256",
+                "selection_sha256",
+                "trace_engine_sha256",
+                "trace_schema_sha256",
+            }
+        ),
+    }
 )
 _EXECUTABLE_FIELDS = {
     "clock_contract",
@@ -112,12 +181,18 @@ def _mapping(name: str, value: object) -> dict[str, Any]:
     return copied
 
 
-def _strip_context_parameter(value: object) -> Any:
-    """Remove only the Writer-derived prospective exposure observation."""
+def _strip_context_parameters(
+    value: object,
+    *,
+    names: frozenset[str],
+) -> dict[str, Any]:
+    """Remove named top-level observations while preserving nested values."""
 
     copied = _mapping("replay scientific parameter surface", value)
-    if _CONTEXT_ONLY_PARAMETER in copied:
-        context = copied.pop(_CONTEXT_ONLY_PARAMETER)
+    for parameter in names:
+        if parameter not in copied:
+            continue
+        context = copied.pop(parameter)
         if type(context) is not int or context < 0:
             raise ReplayJobImplementationPreflightError(
                 "replay prospective exposure context is invalid"
@@ -125,10 +200,349 @@ def _strip_context_parameter(value: object) -> Any:
     return copied
 
 
+def _strip_prospective_context_parameter(value: object) -> dict[str, Any]:
+    return _strip_context_parameters(
+        value,
+        names=frozenset({_CONTEXT_ONLY_PARAMETER}),
+    )
+
+
+def _strip_equivalence_context_parameters(value: object) -> dict[str, Any]:
+    return _strip_context_parameters(
+        value,
+        names=_CONTEXT_ONLY_PARAMETERS,
+    )
+
+
+def _normalized_component_scientific_spec(
+    protocol: str,
+    value: object,
+) -> dict[str, Any]:
+    """Exclude only redundant implementation/binding metadata from science."""
+
+    spec = _mapping("replay Component scientific spec", value)
+    catalog_digest = spec.get("catalog_digest")
+    if protocol == "synthesis.historical_fixed_hold_member.v2" and (
+        catalog_digest is not None
+    ):
+        _digest("replay historical catalog", catalog_digest)
+        spec.pop("catalog_digest")
+    parameter_fields = spec.get("parameter_fields")
+    if isinstance(parameter_fields, list):
+        if any(type(item) is not str for item in parameter_fields):
+            raise ReplayJobImplementationPreflightError(
+                "replay Component parameter fields are malformed"
+            )
+        context_fields = set(parameter_fields).intersection(
+            _CONTEXT_ONLY_PARAMETERS
+        )
+        if context_fields and protocol != _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+            raise ReplayJobImplementationPreflightError(
+                "replay exposure context is declared by an unrelated Component"
+            )
+        if protocol == _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+            if (
+                spec.get("historical_context_adjustment_authority")
+                != "context_only_never_adjustment_factor"
+                or _CONTEXT_ONLY_PARAMETER not in parameter_fields
+            ):
+                raise ReplayJobImplementationPreflightError(
+                    "replay exposure context owner is malformed"
+                )
+            spec["parameter_fields"] = [
+                item
+                for item in parameter_fields
+                if item != _ORIGINAL_FAMILY_CONTEXT_PARAMETER
+            ]
+    return spec
+
+
+def _require_original_family_end_binding(
+    manifest: Mapping[str, Any],
+    *,
+    expected: int,
+    name: str,
+    strict_owner: bool = False,
+) -> bool:
+    """Bind a reconstruction-only Executable field to historical authority."""
+
+    if type(expected) is not int or expected < 0:
+        raise ReplayJobImplementationPreflightError(
+            "replay original family exposure boundary is invalid"
+        )
+    value = _mapping(name, manifest)
+    parameters = _mapping(f"{name} parameters", value.get("parameters"))
+    raw_manifests = value.get("component_manifests")
+    if not isinstance(raw_manifests, list):
+        raise ReplayJobImplementationPreflightError(
+            f"{name} Component family is invalid"
+        )
+    owner_count = 0
+    declares_parameter = False
+    for raw in raw_manifests:
+        try:
+            component = validated_component_manifest(raw)
+        except ComponentManifestError as exc:
+            raise ReplayJobImplementationPreflightError(str(exc)) from exc
+        fields = component["spec"].get("parameter_fields")
+        if fields is not None and (
+            not isinstance(fields, list)
+            or any(type(field) is not str for field in fields)
+        ):
+            raise ReplayJobImplementationPreflightError(
+                f"{name} Component parameter fields are malformed"
+            )
+        fields = [] if fields is None else fields
+        context_fields = set(fields).intersection(_CONTEXT_ONLY_PARAMETERS)
+        if component["protocol"] == _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+            owner_count += 1
+            if (
+                component["spec"].get(
+                    "historical_context_adjustment_authority"
+                )
+                != "context_only_never_adjustment_factor"
+                or _CONTEXT_ONLY_PARAMETER not in fields
+            ):
+                raise ReplayJobImplementationPreflightError(
+                    "replay exposure context owner is malformed"
+                )
+            declares_parameter = (
+                _ORIGINAL_FAMILY_CONTEXT_PARAMETER in fields
+            )
+        elif strict_owner and context_fields:
+            raise ReplayJobImplementationPreflightError(
+                "replay exposure context is declared by an unrelated Component"
+            )
+    if strict_owner and owner_count != 1:
+        raise ReplayJobImplementationPreflightError(
+            "replay exposure context requires one exact portfolio owner"
+        )
+    if strict_owner:
+        prior = parameters.get(_CONTEXT_ONLY_PARAMETER)
+        if type(prior) is not int or prior < 0:
+            raise ReplayJobImplementationPreflightError(
+                "replay prospective exposure context is invalid"
+            )
+
+        def contains_nested_context(value: object) -> bool:
+            if isinstance(value, Mapping):
+                return any(
+                    key in _CONTEXT_ONLY_PARAMETERS
+                    or contains_nested_context(item)
+                    for key, item in value.items()
+                )
+            if isinstance(value, list):
+                return any(contains_nested_context(item) for item in value)
+            return False
+
+        if any(
+            contains_nested_context(item)
+            for key, item in parameters.items()
+            if key not in _CONTEXT_ONLY_PARAMETERS
+        ):
+            raise ReplayJobImplementationPreflightError(
+                "replay exposure context is nested outside its owner"
+            )
+    actual = parameters.get(_ORIGINAL_FAMILY_CONTEXT_PARAMETER)
+    if (
+        (
+            strict_owner
+            and declares_parameter
+            != (_ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameters)
+        )
+        or (
+            not strict_owner
+            and declares_parameter
+            and _ORIGINAL_FAMILY_CONTEXT_PARAMETER not in parameters
+        )
+        or (
+            _ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameters
+            and (type(actual) is not int or actual != expected)
+        )
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "replay original family exposure boundary drifted"
+        )
+    return declares_parameter
+
+
+def _require_controlled_chassis_original_family_end_binding(
+    value: object,
+    *,
+    expected: int,
+    strict_owner: bool = False,
+) -> None:
+    chassis = _mapping("replay controlled chassis", value)
+    baseline = chassis.get("baseline_executable")
+    if not isinstance(baseline, Mapping):
+        raise ReplayJobImplementationPreflightError(
+            "replay controlled chassis baseline is absent"
+        )
+    declares_original = _require_original_family_end_binding(
+        baseline,
+        expected=expected,
+        name="replay controlled chassis baseline",
+        strict_owner=strict_owner,
+    )
+    grouped = _mapping(
+        "replay controlled chassis parameter bindings",
+        chassis.get("controlled_parameter_bindings"),
+    )
+    architecture = _mapping(
+        "replay controlled chassis architecture",
+        chassis.get("architecture"),
+    )
+    roles = _mapping(
+        "replay controlled chassis architecture roles",
+        architecture.get("roles"),
+    )
+    parameter_surfaces = [
+        ("controlled", name, parameters)
+        for name, parameters in grouped.items()
+    ] + [
+        (
+            "architecture",
+            role,
+            _mapping(f"replay architecture role {role}", payload).get(
+                "parameter_bindings"
+            ),
+        )
+        for role, payload in roles.items()
+    ]
+    for surface_kind, owner, raw in parameter_surfaces:
+        parameters = _mapping("replay controlled parameter binding", raw)
+        present = set(parameters).intersection(_CONTEXT_ONLY_PARAMETERS)
+        if strict_owner and present and owner != "portfolio":
+            raise ReplayJobImplementationPreflightError(
+                "replay exposure context escaped its portfolio binding"
+            )
+        if strict_owner and owner == "portfolio":
+            prior = parameters.get(_CONTEXT_ONLY_PARAMETER)
+            if type(prior) is not int or prior < 0:
+                raise ReplayJobImplementationPreflightError(
+                    "replay prospective exposure context is invalid"
+                )
+            original_present = (
+                _ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameters
+            )
+            if (
+                surface_kind == "architecture"
+                and original_present != declares_original
+            ):
+                raise ReplayJobImplementationPreflightError(
+                    "replay original family exposure binding drifted"
+                )
+        if _ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameters and (
+            type(parameters[_ORIGINAL_FAMILY_CONTEXT_PARAMETER]) is not int
+            or parameters[_ORIGINAL_FAMILY_CONTEXT_PARAMETER] != expected
+        ):
+            raise ReplayJobImplementationPreflightError(
+                "replay original family exposure boundary drifted"
+            )
+
+
+def _engine_scientific_profile(value: object) -> dict[str, Any]:
+    """Keep typed runtime semantics while moving byte identities to closure."""
+
+    engine = _ascii("replay Executable engine contract", value)
+    parts = engine.split(":")
+    runtime: dict[str, str] = {}
+    roles: dict[str, str] = {}
+    if len(parts) >= 7 and parts[0] == "engine":
+        tag = parts[1]
+        malformed = False
+        for part in parts[2:]:
+            matches = tuple(
+                prefix
+                for prefix in _FIXED_HOLD_RUNTIME_PREFIXES
+                if part.startswith(prefix) and len(part) > len(prefix)
+            )
+            if len(matches) == 1:
+                prefix = matches[0]
+                if prefix in runtime:
+                    malformed = True
+                    break
+                runtime[prefix] = part.removeprefix(prefix)
+                continue
+            if "_" not in part:
+                malformed = True
+                break
+            role, digest = part.rsplit("_", 1)
+            if (
+                not role
+                or role in roles
+                or len(digest) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in digest
+                )
+            ):
+                malformed = True
+                break
+            roles[role] = digest
+        expected_roles = _FIXED_HOLD_ENGINE_SHAPES.get(tag)
+        if (
+            not malformed
+            and set(runtime) == set(_FIXED_HOLD_RUNTIME_PREFIXES)
+            and expected_roles is not None
+            and frozenset(roles) == expected_roles
+        ):
+            return {
+                "runtime": dict(sorted(runtime.items())),
+                "schema": "replay_engine_scientific_profile.v1",
+                "semantic_contract_authority": (
+                    "component_data_split_clock_cost_surfaces"
+                ),
+                "semantic_engine_family": (
+                    _FIXED_HOLD_ENGINE_SEMANTIC_FAMILY
+                ),
+            }
+    return {
+        "opaque_contract": engine,
+        "schema": "replay_engine_scientific_profile.v1",
+    }
+
+
+def _producer_role_scientific_profile(
+    protocol_id: object,
+    value: object,
+) -> dict[str, Any]:
+    protocol = _ascii("replay fixed-hold protocol", protocol_id)
+    if not isinstance(value, list) or any(
+        type(role) is not str or not role or not role.isascii()
+        for role in value
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "replay producer implementation roles are malformed"
+        )
+    roles = tuple(sorted(value))
+    if len(roles) != len(set(roles)):
+        raise ReplayJobImplementationPreflightError(
+            "replay producer implementation roles are duplicated"
+        )
+    if (
+        protocol == _FIXED_HOLD_REPLAY_PROTOCOL_ID
+        and frozenset(roles) in _FIXED_HOLD_PRODUCER_ROLE_SHAPES
+    ):
+        return {
+            "schema": "replay_producer_role_scientific_profile.v1",
+            "semantic_authority": (
+                "authenticated_job_and_component_source_closure"
+            ),
+            "semantic_family": (
+                _FIXED_HOLD_ENGINE_SEMANTIC_FAMILY
+            ),
+        }
+    return {
+        "opaque_roles": list(roles),
+        "schema": "replay_producer_role_scientific_profile.v1",
+    }
+
+
 def _strip_grouped_context_parameters(value: object) -> dict[str, Any]:
     groups = _mapping("replay grouped parameter surface", value)
     return {
-        name: _strip_context_parameter(parameters)
+        name: _strip_equivalence_context_parameters(parameters)
         for name, parameters in groups.items()
     }
 
@@ -255,7 +669,7 @@ def _normalized_executable_surface(
             "data_contract": value["data_contract"],
             "engine_contract": value["engine_contract"],
             "historical_reference_executable_id": reference,
-            "parameters": _strip_context_parameter(parameters),
+            "parameters": _strip_prospective_context_parameter(parameters),
             "schema": "replay_executable_scientific_surface.v1",
             "source_contracts": sources,
             "split_contract": value["split_contract"],
@@ -586,7 +1000,7 @@ def _normalized_controlled_chassis(value: object) -> dict[str, Any]:
             "absence": payload.get("absence"),
             "boundary_bindings": boundaries,
             "component_ordinals": ordinals,
-            "parameter_bindings": _strip_context_parameter(
+            "parameter_bindings": _strip_prospective_context_parameter(
                 payload.get("parameter_bindings")
             ),
             "role": payload.get("role"),
@@ -632,14 +1046,38 @@ def _normalized_controlled_chassis(value: object) -> dict[str, Any]:
         "baseline_executable": baseline_surface,
         "changed_domains": chassis.get("changed_domains"),
         "controlled_domains": chassis.get("controlled_domains"),
-        "controlled_parameter_bindings": _strip_grouped_context_parameters(
-            chassis.get("controlled_parameter_bindings")
-        ),
+        "controlled_parameter_bindings": {
+            name: _strip_prospective_context_parameter(parameters)
+            for name, parameters in _mapping(
+                "replay grouped parameter surface",
+                chassis.get("controlled_parameter_bindings"),
+            ).items()
+        },
         "embedded_controlled_domains": chassis.get(
             "embedded_controlled_domains"
         ),
         "equivalences": normalized_equivalences,
         "schema": "replay_controlled_chassis_scientific_surface.v1",
+    }
+
+
+def _normalized_study_surface(value: object) -> dict[str, Any]:
+    study = _mapping("replay Study payload", value)
+    return {
+        "changed_domains": study.get("changed_domains"),
+        "controlled_chassis": _normalized_controlled_chassis(
+            study.get("controlled_chassis")
+        ),
+        "controlled_domains": study.get("controlled_domains"),
+        "material_identity": study.get("material_identity"),
+        "mechanism_family": study.get("mechanism_family"),
+        "portfolio_action": study.get("portfolio_action"),
+        "primary_research_layer": study.get("primary_research_layer"),
+        "question": study.get("question"),
+        "semantic_proposal": study.get("semantic_proposal"),
+        "semantic_question_core_id": study.get(
+            "semantic_question_core_id"
+        ),
     }
 
 
@@ -649,6 +1087,7 @@ def derive_replay_job_scientific_surface(
     study_payload: Mapping[str, Any],
     batch_payload: Mapping[str, Any],
     artifact_reader: Callable[[str], bytes],
+    registered_batch_executable_ids: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Derive the immutable science while excluding implementation identity."""
 
@@ -692,6 +1131,43 @@ def derive_replay_job_scientific_surface(
             strict=True,
         )
     ]
+    original_family_ends = {
+        plan["protocol_definition"][
+            "original_family_end_global_exposure_count"
+        ]
+        for plan in plan_surfaces
+    }
+    if (
+        len(original_family_ends) != 1
+        or type(next(iter(original_family_ends), None)) is not int
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "replay original family exposure boundary is inconsistent"
+        )
+    original_family_end = next(iter(original_family_ends))
+    protocol_ids = {
+        plan["protocol_definition"]["protocol_id"]
+        for plan in plan_surfaces
+    }
+    if len(protocol_ids) != 1:
+        raise ReplayJobImplementationPreflightError(
+            "replay family mixes protocol definitions"
+        )
+    strict_context_owner = (
+        next(iter(protocol_ids)) == _FIXED_HOLD_REPLAY_PROTOCOL_ID
+    )
+    for executable in request.executables:
+        _require_original_family_end_binding(
+            executable.to_identity_payload(),
+            expected=original_family_end,
+            name="replay member Executable",
+            strict_owner=strict_context_owner,
+        )
+    _require_controlled_chassis_original_family_end_binding(
+        study.get("controlled_chassis"),
+        expected=original_family_end,
+        strict_owner=strict_context_owner,
+    )
     by_reference = {
         surface["historical_reference_executable_id"]: surface
         for surface in executable_surfaces
@@ -714,9 +1190,18 @@ def derive_replay_job_scientific_surface(
         acceptance.get("concurrent_family"),
     )
     family_ids = concurrent.get("executable_ids")
+    registered_ids = (
+        request.executable_ids
+        if registered_batch_executable_ids is None
+        else registered_batch_executable_ids
+    )
     if (
-        not isinstance(family_ids, list)
-        or sorted(family_ids) != sorted(request.executable_ids)
+        type(registered_ids) is not tuple
+        or not registered_ids
+        or any(type(value) is not str for value in registered_ids)
+        or len(set(registered_ids)) != len(registered_ids)
+        or not isinstance(family_ids, list)
+        or sorted(family_ids) != sorted(registered_ids)
         or concurrent.get("family_size") != len(request.executables)
         or batch_spec.get("max_trials") != len(request.executables)
     ):
@@ -727,10 +1212,7 @@ def derive_replay_job_scientific_surface(
     normalized_acceptance["concurrent_family"] = {
         "evaluation_mode": concurrent.get("evaluation_mode"),
         "family_size": concurrent.get("family_size"),
-        "historical_references": sorted(
-            references_by_executable[executable_id]
-            for executable_id in family_ids
-        ),
+        "historical_references": sorted(references_by_executable.values()),
         "schema": concurrent.get("schema"),
     }
     members = [
@@ -759,22 +1241,7 @@ def derive_replay_job_scientific_surface(
         "protocol_id": request.protocol_id,
         "replay_obligation_ids": list(request.replay_obligation_ids),
         "schema": SCIENTIFIC_SURFACE_SCHEMA,
-        "study": {
-            "changed_domains": study.get("changed_domains"),
-            "controlled_chassis": _normalized_controlled_chassis(
-                study.get("controlled_chassis")
-            ),
-            "controlled_domains": study.get("controlled_domains"),
-            "material_identity": study.get("material_identity"),
-            "mechanism_family": study.get("mechanism_family"),
-            "portfolio_action": study.get("portfolio_action"),
-            "primary_research_layer": study.get("primary_research_layer"),
-            "question": study.get("question"),
-            "semantic_proposal": study.get("semantic_proposal"),
-            "semantic_question_core_id": study.get(
-                "semantic_question_core_id"
-            ),
-        },
+        "study": _normalized_study_surface(study),
     }
     return _mapping("replay scientific surface", surface)
 
@@ -1161,6 +1628,472 @@ def validated_replay_job_scientific_surface(
     return value
 
 
+def _executable_scientific_equivalence_surface(
+    value: object,
+    *,
+    expected_original_family_end: int | None = None,
+    strict_context_owner: bool = False,
+) -> dict[str, Any]:
+    executable = _validated_executable_scientific_surface(value)
+    if expected_original_family_end is not None:
+        _require_scientific_surface_context_binding(
+            executable,
+            expected=expected_original_family_end,
+            strict_owner=strict_context_owner,
+        )
+    executable["engine_scientific_profile"] = _engine_scientific_profile(
+        executable.pop("engine_contract")
+    )
+    executable["parameters"] = _strip_equivalence_context_parameters(
+        executable["parameters"]
+    )
+    for component in executable["components"]:
+        component["spec"] = _normalized_component_scientific_spec(
+            component["protocol"],
+            component["spec"],
+        )
+    return executable
+
+
+def _require_scientific_surface_context_binding(
+    executable: Mapping[str, Any],
+    *,
+    expected: int,
+    strict_owner: bool,
+) -> bool:
+    components = executable.get("components")
+    parameters = _mapping(
+        "replay scientific Executable parameters",
+        executable.get("parameters"),
+    )
+    if not isinstance(components, list):
+        raise ReplayJobImplementationPreflightError(
+            "replay scientific Executable Components are malformed"
+        )
+    owner_count = 0
+    declares_original = False
+    for raw in components:
+        component = _mapping("replay scientific Component", raw)
+        protocol = component.get("protocol")
+        spec = _mapping(
+            "replay scientific Component spec",
+            component.get("spec"),
+        )
+        fields = spec.get("parameter_fields")
+        if fields is not None and (
+            not isinstance(fields, list)
+            or any(type(field) is not str for field in fields)
+        ):
+            raise ReplayJobImplementationPreflightError(
+                "replay scientific Component parameter fields are malformed"
+            )
+        fields = [] if fields is None else fields
+        context_fields = set(fields).intersection(_CONTEXT_ONLY_PARAMETERS)
+        if protocol == _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+            owner_count += 1
+            if (
+                spec.get("historical_context_adjustment_authority")
+                != "context_only_never_adjustment_factor"
+                or _CONTEXT_ONLY_PARAMETER not in fields
+            ):
+                raise ReplayJobImplementationPreflightError(
+                    "replay exposure context owner is malformed"
+                )
+            declares_original = (
+                _ORIGINAL_FAMILY_CONTEXT_PARAMETER in fields
+            )
+        elif strict_owner and context_fields:
+            raise ReplayJobImplementationPreflightError(
+                "replay exposure context is declared by an unrelated Component"
+            )
+    if strict_owner and owner_count != 1:
+        raise ReplayJobImplementationPreflightError(
+            "replay exposure context requires one exact portfolio owner"
+        )
+    original_present = _ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameters
+    if strict_owner and original_present != declares_original:
+        raise ReplayJobImplementationPreflightError(
+            "replay original family exposure binding drifted"
+        )
+    if original_present and (
+        type(parameters[_ORIGINAL_FAMILY_CONTEXT_PARAMETER]) is not int
+        or parameters[_ORIGINAL_FAMILY_CONTEXT_PARAMETER] != expected
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "replay original family exposure boundary drifted"
+        )
+    return declares_original
+
+
+def replay_job_scientific_equivalence_surface(
+    surface: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project exact research semantics without implementation authority.
+
+    The full surface remains the admission identity for one implementation.
+    This narrower projection is used only to decide whether a replacement
+    implementation reruns the same scientific question.  It deliberately
+    retains data, split, clock, cost, component protocols and specifications,
+    family membership, inference, criteria, and Study semantics.
+    """
+
+    value = validated_replay_job_scientific_surface(surface)
+    value.pop("callable_identity")
+    value.pop("protocol_id")
+    value["schema"] = SCIENTIFIC_EQUIVALENCE_SCHEMA
+    acceptance = value["batch"]["acceptance_profile"]
+    family_authority_id = _prefixed(
+        "replay historical family authority",
+        acceptance.get("historical_family_authority_id"),
+        "historical-family-authority:",
+    )
+    replay_obligation_id = _prefixed(
+        "replay historical obligation",
+        acceptance.get("replay_obligation_id"),
+        "historical-replay-obligation:",
+    )
+    family_identity = _prefixed(
+        "replay historical family identity",
+        acceptance.get("historical_family_identity"),
+        "historical-family:",
+    )
+    if replay_obligation_id not in value["replay_obligation_ids"]:
+        raise ReplayJobImplementationPreflightError(
+            "replay historical context subject differs from its obligation"
+        )
+    context_subject = {
+        "historical_family_authority_id": family_authority_id,
+        "historical_family_identity": family_identity,
+        "replay_obligation_id": replay_obligation_id,
+        "schema": "replay_historical_context_subject.v1",
+    }
+    original_family_ends = {
+        member["validation_plan"]["protocol_definition"][
+            "original_family_end_global_exposure_count"
+        ]
+        for member in value["members"]
+    }
+    protocol_ids = {
+        member["validation_plan"]["protocol_definition"]["protocol_id"]
+        for member in value["members"]
+    }
+    if (
+        len(original_family_ends) != 1
+        or type(next(iter(original_family_ends), None)) is not int
+        or len(protocol_ids) != 1
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "replay replacement protocol context is inconsistent"
+        )
+    original_family_end = next(iter(original_family_ends))
+    strict_context_owner = (
+        next(iter(protocol_ids)) == _FIXED_HOLD_REPLAY_PROTOCOL_ID
+    )
+
+    def normalize_plan(plan: dict[str, Any]) -> None:
+        definition = plan["protocol_definition"]
+        raw_context_id = _ascii(
+            "replay protocol historical context",
+            definition.pop("historical_context_id"),
+        )
+        if raw_context_id not in {
+            family_authority_id,
+            replay_obligation_id,
+        }:
+            raise ReplayJobImplementationPreflightError(
+                "replay historical context subject is unrelated"
+            )
+        historical_family = _mapping(
+            "replay protocol historical family",
+            definition.get("historical_family"),
+        )
+        derived_family_identity = "historical-family:" + canonical_digest(
+            domain="historical-family-spec",
+            payload=historical_family,
+        )
+        if derived_family_identity != family_identity:
+            raise ReplayJobImplementationPreflightError(
+                "replay historical context family identity drifted"
+            )
+        definition["historical_context_subject"] = context_subject
+        definition["producer_implementation_profile"] = (
+            _producer_role_scientific_profile(
+                definition.get("protocol_id"),
+                definition.pop("producer_implementation_roles"),
+            )
+        )
+
+    for member in value["members"]:
+        member["executable"] = (
+            _executable_scientific_equivalence_surface(
+                member["executable"],
+                expected_original_family_end=original_family_end,
+                strict_context_owner=strict_context_owner,
+            )
+        )
+        normalize_plan(member["validation_plan"])
+
+    chassis = value["study"]["controlled_chassis"]
+    baseline_declares_original = (
+        _require_scientific_surface_context_binding(
+            chassis["baseline_executable"],
+            expected=original_family_end,
+            strict_owner=strict_context_owner,
+        )
+    )
+    chassis["baseline_executable"] = (
+        _executable_scientific_equivalence_surface(
+            chassis["baseline_executable"],
+            expected_original_family_end=original_family_end,
+            strict_context_owner=strict_context_owner,
+        )
+    )
+    if strict_context_owner:
+        for surface_kind, bindings in (
+            (
+                "controlled",
+                chassis["controlled_parameter_bindings"],
+            ),
+            ("architecture", chassis["architecture"]["roles"]),
+        ):
+            for owner, raw in bindings.items():
+                parameters = (
+                    _mapping("replay architecture role", raw).get(
+                        "parameter_bindings"
+                    )
+                    if surface_kind == "architecture"
+                    else raw
+                )
+                parameter_map = _mapping(
+                    "replay scientific chassis parameter binding",
+                    parameters,
+                )
+                present = set(parameter_map).intersection(
+                    _CONTEXT_ONLY_PARAMETERS
+                )
+                if present and owner != "portfolio":
+                    raise ReplayJobImplementationPreflightError(
+                        "replay exposure context escaped its portfolio binding"
+                    )
+                if _ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameter_map and (
+                    type(
+                        parameter_map[_ORIGINAL_FAMILY_CONTEXT_PARAMETER]
+                    )
+                    is not int
+                    or parameter_map[_ORIGINAL_FAMILY_CONTEXT_PARAMETER]
+                    != original_family_end
+                ):
+                    raise ReplayJobImplementationPreflightError(
+                        "replay original family exposure boundary drifted"
+                    )
+                if (
+                    owner == "portfolio"
+                    and surface_kind == "architecture"
+                    and (
+                        _ORIGINAL_FAMILY_CONTEXT_PARAMETER in parameter_map
+                    )
+                    != baseline_declares_original
+                ):
+                    raise ReplayJobImplementationPreflightError(
+                        "replay original family exposure binding drifted"
+                    )
+    chassis["controlled_parameter_bindings"] = (
+        _strip_grouped_context_parameters(
+            chassis["controlled_parameter_bindings"]
+        )
+    )
+    for role in chassis["architecture"]["roles"].values():
+        boundaries = role["boundary_bindings"]
+        if "engine_contract" in boundaries:
+            boundaries["engine_scientific_profile"] = (
+                _engine_scientific_profile(
+                    boundaries.pop("engine_contract")
+                )
+            )
+        role["parameter_bindings"] = _strip_equivalence_context_parameters(
+            role["parameter_bindings"]
+        )
+    return _mapping("replay scientific equivalence surface", value)
+
+
+def replay_job_scientific_equivalence_hash(
+    surface: Mapping[str, Any],
+) -> str:
+    return canonical_digest(
+        domain=SCIENTIFIC_EQUIVALENCE_HASH_DOMAIN,
+        payload=replay_job_scientific_equivalence_surface(surface),
+    )
+
+
+def _accepted_replacement_scientific_surface(
+    accepted_payload: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    accepted = _mapping(
+        "accepted replacement replay preflight payload",
+        accepted_payload,
+    )
+    surface = accepted.get("scientific_surface")
+    surface_hash = (
+        replay_job_scientific_surface_hash(surface)
+        if isinstance(surface, Mapping)
+        else None
+    )
+    manifests = accepted.get("executable_manifests")
+    references = replay_executable_reference_map(manifests)
+    executable_ids = accepted.get("executable_ids")
+    replacement_for = accepted.get("replacement_for_preflight_id")
+    if (
+        accepted.get("schema") != PREFLIGHT_SCHEMA
+        or accepted.get("outcome") != "accepted"
+        or not isinstance(accepted.get("source_closure_authority"), Mapping)
+        or accepted.get("failure_detail") is not None
+        or accepted.get("failure_fingerprint") is not None
+        or accepted.get("reason_code") is not None
+        or accepted.get("remediation_kind") is not None
+        or not isinstance(replacement_for, str)
+        or not replacement_for.startswith("job-implementation-preflight:")
+        or not isinstance(surface, Mapping)
+        or surface_hash != accepted.get("scientific_surface_hash")
+        or surface.get("mission_id") != accepted.get("mission_id")
+        or surface.get("protocol_id") != accepted.get("protocol_id")
+        or surface.get("callable_identity")
+        != accepted.get("callable_identity")
+        or surface.get("replay_obligation_ids")
+        != accepted.get("replay_obligation_ids")
+        or not isinstance(executable_ids, list)
+        or any(type(value) is not str for value in executable_ids)
+        or len(executable_ids) != len(set(executable_ids))
+        or set(executable_ids) != set(references.values())
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "accepted replacement replay preflight is malformed"
+        )
+    return accepted, validated_replay_job_scientific_surface(surface)
+
+
+def require_replacement_replay_baseline_semantics(
+    *,
+    accepted_payload: Mapping[str, Any],
+    baseline_executable_manifest: Mapping[str, Any],
+) -> str:
+    """Allow a new byte identity only when its baseline science is unchanged."""
+
+    _accepted, surface = _accepted_replacement_scientific_surface(
+        accepted_payload
+    )
+    original_family_ends = {
+        member["validation_plan"]["protocol_definition"][
+            "original_family_end_global_exposure_count"
+        ]
+        for member in surface["members"]
+    }
+    if (
+        len(original_family_ends) != 1
+        or type(next(iter(original_family_ends), None)) is not int
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "accepted replay original family boundary is inconsistent"
+        )
+    protocol_ids = {
+        member["validation_plan"]["protocol_definition"]["protocol_id"]
+        for member in surface["members"]
+    }
+    _require_original_family_end_binding(
+        baseline_executable_manifest,
+        expected=next(iter(original_family_ends)),
+        name="replacement replay baseline Executable",
+        strict_owner=(
+            protocol_ids == {_FIXED_HOLD_REPLAY_PROTOCOL_ID}
+        ),
+    )
+    _reference, replacement_baseline = _normalized_executable_surface(
+        baseline_executable_manifest,
+        require_historical_reference=False,
+    )
+    accepted_baseline = surface["study"]["controlled_chassis"][
+        "baseline_executable"
+    ]
+    if _executable_scientific_equivalence_surface(
+        replacement_baseline
+    ) != _executable_scientific_equivalence_surface(accepted_baseline):
+        raise ReplayJobImplementationPreflightError(
+            "replacement replay baseline changed its scientific semantics"
+        )
+    return replay_job_scientific_equivalence_hash(surface)
+
+
+def require_replacement_replay_study_semantics(
+    *,
+    accepted_payload: Mapping[str, Any],
+    study_payload: Mapping[str, Any],
+) -> str:
+    """Bind one prospective successor Study to accepted replacement science."""
+
+    accepted, surface = _accepted_replacement_scientific_surface(
+        accepted_payload
+    )
+    proposed = _mapping("replacement replay prospective Study", study_payload)
+    if (
+        set(proposed)
+        != {
+            "changed_domains",
+            "controlled_chassis",
+            "controlled_domains",
+            "material_identity",
+            "mechanism_family",
+            "mission_id",
+            "portfolio_action",
+            "primary_research_layer",
+            "question",
+            "replay_obligation_ids",
+            "semantic_proposal",
+            "semantic_question_core_id",
+        }
+        or proposed.get("mission_id") != accepted.get("mission_id")
+        or proposed.get("replay_obligation_ids")
+        != accepted.get("replay_obligation_ids")
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "replacement replay Study differs from its accepted authority"
+        )
+    original_family_ends = {
+        member["validation_plan"]["protocol_definition"][
+            "original_family_end_global_exposure_count"
+        ]
+        for member in surface["members"]
+    }
+    if (
+        len(original_family_ends) != 1
+        or type(next(iter(original_family_ends), None)) is not int
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "accepted replay original family boundary is inconsistent"
+        )
+    protocol_ids = {
+        member["validation_plan"]["protocol_definition"]["protocol_id"]
+        for member in surface["members"]
+    }
+    _require_controlled_chassis_original_family_end_binding(
+        proposed.get("controlled_chassis"),
+        expected=next(iter(original_family_ends)),
+        strict_owner=(
+            protocol_ids == {_FIXED_HOLD_REPLAY_PROTOCOL_ID}
+        ),
+    )
+    prospective_surface = _mapping(
+        "replacement replay prospective scientific surface",
+        surface,
+    )
+    prospective_surface["study"] = _normalized_study_surface(proposed)
+    if replay_job_scientific_equivalence_surface(
+        prospective_surface
+    ) != replay_job_scientific_equivalence_surface(surface):
+        raise ReplayJobImplementationPreflightError(
+            "replacement replay Study changed its scientific semantics"
+        )
+    return replay_job_scientific_equivalence_hash(surface)
+
+
 def replay_executable_reference_map(
     executable_manifests: object,
 ) -> dict[str, str]:
@@ -1232,6 +2165,16 @@ def require_replacement_replay_job_scientific_surface(
         if isinstance(replacement_surface, Mapping)
         else None
     )
+    prior_equivalence = (
+        replay_job_scientific_equivalence_surface(prior_surface)
+        if isinstance(prior_surface, Mapping)
+        else None
+    )
+    replacement_equivalence = (
+        replay_job_scientific_equivalence_surface(replacement_surface)
+        if isinstance(replacement_surface, Mapping)
+        else None
+    )
     prior_references = replay_executable_reference_map(
         prior.get("executable_manifests")
     )
@@ -1257,15 +2200,20 @@ def require_replacement_replay_job_scientific_surface(
         or replacement.get("replacement_for_preflight_id")
         != prior_preflight_id
         or replacement.get("mission_id") != prior.get("mission_id")
-        or replacement.get("protocol_id") != prior.get("protocol_id")
-        or replacement.get("callable_identity")
-        != prior.get("callable_identity")
         or replacement.get("replay_obligation_ids")
         != prior.get("replay_obligation_ids")
         or prior.get("scientific_surface_hash") != prior_hash
         or replacement.get("scientific_surface_hash") != replacement_hash
-        or replacement_hash != prior_hash
-        or replacement_surface != prior_surface
+        or not isinstance(prior_surface, Mapping)
+        or not isinstance(replacement_surface, Mapping)
+        or prior_surface.get("callable_identity")
+        != prior.get("callable_identity")
+        or replacement_surface.get("callable_identity")
+        != replacement.get("callable_identity")
+        or prior_surface.get("protocol_id") != prior.get("protocol_id")
+        or replacement_surface.get("protocol_id")
+        != replacement.get("protocol_id")
+        or replacement_equivalence != prior_equivalence
         or set(prior_references) != set(replacement_references)
         or set(prior_ids) != set(prior_references.values())
         or set(replacement_ids) != set(replacement_references.values())
@@ -1301,12 +2249,10 @@ def require_active_replay_job_replacement_binding(
 ) -> None:
     """Bind the successor active family to its accepted replacement probe."""
 
-    accepted = _mapping(
-        "accepted replacement replay preflight payload",
+    accepted, accepted_surface = _accepted_replacement_scientific_surface(
         accepted_payload,
     )
     active = _mapping("active replacement replay preflight payload", active_payload)
-    accepted_surface = accepted.get("scientific_surface")
     active_surface = active.get("scientific_surface")
     accepted_hash = (
         replay_job_scientific_surface_hash(accepted_surface)
@@ -1318,6 +2264,16 @@ def require_active_replay_job_replacement_binding(
         if isinstance(active_surface, Mapping)
         else None
     )
+    accepted_equivalence = (
+        replay_job_scientific_equivalence_surface(accepted_surface)
+        if isinstance(accepted_surface, Mapping)
+        else None
+    )
+    active_equivalence = (
+        replay_job_scientific_equivalence_surface(active_surface)
+        if isinstance(active_surface, Mapping)
+        else None
+    )
     if (
         accepted.get("schema") != PREFLIGHT_SCHEMA
         or accepted.get("outcome") != "accepted"
@@ -1326,8 +2282,16 @@ def require_active_replay_job_replacement_binding(
         or accepted.get("reason_code") is not None
         or accepted_hash != accepted.get("scientific_surface_hash")
         or active_hash != active.get("scientific_surface_hash")
-        or active_hash != accepted_hash
-        or active_surface != accepted_surface
+        or not isinstance(accepted_surface, Mapping)
+        or not isinstance(active_surface, Mapping)
+        or accepted_surface.get("callable_identity")
+        != accepted.get("callable_identity")
+        or active_surface.get("callable_identity")
+        != active.get("callable_identity")
+        or accepted_surface.get("protocol_id")
+        != accepted.get("protocol_id")
+        or active_surface.get("protocol_id") != active.get("protocol_id")
+        or active_equivalence != accepted_equivalence
         or active.get("mission_id") != accepted.get("mission_id")
         or active.get("protocol_id") != accepted.get("protocol_id")
         or active.get("callable_identity") != accepted.get("callable_identity")
@@ -1335,6 +2299,7 @@ def require_active_replay_job_replacement_binding(
         != accepted.get("implementation_identity")
         or active.get("replay_obligation_ids")
         != accepted.get("replay_obligation_ids")
+        or active.get("replacement_for_preflight_id") is not None
         or active.get("executable_ids") != accepted.get("executable_ids")
         or active.get("executable_manifests")
         != accepted.get("executable_manifests")

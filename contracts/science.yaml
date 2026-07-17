@@ -311,6 +311,14 @@ study_kpi_projection:
         stopped_early: pre_activation_untyped_disposition
         not_evaluable: pre_activation_final_non_scientific_failure
         engineering_failure: pre_activation_final_non_scientific_failure
+      legacy_registration_only_replay_implementation_rejection:
+        operations_authority: replay_implementation_admission.replacement_required_terminal
+        study_outcomes:
+          - evidence_gap
+          - not_evaluable
+        representative_executable: null
+        kpi_values: null
+        scientific_credit: false
     kpi_bearing_measurement_exact_bindings:
       - executable_id
       - job_id

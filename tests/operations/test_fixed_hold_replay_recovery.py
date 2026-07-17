@@ -521,6 +521,7 @@ class FixedHoldReplayRecoveryTests(unittest.TestCase):
             "pending_replay_obligation_ids": [OBLIGATION_ID],
             "required_replay_priority": "p0",
         }
+        diagnosis_id = "diagnosis:" + "6" * 64
         index = SimpleNamespace(
             event_head=lambda stream: (
                 SimpleNamespace(
@@ -543,6 +544,7 @@ class FixedHoldReplayRecoveryTests(unittest.TestCase):
                 {
                     "kind": "portfolio_decision",
                     "portfolio_snapshot_id": portfolio_id,
+                    "study_diagnosis_id": diagnosis_id,
                 },
                 constraints,
             ),
@@ -572,6 +574,13 @@ class FixedHoldReplayRecoveryTests(unittest.TestCase):
             )
             for attacked in (
                 {**control, "next_action": {"kind": "review_architecture"}},
+                {
+                    **control,
+                    "next_action": {
+                        **control["next_action"],
+                        "caller_note": "not typed decision authority",
+                    },
+                },
                 {
                     **control,
                     "scientific": {

@@ -58,7 +58,7 @@ def authenticated_historical_implementation_sources(
     ):
         return ()
     subject = spec.get("evidence_subject")
-    obligation_id = protocol.get("historical_context_id")
+    historical_context_id = protocol.get("historical_context_id")
     prospective_ids = protocol.get("prospective_executable_ids")
     try:
         family = historical_family_from_manifest(
@@ -75,8 +75,7 @@ def authenticated_historical_implementation_sources(
         or subject.get("kind") != "Executable"
         or type(subject.get("id")) is not str
         or plan.get("executable_id") != subject.get("id")
-        or type(obligation_id) is not str
-        or not obligation_id.startswith("historical-replay-obligation:")
+        or type(historical_context_id) is not str
         or not isinstance(prospective_ids, list)
         or subject.get("id") not in prospective_ids
         or len(prospective_ids) != family.family_size
@@ -84,19 +83,42 @@ def authenticated_historical_implementation_sources(
         raise HistoricalReplayImplementationAuthorityError(
             "historical replay implementation plan is not subject-bound"
         )
-    accepted = tuple(
-        record
-        for record in index.records_by_subject_status(
-            f"ReplayObligation:{obligation_id}",
-            "accepted",
-        )
-        if record.kind == "historical-family-authority"
+    reconstruction_required = historical_context_id.startswith(
+        "historical-replay-obligation:"
     )
-    if len(accepted) != 1:
-        raise HistoricalReplayImplementationAuthorityError(
-            "historical replay implementation source authority is ambiguous"
+    if reconstruction_required:
+        obligation_id = historical_context_id
+        accepted = tuple(
+            record
+            for record in index.records_by_subject_status(
+                f"ReplayObligation:{obligation_id}",
+                "accepted",
+            )
+            if record.kind == "historical-family-authority"
         )
-    authority_record = accepted[0]
+        if len(accepted) != 1:
+            raise HistoricalReplayImplementationAuthorityError(
+                "historical replay implementation source authority is ambiguous"
+            )
+        authority_record = accepted[0]
+    elif historical_context_id.startswith("historical-family-authority:"):
+        authority_record = index.get(
+            "historical-family-authority",
+            historical_context_id,
+        )
+        if authority_record is None:
+            raise HistoricalReplayImplementationAuthorityError(
+                "historical replay family authority is unavailable"
+            )
+        obligation_id = authority_record.payload.get("replay_obligation_id")
+        if type(obligation_id) is not str:
+            raise HistoricalReplayImplementationAuthorityError(
+                "historical replay family authority lacks its obligation"
+            )
+    else:
+        raise HistoricalReplayImplementationAuthorityError(
+            "historical replay context is not Writer-bound"
+        )
     try:
         authority = historical_family_authority_from_payload(
             authority_record.payload
@@ -130,6 +152,10 @@ def authenticated_historical_implementation_sources(
         or authority_record.fingerprint
         != authority.identity.removeprefix("historical-family-authority:")
         or authority.replay_obligation_id != obligation_id
+        or (
+            not reconstruction_required
+            and authority.identity != historical_context_id
+        )
         or authority.family != family
         or obligation_record is None
         or obligation_record.kind != "historical-replay-obligation"
@@ -144,6 +170,8 @@ def authenticated_historical_implementation_sources(
         raise HistoricalReplayImplementationAuthorityError(
             "historical replay implementation lineage differs from authority"
         )
+    if not reconstruction_required:
+        return ()
     reconstruction_path = authority.reconstruction_source_path
     if not reconstruction_path.startswith("src/"):
         raise HistoricalReplayImplementationAuthorityError(

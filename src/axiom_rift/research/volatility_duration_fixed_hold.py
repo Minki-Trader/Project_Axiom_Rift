@@ -257,7 +257,7 @@ def volatility_duration_fixed_hold_components(
     volatility_duration_fixed_hold_configurations(historical_family)
     feature = ComponentSpec(
         display_name="causal volatility state-age fixed-hold feature",
-        protocol="feature.causal_volatility_state_age.fixed_hold.v1",
+        protocol="feature.causal_volatility_state_age.replay.v1",
         implementation=_local("compute_volatility_duration_fixed_hold_score"),
         spec={
             "age_windows": {"mature": [24, 47], "persistent": [72, 143]},
@@ -271,7 +271,7 @@ def volatility_duration_fixed_hold_components(
     )
     label = ComponentSpec(
         display_name="realized fixed-hold after-cost label",
-        protocol="label.realized_fixed_hold_native_net_pnl.v2",
+        protocol="label.realized_fixed_hold_native_net_pnl.replay.v1",
         implementation=_shared("_evaluate_configuration"),
         spec={
             "availability": "exit_bar_open_after_registered_holding_interval",
@@ -282,7 +282,7 @@ def volatility_duration_fixed_hold_components(
     )
     model = ComponentSpec(
         display_name="registered volatility-duration outcome hypothesis",
-        protocol="model.deterministic_volatility_duration.fixed_hold.v1",
+        protocol="model.deterministic_volatility_duration.replay.v1",
         implementation=_local("compute_volatility_duration_fixed_hold_score"),
         spec={
             "fit": "none",
@@ -293,7 +293,7 @@ def volatility_duration_fixed_hold_components(
     )
     selector = ComponentSpec(
         display_name="fold-isolated event-presence selector",
-        protocol="selector.fold_train_event_presence.fixed_hold.v1",
+        protocol="selector.fold_train_event_presence.replay.v1",
         implementation=(
             _local("calibrate_volatility_duration_fixed_hold_selector")
         ),
@@ -306,7 +306,7 @@ def volatility_duration_fixed_hold_components(
     )
     trade = ComponentSpec(
         display_name="completed-bar next-open directional entry",
-        protocol="trade.completed_bar_next_open_direction.fixed_hold.v3",
+        protocol="trade.completed_bar_next_open_direction.replay.v2",
         implementation=_shared("simulate_fixed_hold"),
         spec={
             "decision_time": "bar_open_plus_5m",
@@ -318,7 +318,7 @@ def volatility_duration_fixed_hold_components(
     )
     lifecycle = ComponentSpec(
         display_name="fixed-hold nonoverlap lifecycle",
-        protocol="lifecycle.fixed_hold_no_overlap.v3",
+        protocol="lifecycle.fixed_hold_no_overlap.replay.v2",
         implementation=_shared("simulate_fixed_hold"),
         spec={
             "entry_overlap": "reject_while_position_slot_is_occupied",
@@ -348,7 +348,7 @@ def volatility_duration_fixed_hold_components(
     )
     synthesis = ComponentSpec(
         display_name="Writer-bound volatility-duration family member",
-        protocol="synthesis.writer_bound_fixed_hold_member.v3",
+        protocol="synthesis.historical_fixed_hold_member.v2",
         implementation=_local("volatility_duration_fixed_hold_executable"),
         spec={
             "exact_member_count": historical_family.family_size,
@@ -362,7 +362,7 @@ def volatility_duration_fixed_hold_components(
     )
     portfolio = ComponentSpec(
         display_name="exact concurrent volatility-duration inference",
-        protocol="portfolio.concurrent_fixed_hold_family_inference.v3",
+        protocol="portfolio.concurrent_fixed_hold_family_inference.v2",
         implementation=_local(
             "volatility_duration_fixed_hold_protocol_definition"
         ),

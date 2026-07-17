@@ -350,6 +350,13 @@ Bind the exact original Study, adjudication, Executable, criteria, and evidence
   gets the highest-information-value bounded opportunity without freezing
   unrelated valid forest work.
 
+Before any replay trial or Job consumes authority, require the exact Writer
+admission defined by `contracts/operations.yaml` under
+`replay_implementation_admission`. Route a legacy registration-only prefix
+through its exact protocol rebind and recertification boundary; do not turn a
+protocol migration or same-identity repair into scientific or replacement
+failure, and never refund or recount its existing multiplicity.
+
 Project an already canonical satisfied replay from its recorded stream,
 same-event writer operation, immutable lineage, and evidence identities. Routine
 Portfolio and effective-axis reads must not rerun the current scientific or

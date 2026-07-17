@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Protocol
 
+from axiom_rift.operations.architecture_review_direction import (
+    ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+)
 from axiom_rift.operations.replay_initiative_lifecycle import (
     ReplayInitiativeBindingPhase,
     ReplayInitiativeLifecycle,
@@ -25,6 +28,86 @@ class ReplayLifecycleSpec(Protocol):
     target_obligation_id: str
     initiative_lifecycle: ReplayInitiativeLifecycle
     axis_admission: Any
+
+
+class ReplayBoundaryJournal(Protocol):
+    def read_event_at(
+        self,
+        *,
+        offset: int,
+        expected_sequence: int,
+        expected_event_id: str,
+    ) -> Mapping[str, Any]: ...
+
+
+class ReplayBoundaryWriter(Protocol):
+    journal: ReplayBoundaryJournal
+
+
+_PORTFOLIO_DECISION_CONTEXT_FIELDS = frozenset(
+    {
+        "architecture_review_id",
+        "constraint_source_id",
+        "excluded_architecture_family",
+        "excluded_research_layers",
+        "required_target_axis_ids",
+        "study_diagnosis_id",
+        *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+    }
+)
+
+
+def _authority_event_id(name: str, value: object) -> str:
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise RuntimeError(f"{name} is invalid")
+    return value
+
+
+def derive_replay_admission_boundary_identity(
+    writer: ReplayBoundaryWriter,
+    *,
+    index: LocalIndexView,
+    control: Mapping[str, Any],
+    first_operation_id: str,
+) -> tuple[int, str]:
+    """Bind the current idle head or recover the first operation's parent."""
+
+    if type(first_operation_id) is not str or not first_operation_id:
+        raise RuntimeError("replay first operation identity is invalid")
+    first = index.get("operation", first_operation_id)
+    if first is None:
+        heads = control.get("heads")
+        journal = heads.get("journal") if isinstance(heads, Mapping) else None
+        sequence = journal.get("sequence") if isinstance(journal, Mapping) else None
+        event_id = journal.get("event_id") if isinstance(journal, Mapping) else None
+        if type(sequence) is not int or sequence < 1:
+            raise RuntimeError("replay current authority sequence is invalid")
+        return sequence, _authority_event_id(
+            "replay current authority event",
+            event_id,
+        )
+    if (
+        first.status != "success"
+        or first.authority_sequence is None
+        or first.authority_event_id is None
+        or first.authority_offset is None
+        or first.authority_sequence < 2
+    ):
+        raise RuntimeError("replay first-operation authority is incomplete")
+    event = writer.journal.read_event_at(
+        offset=first.authority_offset,
+        expected_sequence=first.authority_sequence,
+        expected_event_id=first.authority_event_id,
+    )
+    previous = _authority_event_id(
+        "replay predecessor event",
+        event.get("previous_event_id"),
+    )
+    return first.authority_sequence - 1, previous
 
 
 def _successful_operation(
@@ -385,14 +468,25 @@ def require_borrowed_replay_admission(
     if portfolio_head is None or portfolio_head.record_kind != "portfolio-snapshot":
         raise RuntimeError("borrowed replay current Portfolio is unavailable")
     constraints = scheduler_constraints(index, mission_id=spec.mission_id)
+    action = control.get("next_action")
+    context = (
+        {
+            name: action[name]
+            for name in _PORTFOLIO_DECISION_CONTEXT_FIELDS
+            if name in action
+        }
+        if isinstance(action, Mapping)
+        else {}
+    )
     expected_action = with_scheduler_constraints(
         {
             "kind": "portfolio_decision",
             "portfolio_snapshot_id": portfolio_head.record_id,
+            **context,
         },
         constraints,
     )
-    if control.get("next_action") != expected_action:
+    if action != expected_action:
         raise RuntimeError("borrowed replay is not the exact Portfolio action")
 
 

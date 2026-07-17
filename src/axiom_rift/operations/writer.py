@@ -4415,6 +4415,56 @@ class StateWriter:
             )
             active_batch = science.get("active_batch")
             active_study = science.get("active_study")
+            active_batch_record = (
+                None
+                if not isinstance(active_batch, dict)
+                else index.get(
+                    "batch-open",
+                    str(active_batch.get("id", "")),
+                )
+            )
+            active_study_record = (
+                None
+                if not isinstance(active_study, str)
+                else index.get("study-open", active_study)
+            )
+            registration_only_surface = False
+            if (
+                allow_active_unexecuted_study_boundary
+                and active_batch_record is not None
+                and active_study_record is not None
+                and active_batch_record.status == "open"
+                and active_batch_record.subject == f"Study:{active_study}"
+                and index.event_head(
+                    f"batch-budget:{active_batch_record.record_id}"
+                )
+                is None
+                and not index.records_by_payload_text(
+                    "job-declared",
+                    "batch_id",
+                    active_batch_record.record_id,
+                )
+            ):
+                trial_head = index.event_head(
+                    f"batch-trials:{active_batch_record.record_id}"
+                )
+                if trial_head is None:
+                    registration_only_surface = True
+                elif active_study_record.payload.get("replay_obligation_ids"):
+                    from axiom_rift.operations.replay_study_admission import (
+                        ReplayStudyAdmissionError,
+                        inspect_replay_study_registration,
+                    )
+
+                    try:
+                        inspect_replay_study_registration(
+                            index,
+                            study_record=active_study_record,
+                            batch_record=active_batch_record,
+                        ).require_usable()
+                    except ReplayStudyAdmissionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
+                    registration_only_surface = True
             active_unexecuted_study_boundary = (
                 allow_active_unexecuted_study_boundary
                 and isinstance(science.get("active_mission"), str)
@@ -4437,19 +4487,7 @@ class StateWriter:
                         "active_repair",
                     )
                 )
-                and (
-                    (batch_record := index.get(
-                        "batch-open", str(active_batch.get("id", ""))
-                    ))
-                    is not None
-                )
-                and batch_record.status == "open"
-                and batch_record.subject == f"Study:{active_study}"
-                and not index.records_by_payload_text(
-                    "job-declared",
-                    "batch_id",
-                    batch_record.record_id,
-                )
+                and registration_only_surface
             )
             if not (
                 portfolio_boundary
@@ -5007,12 +5045,60 @@ class StateWriter:
             raise TransitionError(
                 "controlled chassis baseline lacks its target axis identity"
             )
-        prior = self._prior_scientific_baseline(
-            index,
-            baseline,
-            portfolio_axis_identity=target_axis_identity,
+        replacement_equivalence = decision.payload.get(
+            "replacement_architecture_equivalence"
         )
-        if provenance.get("kind") == "trial":
+        replacement_provenance = (
+            provenance.get("kind") == "accepted_replay_replacement"
+        )
+        prior = (
+            None
+            if replacement_provenance
+            else self._prior_scientific_baseline(
+                index,
+                baseline,
+                portfolio_axis_identity=target_axis_identity,
+            )
+        )
+        if replacement_provenance:
+            preflight_id = (
+                replacement_equivalence.get(
+                    "accepted_replacement_preflight_id"
+                )
+                if isinstance(replacement_equivalence, Mapping)
+                else None
+            )
+            replacement_ids = (
+                replacement_equivalence.get("replacement_executable_ids")
+                if isinstance(replacement_equivalence, Mapping)
+                else None
+            )
+            if (
+                provenance
+                != {
+                    "kind": "accepted_replay_replacement",
+                    "record_id": preflight_id,
+                }
+                or not isinstance(replacement_ids, list)
+                or not replacement_ids
+                or any(
+                    not isinstance(executable_id, str)
+                    or not executable_id.startswith("executable:")
+                    for executable_id in replacement_ids
+                )
+                or len(replacement_ids) != len(set(replacement_ids))
+                or replacement_equivalence.get(
+                    "replacement_baseline_executable_id"
+                )
+                != baseline.identity
+                or replacement_equivalence.get("target_axis_identity")
+                != target_axis_identity
+                or index.get("trial", baseline.identity) is not None
+            ):
+                raise TransitionError(
+                    "controlled chassis replacement baseline authority is invalid"
+                )
+        elif provenance.get("kind") == "trial":
             if prior is None or provenance.get("record_id") != prior.record_id:
                 raise TransitionError(
                     "controlled chassis baseline lost its prior scientific trial"
@@ -5969,7 +6055,12 @@ class StateWriter:
 
         if not obligation_ids:
             return None
-        from axiom_rift.operations.replay_projection import obligation_heads
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            obligation_heads,
+            require_current_replacement_preflight_basis,
+        )
 
         heads = {
             obligation.identity: head
@@ -6023,8 +6114,19 @@ class StateWriter:
                 if trigger is None
                 else trigger.payload.get("replacement_for_preflight_id")
             )
+            trigger_fingerprint = (
+                None
+                if trigger is None
+                else _digest(
+                    trigger.payload,
+                    domain="replay-job-implementation-preflight",
+                )
+            )
             if (
                 trigger is None
+                or trigger.fingerprint != trigger_fingerprint
+                or trigger.record_id
+                != "job-implementation-preflight:" + trigger_fingerprint
                 or trigger.status != "accepted"
                 or trigger.payload.get("schema")
                 != "replay_job_implementation_preflight.v1"
@@ -6070,12 +6172,27 @@ class StateWriter:
         index: LocalIndex,
         *,
         study_id: str,
+        authority_manifest_digest: str,
     ) -> IndexRecord | None:
         study = index.get("study-open", study_id)
-        admission_id = (
+        initial_admission_id = (
             None
             if study is None
             else study.payload.get("replay_implementation_admission_id")
+        )
+        recertification_stream = (
+            f"replay-implementation-admission-study:{study_id}"
+        )
+        recertification_head = index.event_head(recertification_stream)
+        if initial_admission_id is not None and recertification_head is not None:
+            raise RecoveryRequired(
+                "Study mixes initial and recertified replay admissions"
+            )
+        admission_id = (
+            recertification_head.record_id
+            if initial_admission_id is None
+            and recertification_head is not None
+            else initial_admission_id
         )
         if admission_id is None:
             return None
@@ -6088,7 +6205,30 @@ class StateWriter:
             raise RecoveryRequired(
                 "Study replay implementation admission is unavailable"
             )
+        from axiom_rift.operations.research_protocol_projection import (
+            ResearchProtocolProjectionError,
+            require_current_research_protocol_activation,
+        )
+
+        try:
+            protocol_activation = require_current_research_protocol_activation(
+                index,
+                authority_manifest_digest=authority_manifest_digest,
+            )
+        except ResearchProtocolProjectionError as exc:
+            raise RecoveryRequired(str(exc)) from exc
         payload = admission.payload
+        recertification_preflight_id = payload.get(
+            "recertification_preflight_id"
+        )
+        recertification_preflight = (
+            None
+            if not isinstance(recertification_preflight_id, str)
+            else index.get(
+                "job-implementation-preflight",
+                recertification_preflight_id,
+            )
+        )
         accepted_id = payload.get("accepted_replacement_preflight_id")
         accepted = (
             index.get("job-implementation-preflight", accepted_id)
@@ -6204,26 +6344,188 @@ class StateWriter:
             or accepted_head is None
             or accepted_head.record_id != accepted.record_id
         )
+        admission_schema = payload.get("schema")
+        recertified = admission_schema == "replay_implementation_admission.v2"
+        admission_boundary_invalid = bool(
+            study is None
+            or type(study.authority_sequence) is not int
+            or type(protocol_activation.authority_sequence) is not int
+            or type(admission.authority_sequence) is not int
+            or (
+                recertified
+                and not (
+                    study.authority_sequence
+                    < protocol_activation.authority_sequence
+                    < admission.authority_sequence
+                )
+            )
+            or (
+                not recertified
+                and (
+                    protocol_activation.authority_sequence
+                    >= study.authority_sequence
+                    or admission.authority_sequence
+                    != study.authority_sequence
+                    or admission.authority_event_id
+                    != study.authority_event_id
+                )
+            )
+        )
+        expected_payload_keys = {
+            "accepted_replacement_preflight_id",
+            "authority_manifest_digest",
+            "batch_id",
+            "request",
+            "research_protocol_activation_id",
+            "schema",
+            "scientific_surface",
+            "scientific_surface_hash",
+            "source_closure_authority",
+            "study_id",
+        }
+        if recertified:
+            expected_payload_keys.update(
+                {
+                    "recertification_preflight_id",
+                    "registered_prefix_executable_ids",
+                }
+            )
+        recertification_invalid = False
+        if recertified:
+            batch_id = payload.get("batch_id")
+            batch = (
+                None
+                if not isinstance(batch_id, str)
+                else index.get("batch-open", batch_id)
+            )
+            preflight_head = (
+                None
+                if recertification_preflight is None
+                or not isinstance(
+                    recertification_preflight.event_stream,
+                    str,
+                )
+                else index.event_head(
+                    recertification_preflight.event_stream
+                )
+            )
+            prefix = payload.get("registered_prefix_executable_ids")
+            try:
+                from axiom_rift.operations.replay_study_admission import (
+                    ReplayStudyAdmissionError,
+                    inspect_replay_study_registration,
+                )
+
+                registration = (
+                    inspect_replay_study_registration(
+                        index,
+                        study_record=study,
+                        batch_record=batch,
+                    ).require_usable()
+                    if study is not None and batch is not None
+                    else None
+                )
+            except ReplayStudyAdmissionError:
+                registration = None
+            registered_trials = (
+                ()
+                if registration is None or batch is None
+                else tuple(
+                    index.event_record(
+                        f"batch-trials:{batch.record_id}",
+                        ordinal,
+                    )
+                    for ordinal in range(
+                        1,
+                        registration.registered_count + 1,
+                    )
+                )
+            )
+            prefix_count = len(prefix) if isinstance(prefix, list) else -1
+            recertification_invalid = (
+                recertification_head is None
+                or recertification_head.sequence != 1
+                or recertification_head.record_id != admission.record_id
+                or admission.event_stream != recertification_stream
+                or admission.event_sequence != 1
+                or recertification_preflight is None
+                or recertification_preflight.status != "accepted"
+                or recertification_preflight.payload.get("outcome")
+                != "accepted"
+                or recertification_preflight.payload.get("batch_id")
+                != batch_id
+                or recertification_preflight.payload.get("study_id")
+                != study_id
+                or recertification_preflight.payload.get("executable_ids")
+                != executable_ids
+                or recertification_preflight.payload.get(
+                    "scientific_surface_hash"
+                )
+                != payload.get("scientific_surface_hash")
+                or recertification_preflight.payload.get(
+                    "source_closure_authority"
+                )
+                != source_authority
+                or recertification_preflight.payload.get("request_identity")
+                != (
+                    None
+                    if not isinstance(request, Mapping)
+                    else (
+                        "replay-job-implementation-preflight-request:"
+                        + canonical_digest(
+                            domain=(
+                                "replay-job-implementation-preflight-request"
+                            ),
+                            payload=request,
+                        )
+                    )
+                )
+                or preflight_head is None
+                or preflight_head.record_id
+                != recertification_preflight.record_id
+                or type(admission.authority_sequence) is not int
+                or admission.authority_sequence
+                != recertification_preflight.authority_sequence
+                or admission.authority_event_id
+                != recertification_preflight.authority_event_id
+                or not isinstance(prefix, list)
+                or any(type(item) is not str for item in prefix)
+                or registration is None
+                or prefix_count < 0
+                or prefix_count > registration.registered_count
+                or tuple(prefix)
+                != registration.expected_executable_ids[: len(prefix)]
+                or registration.registered_executable_ids[: len(prefix)]
+                != tuple(prefix)
+                or any(trial is None for trial in registered_trials)
+                or any(
+                    trial.authority_sequence >= admission.authority_sequence
+                    for trial in registered_trials[:prefix_count]
+                    if trial is not None
+                )
+                or any(
+                    trial.authority_sequence <= admission.authority_sequence
+                    for trial in registered_trials[prefix_count:]
+                    if trial is not None
+                )
+            )
         if (
             study is None
             or study.status != "open"
             or study.subject != f"Study:{study_id}"
             or admission.status != "active"
             or admission.subject != f"Study:{study_id}"
-            or set(payload)
-            != {
-                "accepted_replacement_preflight_id",
-                "batch_id",
-                "request",
-                "schema",
-                "scientific_surface",
-                "scientific_surface_hash",
-                "source_closure_authority",
-                "study_id",
+            or set(payload) != expected_payload_keys
+            or admission_schema
+            not in {
+                "replay_implementation_admission.v1",
+                "replay_implementation_admission.v2",
             }
-            or payload.get("schema")
-            != "replay_implementation_admission.v1"
             or payload.get("study_id") != study_id
+            or payload.get("authority_manifest_digest")
+            != authority_manifest_digest
+            or payload.get("research_protocol_activation_id")
+            != protocol_activation.record_id
             or not isinstance(request, Mapping)
             or set(request) != request_keys
             or request.get("schema")
@@ -6257,6 +6559,8 @@ class StateWriter:
             or source_authority.get("schema")
             != JOB_IMPLEMENTATION_SOURCE_AUTHORITY_SCHEMA
             or accepted_invalid
+            or admission_boundary_invalid
+            or recertification_invalid
             or admission.fingerprint != fingerprint
             or admission.record_id
             != f"replay-implementation-admission:{fingerprint}"
@@ -6347,6 +6651,48 @@ class StateWriter:
             raise TransitionError(
                 "replay implementation source authority changed after Study admission"
             )
+
+    def _replay_scientific_protocol_failure(
+        self,
+        current: Mapping[str, Any],
+        index: LocalIndex,
+        *,
+        request: Any,
+    ) -> str | None:
+        """Return a durable partial-Study incompatibility, not a validator guess."""
+
+        protocol_head = index.event_head("research-protocol:scientific")
+        if protocol_head is None:
+            return "active scientific protocol is absent"
+        protocol = index.get(
+            protocol_head.record_kind,
+            protocol_head.record_id,
+        )
+        if (
+            protocol is None
+            or protocol.kind != "research-protocol-activation"
+            or protocol.status != "active"
+            or protocol.event_sequence != protocol_head.sequence
+            or protocol.event_stream != "research-protocol:scientific"
+        ):
+            raise RecoveryRequired(
+                "active scientific protocol projection is invalid"
+            )
+        if (
+            protocol.payload.get("protocol")
+            != "scientific_adjudication_v2"
+            or protocol.payload.get("authority_manifest_digest")
+            != current.get("authority", {}).get("manifest_digest")
+        ):
+            return "active scientific protocol is not current"
+        validator_ids = {
+            binding.get("validator_id")
+            for binding in request.scientific_binding_values()
+            if isinstance(binding, Mapping)
+        }
+        if validator_ids != {protocol.payload.get("validator_id")}:
+            return "replay family validator differs from the active protocol"
+        return None
 
     def open_study(
         self,
@@ -6467,6 +6813,7 @@ class StateWriter:
             portfolio_action: str | None = None
             commitment_batches: int | None = None
             replay_obligation_ids: tuple[str, ...] = ()
+            replacement_preflight: IndexRecord | None = None
             if not self.engineering_fixture:
                 if (
                     portfolio_axis_id is None
@@ -6519,6 +6866,13 @@ class StateWriter:
                     raise RecoveryRequired(str(exc)) from exc
                 except ReplayTransitionError as exc:
                     raise TransitionError(str(exc)) from exc
+                replacement_preflight = (
+                    self._current_accepted_replay_replacement_preflight(
+                        _index,
+                        mission_id=science["active_mission"],
+                        obligation_ids=replay_obligation_ids,
+                    )
+                )
                 options = {
                     option["option_id"]: option
                     for option in decision.payload.get("options", [])
@@ -6635,6 +6989,236 @@ class StateWriter:
                     if isinstance(typed_axis_payload, dict)
                     else None
                 )
+                axis_family_mismatch = (
+                    isinstance(typed_axis_chassis, str)
+                    and resolved_axis_family != resolved_controlled_family
+                )
+                recorded_replacement_equivalence = decision.payload.get(
+                    "replacement_architecture_equivalence"
+                )
+                action_replacement_equivalence = next_action.get(
+                    "replacement_architecture_equivalence"
+                )
+                if axis_family_mismatch:
+                    from axiom_rift.operations.replay_job_implementation_preflight import (
+                        ReplayJobImplementationPreflightError,
+                        ReplayJobImplementationPreflightRequest,
+                        require_replacement_replay_study_semantics,
+                    )
+                    from axiom_rift.research.portfolio import BatchSpec
+                    from axiom_rift.research.semantic_question import (
+                        SemanticQuestionLineageProposal,
+                        SemanticQuestionRelation,
+                    )
+
+                    if not isinstance(
+                        replay_implementation_request,
+                        ReplayJobImplementationPreflightRequest,
+                    ):
+                        raise TransitionError(
+                            "Study replacement chassis lacks its exact implementation request"
+                        )
+                    if not isinstance(replay_batch_spec, BatchSpec):
+                        raise TransitionError(
+                            "Study replacement chassis lacks its exact Batch spec"
+                        )
+                    if (
+                        not isinstance(
+                            semantic_question_lineage,
+                            SemanticQuestionLineageProposal,
+                        )
+                        or semantic_question_lineage.relation
+                        is not SemanticQuestionRelation.ENGINEERING_REENTRY
+                        or semantic_question_lineage.successor_study_id
+                        != study_id
+                        or semantic_question_lineage.predecessor_core_id
+                        != semantic_question_lineage.successor_core_id
+                        or semantic_question_lineage.successor_core_id
+                        != semantic_question_core.identity
+                    ):
+                        raise TransitionError(
+                            "Study replacement chassis lacks engineering reentry lineage"
+                        )
+                    prospective_replacement_study = {
+                        "changed_domains": changed_domains,
+                        "controlled_chassis": (
+                            controlled_chassis.to_identity_payload()
+                        ),
+                        "controlled_domains": controlled_domains,
+                        "material_identity": material_identity,
+                        "mechanism_family": mechanism_family,
+                        "mission_id": science["active_mission"],
+                        "portfolio_action": portfolio_action,
+                        "primary_research_layer": primary_research_layer,
+                        "question": question_manifest,
+                        "replay_obligation_ids": list(
+                            replay_obligation_ids
+                        ),
+                        "semantic_proposal": semantic_proposal_manifest,
+                        "semantic_question_core_id": (
+                            semantic_question_core.identity
+                        ),
+                    }
+                    try:
+                        equivalence_hash = (
+                            require_replacement_replay_study_semantics(
+                                accepted_payload=(
+                                    {}
+                                    if replacement_preflight is None
+                                    else replacement_preflight.payload
+                                ),
+                                study_payload=prospective_replacement_study,
+                            )
+                        )
+                    except ReplayJobImplementationPreflightError as exc:
+                        raise TransitionError(
+                            "Study replacement chassis lacks exact accepted "
+                            "scientific equivalence"
+                        ) from exc
+                    assert replacement_preflight is not None
+                    prospective_study_binding_hash = _digest(
+                        prospective_replacement_study,
+                        domain="replay-replacement-study-binding",
+                    )
+                    expected_replacement_equivalence = {
+                        "accepted_replacement_preflight_id": (
+                            replacement_preflight.record_id
+                        ),
+                        "accepted_axis_architecture_family": (
+                            resolved_axis_family
+                        ),
+                        "replacement_architecture_family": (
+                            resolved_controlled_family
+                        ),
+                        "replacement_baseline_executable_id": (
+                            controlled_chassis.baseline_executable.identity
+                        ),
+                        "replay_obligation_ids": list(
+                            replay_obligation_ids
+                        ),
+                        "replacement_executable_ids": list(
+                            replay_implementation_request.executable_ids
+                        ),
+                        "replacement_batch_id": replay_batch_spec.identity,
+                        "replacement_request_identity": (
+                            replay_implementation_request.identity
+                        ),
+                        "replacement_lineage_id": (
+                            semantic_question_lineage.identity
+                        ),
+                        "schema": (
+                            "replay_replacement_architecture_equivalence.v1"
+                        ),
+                        "scientific_equivalence_hash": equivalence_hash,
+                        "prospective_study_binding_hash": (
+                            prospective_study_binding_hash
+                        ),
+                        "target_axis_identity": axis["axis_identity"],
+                    }
+                    engineering_diagnosis_id = (
+                        recorded_replacement_equivalence.get(
+                            "engineering_gap_diagnosis_id"
+                        )
+                        if isinstance(
+                            recorded_replacement_equivalence,
+                            Mapping,
+                        )
+                        else None
+                    )
+                    decision_diagnosis_id = decision.payload.get(
+                        "study_diagnosis_id"
+                    )
+                    decision_diagnosis = (
+                        _index.get(
+                            "study-diagnosis",
+                            decision_diagnosis_id,
+                        )
+                        if isinstance(decision_diagnosis_id, str)
+                        else None
+                    )
+                    if (
+                        decision_diagnosis is not None
+                        and decision_diagnosis.payload.get("evidence_state")
+                        == "engineering_gap"
+                        and engineering_diagnosis_id
+                        != decision_diagnosis_id
+                    ):
+                        raise RecoveryRequired(
+                            "Study engineering reentry binding is absent"
+                        )
+                    if isinstance(engineering_diagnosis_id, str):
+                        engineering_diagnosis = _index.get(
+                            "study-diagnosis",
+                            engineering_diagnosis_id,
+                        )
+                        replaced_preflight_id = (
+                            replacement_preflight.payload.get(
+                                "replacement_for_preflight_id"
+                            )
+                        )
+                        diagnosis_basis = (
+                            set()
+                            if engineering_diagnosis is None
+                            else {
+                                (
+                                    item.get("kind"),
+                                    item.get("record_id"),
+                                )
+                                for item in engineering_diagnosis.payload.get(
+                                    "evidence_basis",
+                                    [],
+                                )
+                                if isinstance(item, Mapping)
+                            }
+                        )
+                        if (
+                            engineering_diagnosis is None
+                            or engineering_diagnosis.payload.get(
+                                "evidence_state"
+                            )
+                            != "engineering_gap"
+                            or decision.payload.get("study_diagnosis_id")
+                            != engineering_diagnosis_id
+                            or semantic_question_lineage
+                            .predecessor_study_id
+                            != engineering_diagnosis.payload.get("study_id")
+                            or {
+                                "study-diagnosis:"
+                                + engineering_diagnosis_id,
+                                "job-implementation-preflight:"
+                                + replaced_preflight_id,
+                            }.difference(
+                                semantic_question_lineage.basis_record_ids
+                            )
+                            or (
+                                "job-implementation-preflight",
+                                replaced_preflight_id,
+                            )
+                            not in diagnosis_basis
+                        ):
+                            raise RecoveryRequired(
+                                "Study engineering reentry diagnosis is malformed"
+                            )
+                        expected_replacement_equivalence[
+                            "engineering_gap_diagnosis_id"
+                        ] = engineering_diagnosis_id
+                    if (
+                        recorded_replacement_equivalence
+                        != expected_replacement_equivalence
+                        or action_replacement_equivalence
+                        != expected_replacement_equivalence
+                    ):
+                        raise TransitionError(
+                            "Study replacement chassis differs from its "
+                            "accepted Decision equivalence"
+                        )
+                elif (
+                    recorded_replacement_equivalence is not None
+                    or action_replacement_equivalence is not None
+                ):
+                    raise RecoveryRequired(
+                        "Study carries unnecessary replacement architecture authority"
+                    )
                 if (
                     not isinstance(accepted_architecture, str)
                     or not isinstance(accepted_resolved_family, str)
@@ -6650,10 +7234,6 @@ class StateWriter:
                     or accepted_baseline
                     != controlled_chassis.baseline_executable.identity
                     or accepted_resolved_family != resolved_controlled_family
-                    or (
-                        isinstance(typed_axis_chassis, str)
-                        and resolved_axis_family != resolved_controlled_family
-                    )
                 ):
                     raise TransitionError(
                         "Study chassis differs from its accepted Portfolio Decision anchor"
@@ -6683,14 +7263,11 @@ class StateWriter:
                     )
                 system_architecture_family = resolved_controlled_family
             admission_record: IndexRecord | None = None
-            replacement_preflight = (
-                self._current_accepted_replay_replacement_preflight(
-                    _index,
-                    mission_id=science["active_mission"],
-                    obligation_ids=replay_obligation_ids,
-                )
-            )
             if replay_obligation_ids:
+                from axiom_rift.operations.research_protocol_projection import (
+                    ResearchProtocolProjectionError,
+                    require_current_research_protocol_activation,
+                )
                 from axiom_rift.operations.replay_job_implementation_preflight import (
                     PREFLIGHT_SCHEMA,
                     ReplayJobImplementationPreflightError,
@@ -6718,6 +7295,21 @@ class StateWriter:
                     raise TransitionError(
                         "replay Study lacks typed implementation admission"
                     )
+                authority_manifest_digest = current.get("authority", {}).get(
+                    "manifest_digest"
+                )
+                try:
+                    protocol_activation = (
+                        require_current_research_protocol_activation(
+                            _index,
+                            authority_manifest_digest=authority_manifest_digest,
+                        )
+                    )
+                except ResearchProtocolProjectionError as exc:
+                    raise TransitionError(
+                        "replay Study requires the current prospective protocol "
+                        "before implementation admission"
+                    ) from exc
                 current_preflight = (
                     evaluate_replay_job_implementation_preflight(
                         replay_implementation_request,
@@ -6814,8 +7406,12 @@ class StateWriter:
                         if replacement_preflight is None
                         else replacement_preflight.record_id
                     ),
+                    "authority_manifest_digest": authority_manifest_digest,
                     "batch_id": replay_batch_spec.identity,
                     "request": request_payload,
+                    "research_protocol_activation_id": (
+                        protocol_activation.record_id
+                    ),
                     "schema": "replay_implementation_admission.v1",
                     "scientific_surface": scientific_surface,
                     "scientific_surface_hash": scientific_surface_hash,
@@ -8292,6 +8888,9 @@ class StateWriter:
             replay_admission = self._study_replay_implementation_admission(
                 index,
                 study_id=study_id,
+                authority_manifest_digest=current.get("authority", {}).get(
+                    "manifest_digest"
+                ),
             )
             if (
                 replay_admission is not None
@@ -10936,11 +11535,11 @@ class StateWriter:
             from axiom_rift.operations.replay_projection import (
                 ReplayProjectionError,
                 ReplayTransitionError,
-                require_study_execution_complete,
+                require_study_terminal_authority,
             )
 
             try:
-                require_study_execution_complete(
+                require_study_terminal_authority(
                     _index,
                     mission_id=study_record.payload.get("mission_id"),
                     study=study_record,
@@ -11438,6 +12037,7 @@ class StateWriter:
                     mission_id=science["active_mission"],
                     study=study,
                     diagnosis_id=diagnosis.identity,
+                    diagnosis_record=diagnosis_record,
                 )
             except ReplayProjectionError as exc:
                 raise RecoveryRequired(str(exc)) from exc
@@ -11756,7 +12356,12 @@ class StateWriter:
             require_durable_replay_job_implementation_preflight,
             require_replacement_replay_job_scientific_surface,
         )
-        from axiom_rift.operations.replay_projection import obligation_heads
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            obligation_heads,
+            require_current_replacement_preflight_basis,
+        )
         from axiom_rift.research.replay_obligation import ReplayObligationStatus
 
         self._require_study_close_delivery_guard()
@@ -11804,6 +12409,9 @@ class StateWriter:
             surface_batch: IndexRecord | None = None
             surface_study: IndexRecord | None = None
             required_replacement_preflight: IndexRecord | None = None
+            registration_inspection: Any | None = None
+            protocol_failure: str | None = None
+            protocol_activation: IndexRecord | None = None
             replacement = request.replacement_for_preflight_id
             replaced_record = (
                 None
@@ -11840,23 +12448,22 @@ class StateWriter:
                     else list(resolved_family_ids)
                 )
                 action = current.get("next_action")
-                trial_head = (
-                    None
-                    if not isinstance(batch_id, str)
-                    else index.event_head(f"batch-trials:{batch_id}")
-                )
-                registered_family = (
-                    ()
-                    if not isinstance(batch_id, str)
-                    else tuple(
-                        record.record_id
-                        for record in index.records_by_subject_status(
-                            f"Batch:{batch_id}",
-                            "evaluated",
-                        )
-                        if record.kind == "trial"
+                if study is not None and batch is not None:
+                    from axiom_rift.operations.replay_study_admission import (
+                        ReplayStudyAdmissionError,
+                        inspect_replay_study_registration,
                     )
-                )
+
+                    try:
+                        registration_inspection = (
+                            inspect_replay_study_registration(
+                                index,
+                                study_record=study,
+                                batch_record=batch,
+                            ).require_usable()
+                        )
+                    except ReplayStudyAdmissionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
                 budget_head = (
                     None
                     if not isinstance(batch_id, str)
@@ -11888,13 +12495,21 @@ class StateWriter:
                     or study.payload.get("replay_obligation_ids")
                     != list(request.replay_obligation_ids)
                     or not isinstance(family_ids, list)
-                    or sorted(family_ids) != sorted(request.executable_ids)
+                    or tuple(family_ids) != request.executable_ids
                     or not isinstance(action, Mapping)
                     or action.get("kind") != "declare_job"
                     or action.get("batch_id") != batch_id
-                    or trial_head is None
-                    or trial_head.sequence != len(request.executables)
-                    or sorted(registered_family) != sorted(request.executable_ids)
+                    or registration_inspection is None
+                    or registration_inspection.expected_executable_ids
+                    != request.executable_ids
+                    or self._study_replay_implementation_admission(
+                        index,
+                        study_id=study_id,
+                        authority_manifest_digest=current.get(
+                            "authority", {}
+                        ).get("manifest_digest"),
+                    )
+                    is not None
                     or budget_head is not None
                     or declarations
                     or existing_preflight_head is not None
@@ -11905,11 +12520,51 @@ class StateWriter:
                 if any(
                     item is None
                     or item[1].status
-                    != ReplayObligationStatus.IN_PROGRESS.value
+                    not in {
+                        ReplayObligationStatus.PENDING.value,
+                        ReplayObligationStatus.IN_PROGRESS.value,
+                    }
                     for item in selected
                 ):
                     raise TransitionError(
                         "active replay preflight obligation is not schedulable"
+                    )
+                protocol_failure = self._replay_scientific_protocol_failure(
+                    current,
+                    index,
+                    request=request,
+                )
+                if protocol_failure is not None:
+                    raise TransitionError(
+                        "replay implementation preflight requires an exact "
+                        "prospective protocol rebind before recertification: "
+                        + protocol_failure
+                    )
+                from axiom_rift.operations.research_protocol_projection import (
+                    ResearchProtocolProjectionError,
+                    require_current_research_protocol_activation,
+                )
+
+                try:
+                    protocol_activation = (
+                        require_current_research_protocol_activation(
+                            index,
+                            authority_manifest_digest=current.get(
+                                "authority", {}
+                            ).get("manifest_digest"),
+                        )
+                    )
+                except ResearchProtocolProjectionError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                if (
+                    type(study.authority_sequence) is not int
+                    or type(protocol_activation.authority_sequence) is not int
+                    or study.authority_sequence
+                    >= protocol_activation.authority_sequence
+                ):
+                    raise RecoveryRequired(
+                        "missing replay admission is not inside the legacy "
+                        "pre-activation recertification boundary"
                     )
                 replacement_triggers: list[IndexRecord] = []
                 for _obligation, head_record in selected:
@@ -11989,8 +12644,6 @@ class StateWriter:
                     or replaced_record.payload.get("mission_id") != mission_id
                     or replaced_record.payload.get("replay_obligation_ids")
                     != list(request.replay_obligation_ids)
-                    or replaced_record.payload.get("protocol_id")
-                    != request.protocol_id
                     or surface_batch is None
                     or surface_study is None
                     or any(
@@ -11999,10 +12652,35 @@ class StateWriter:
                         != ReplayObligationStatus.DEFERRED.value
                         for item in selected
                     )
+                    or index.event_head(
+                        "replay-job-implementation-preflight-replacement:"
+                        + str(replacement)
+                    )
+                    is not None
                 ):
                     raise TransitionError(
                         "replacement replay preflight lacks its current deferral"
                     )
+                for selected_item in selected:
+                    assert selected_item is not None
+                    obligation, deferral_head = selected_item
+                    try:
+                        current_rejection = (
+                            require_current_replacement_preflight_basis(
+                                index,
+                                obligation=obligation,
+                                deferral_head=deferral_head,
+                                rejected_preflight_id=replacement,
+                            )
+                        )
+                    except ReplayProjectionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
+                    except ReplayTransitionError as exc:
+                        raise TransitionError(str(exc)) from exc
+                    if current_rejection.record_id != replaced_record.record_id:
+                        raise TransitionError(
+                            "replacement replay preflight names another rejection"
+                        )
             if surface_batch is None or surface_study is None:
                 raise TransitionError(
                     "replay implementation preflight lacks its scientific surface"
@@ -12017,6 +12695,16 @@ class StateWriter:
                     study_payload=surface_study.payload,
                     batch_payload=surface_batch.payload,
                     artifact_reader=self.evidence.read_verified,
+                    registered_batch_executable_ids=(
+                        None
+                        if replaced_record is None
+                        else tuple(
+                            replaced_record.payload.get(
+                                "executable_ids",
+                                (),
+                            )
+                        )
+                    ),
                 )
                 scientific_surface_hash = (
                     replay_job_scientific_surface_hash(scientific_surface)
@@ -12125,6 +12813,61 @@ class StateWriter:
                 event_stream=stream,
                 event_sequence=1 if head is None else head.sequence + 1,
             )
+            admission_record: IndexRecord | None = None
+            if result.accepted and registration_inspection is not None:
+                if (
+                    not isinstance(batch_id, str)
+                    or not isinstance(study_id, str)
+                    or protocol_activation is None
+                ):
+                    raise RecoveryRequired(
+                        "legacy replay recertification lost its Study, Batch, or protocol"
+                    )
+                admission_payload = {
+                    "accepted_replacement_preflight_id": (
+                        None
+                        if required_replacement_preflight is None
+                        else required_replacement_preflight.record_id
+                    ),
+                    "authority_manifest_digest": current.get(
+                        "authority", {}
+                    ).get("manifest_digest"),
+                    "batch_id": batch_id,
+                    "recertification_preflight_id": preflight_id,
+                    "registered_prefix_executable_ids": list(
+                        registration_inspection.registered_executable_ids
+                    ),
+                    "research_protocol_activation_id": (
+                        protocol_activation.record_id
+                    ),
+                    "request": request.to_identity_payload(),
+                    "schema": "replay_implementation_admission.v2",
+                    "scientific_surface": scientific_surface,
+                    "scientific_surface_hash": scientific_surface_hash,
+                    "source_closure_authority": dict(
+                        result.source_closure_authority or {}
+                    ),
+                    "study_id": study_id,
+                }
+                admission_fingerprint = _digest(
+                    admission_payload,
+                    domain="replay-implementation-admission",
+                )
+                admission_record = _record(
+                    kind="replay-implementation-admission",
+                    record_id=(
+                        "replay-implementation-admission:"
+                        + admission_fingerprint
+                    ),
+                    subject=f"Study:{study_id}",
+                    status="active",
+                    fingerprint=admission_fingerprint,
+                    payload=admission_payload,
+                    event_stream=(
+                        "replay-implementation-admission-study:" + study_id
+                    ),
+                    event_sequence=1,
+                )
             body = self._body(current)
             if not result.accepted and isinstance(batch_id, str):
                 body["next_action"] = {
@@ -12132,7 +12875,15 @@ class StateWriter:
                     "kind": "dispose_batch",
                     "batch_id": batch_id,
                 }
-            return body, [record], {
+            return body, [
+                record,
+                *([] if admission_record is None else [admission_record]),
+            ], {
+                "admission_id": (
+                    None
+                    if admission_record is None
+                    else admission_record.record_id
+                ),
                 "preflight_id": preflight_id,
                 "reason_code": result.reason_code,
                 "status": result.status,
@@ -12258,6 +13009,7 @@ class StateWriter:
             mission_id = science["active_mission"]
             scientific_lineage_material_identity: str | None = None
             lineage_study_id: str | None = None
+            lineage_study: IndexRecord | None = None
             if (
                 isinstance(scientific_binding, dict)
                 and not self.engineering_fixture
@@ -12305,8 +13057,19 @@ class StateWriter:
                 else self._study_replay_implementation_admission(
                     _index,
                     study_id=lineage_study_id,
+                    authority_manifest_digest=current.get(
+                        "authority", {}
+                    ).get("manifest_digest"),
                 )
             )
+            if (
+                lineage_study is not None
+                and lineage_study.payload.get("replay_obligation_ids")
+                and replay_admission is None
+            ):
+                raise RecoveryRequired(
+                    "replay Job declaration requires a current implementation admission"
+                )
             if replay_admission is not None:
                 admitted_request = replay_admission.payload.get("request")
                 manifests = (
@@ -14993,7 +15756,18 @@ class StateWriter:
             replay_admission = self._study_replay_implementation_admission(
                 index,
                 study_id=study_id,
+                authority_manifest_digest=current.get("authority", {}).get(
+                    "manifest_digest"
+                ),
             )
+            study_replay_obligation_ids = study_record.payload.get(
+                "replay_obligation_ids"
+            )
+            if study_replay_obligation_ids and replay_admission is None:
+                raise RecoveryRequired(
+                    "replay trial registration requires a current "
+                    "implementation admission"
+                )
             if replay_admission is not None:
                 request_payload = replay_admission.payload.get("request")
                 admitted_manifests = (
@@ -15022,7 +15796,7 @@ class StateWriter:
             )
 
             try:
-                replay_obligation_ids, replay_progress_records = (
+                progressed_replay_obligation_ids, replay_progress_records = (
                     prepare_execution_progress(
                         index,
                         study_record=study_record,
@@ -15100,7 +15874,9 @@ class StateWriter:
                 return self._body(current), replay_progress_records, {
                     "trial_delta": 0,
                     "cache_hit": True,
-                    "replay_obligation_ids": list(replay_obligation_ids),
+                    "replay_obligation_ids": list(
+                        progressed_replay_obligation_ids
+                    ),
                 }
             if not self.engineering_fixture:
                 component_records.extend(
@@ -15157,8 +15933,12 @@ class StateWriter:
                     ),
                     "study_id": study_id,
                     **(
-                        {"replay_obligation_ids": list(replay_obligation_ids)}
-                        if replay_obligation_ids
+                        {
+                            "replay_obligation_ids": list(
+                                study_replay_obligation_ids
+                            )
+                        }
+                        if study_replay_obligation_ids
                         else {}
                     ),
                 },
@@ -16029,6 +16809,10 @@ class StateWriter:
         *,
         decision: Any,
         operation_id: str,
+        replacement_replay_batch_spec: Any | None = None,
+        replacement_replay_implementation_request: Any | None = None,
+        replacement_replay_study_payload: Mapping[str, Any] | None = None,
+        replacement_semantic_question_lineage: Any | None = None,
     ) -> TransitionResult:
         from axiom_rift.research.portfolio import PortfolioAction, PortfolioDecision
         from axiom_rift.operations.architecture_review_direction import (
@@ -16355,6 +17139,9 @@ class StateWriter:
             component_records: list[IndexRecord] = []
             baseline_provenance: dict[str, Any] | None = None
             resolved_architecture_family: str | None = None
+            replacement_architecture_equivalence: dict[str, Any] | None = None
+            replacement_replay_study: dict[str, Any] | None = None
+            replacement_trigger_for_decision: IndexRecord | None = None
             source_authority_subject_ids: tuple[str, ...] = ()
             if baseline is not None:
                 source_authority_subject_ids = self._source_authority_subject_ids(
@@ -16385,9 +17172,294 @@ class StateWriter:
                         architecture_payload=typed_axis_payload,
                     )
                     if typed_axis_family != resolved_architecture_family:
-                        raise TransitionError(
-                            "Portfolio Decision baseline differs from its typed axis chassis"
+                        replacement_preflight = (
+                            self._current_accepted_replay_replacement_preflight(
+                                _index,
+                                mission_id=science["active_mission"],
+                                obligation_ids=decision.replay_obligation_ids,
+                            )
                         )
+                        replacement_trigger_for_decision = (
+                            replacement_preflight
+                        )
+                        from axiom_rift.operations.replay_job_implementation_preflight import (
+                            PREFLIGHT_SCHEMA,
+                            ReplayJobImplementationPreflightError,
+                            ReplayJobImplementationPreflightRequest,
+                            derive_replay_job_scientific_surface,
+                            replay_job_scientific_surface_hash,
+                            require_active_replay_job_replacement_binding,
+                            require_replacement_replay_baseline_semantics,
+                            require_replacement_replay_study_semantics,
+                        )
+                        from axiom_rift.research.portfolio import BatchSpec
+                        from axiom_rift.research.semantic_question import (
+                            SemanticQuestionLineageProposal,
+                            SemanticQuestionRelation,
+                        )
+
+                        try:
+                            if not isinstance(
+                                replacement_replay_study_payload,
+                                Mapping,
+                            ):
+                                raise ReplayJobImplementationPreflightError(
+                                    "replacement replay Study payload is absent"
+                                )
+                            if not isinstance(
+                                replacement_replay_implementation_request,
+                                ReplayJobImplementationPreflightRequest,
+                            ):
+                                raise ReplayJobImplementationPreflightError(
+                                    "replacement replay implementation request is absent"
+                                )
+                            if not isinstance(
+                                replacement_replay_batch_spec,
+                                BatchSpec,
+                            ):
+                                raise ReplayJobImplementationPreflightError(
+                                    "replacement replay Batch spec is absent"
+                                )
+                            if (
+                                not isinstance(
+                                    replacement_semantic_question_lineage,
+                                    SemanticQuestionLineageProposal,
+                                )
+                                or replacement_semantic_question_lineage.relation
+                                is not SemanticQuestionRelation.ENGINEERING_REENTRY
+                                or replacement_semantic_question_lineage
+                                .predecessor_core_id
+                                != replacement_semantic_question_lineage
+                                .successor_core_id
+                                or replacement_semantic_question_lineage
+                                .successor_core_id
+                                != replacement_replay_study_payload.get(
+                                    "semantic_question_core_id"
+                                )
+                            ):
+                                raise ReplayJobImplementationPreflightError(
+                                    "replacement replay engineering lineage is absent"
+                                )
+                            if (
+                                replacement_replay_implementation_request
+                                .replacement_for_preflight_id
+                                is not None
+                            ):
+                                raise ReplayJobImplementationPreflightError(
+                                    "active replacement request cannot replace a preflight"
+                                )
+                            replacement_replay_study = _copy(
+                                replacement_replay_study_payload
+                            )
+                            active_surface = (
+                                derive_replay_job_scientific_surface(
+                                    replacement_replay_implementation_request,
+                                    study_payload=(
+                                        replacement_replay_study
+                                    ),
+                                    batch_payload={
+                                        "spec": (
+                                            replacement_replay_batch_spec
+                                            .to_identity_payload()
+                                        )
+                                    },
+                                    artifact_reader=(
+                                        self.evidence.read_verified
+                                    ),
+                                )
+                            )
+                            active_surface_hash = (
+                                replay_job_scientific_surface_hash(
+                                    active_surface
+                                )
+                            )
+                            require_active_replay_job_replacement_binding(
+                                accepted_payload=(
+                                    {}
+                                    if replacement_preflight is None
+                                    else replacement_preflight.payload
+                                ),
+                                active_payload={
+                                    "callable_identity": (
+                                        replacement_replay_implementation_request
+                                        .callable_identity
+                                    ),
+                                    "executable_ids": list(
+                                        replacement_replay_implementation_request
+                                        .executable_ids
+                                    ),
+                                    "executable_manifests": [
+                                        executable.to_identity_payload()
+                                        for executable in (
+                                            replacement_replay_implementation_request
+                                            .executables
+                                        )
+                                    ],
+                                    "implementation_identity": (
+                                        replacement_replay_implementation_request
+                                        .implementation_identity
+                                    ),
+                                    "mission_id": (
+                                        replacement_replay_implementation_request
+                                        .mission_id
+                                    ),
+                                    "protocol_id": (
+                                        replacement_replay_implementation_request
+                                        .protocol_id
+                                    ),
+                                    "replacement_for_preflight_id": None,
+                                    "replay_obligation_ids": list(
+                                        replacement_replay_implementation_request
+                                        .replay_obligation_ids
+                                    ),
+                                    "schema": PREFLIGHT_SCHEMA,
+                                    "scientific_surface": active_surface,
+                                    "scientific_surface_hash": (
+                                        active_surface_hash
+                                    ),
+                                },
+                            )
+                            baseline_equivalence_hash = (
+                                require_replacement_replay_baseline_semantics(
+                                    accepted_payload=(
+                                        {}
+                                        if replacement_preflight is None
+                                        else replacement_preflight.payload
+                                    ),
+                                    baseline_executable_manifest=(
+                                        baseline.to_identity_payload()
+                                    ),
+                                )
+                            )
+                            study_equivalence_hash = (
+                                require_replacement_replay_study_semantics(
+                                    accepted_payload=(
+                                        {}
+                                        if replacement_preflight is None
+                                        else replacement_preflight.payload
+                                    ),
+                                    study_payload=replacement_replay_study,
+                                )
+                            )
+                        except ReplayJobImplementationPreflightError as exc:
+                            raise TransitionError(
+                                "Portfolio Decision baseline differs from its "
+                                "typed axis chassis"
+                            ) from exc
+                        assert replacement_preflight is not None
+                        replacement_chassis = (
+                            replacement_replay_study.get(
+                                "controlled_chassis"
+                            )
+                            if isinstance(replacement_replay_study, Mapping)
+                            else None
+                        )
+                        replacement_question = (
+                            replacement_replay_study.get("question")
+                            if isinstance(replacement_replay_study, Mapping)
+                            else None
+                        )
+                        replacement_proposal = (
+                            replacement_replay_study.get(
+                                "semantic_proposal"
+                            )
+                            if isinstance(replacement_replay_study, Mapping)
+                            else None
+                        )
+                        if (
+                            baseline_equivalence_hash
+                            != study_equivalence_hash
+                            or not isinstance(replacement_chassis, Mapping)
+                            or replacement_chassis.get(
+                                "baseline_executable"
+                            )
+                            != baseline.to_identity_payload()
+                            or replacement_chassis.get("architecture")
+                            != architecture.to_identity_payload()
+                            or replacement_replay_study.get("mission_id")
+                            != science["active_mission"]
+                            or replacement_replay_study.get(
+                                "replay_obligation_ids"
+                            )
+                            != list(decision.replay_obligation_ids)
+                            or replacement_replay_study.get(
+                                "portfolio_action"
+                            )
+                            != decision.chosen.action.value
+                            or replacement_replay_study.get(
+                                "mechanism_family"
+                            )
+                            != target_axis.get("mechanism_family")
+                            or replacement_replay_study.get(
+                                "primary_research_layer"
+                            )
+                            != target_axis.get("primary_research_layer")
+                            or replacement_replay_study.get(
+                                "changed_domains"
+                            )
+                            != target_axis.get("changed_domains")
+                            or replacement_replay_study.get(
+                                "controlled_domains"
+                            )
+                            != target_axis.get("controlled_domains")
+                            or not isinstance(replacement_question, Mapping)
+                            or replacement_question.get("causal_question")
+                            != target_axis.get("causal_question")
+                            or not isinstance(replacement_proposal, Mapping)
+                            or replacement_proposal.get("mechanism")
+                            != target_axis.get("mechanism_family")
+                        ):
+                            raise TransitionError(
+                                "Portfolio Decision replacement Study differs "
+                                "from its reused axis"
+                            )
+                        replacement_study_binding_hash = _digest(
+                            replacement_replay_study,
+                            domain="replay-replacement-study-binding",
+                        )
+                        replacement_architecture_equivalence = {
+                            "accepted_replacement_preflight_id": (
+                                replacement_preflight.record_id
+                            ),
+                            "accepted_axis_architecture_family": (
+                                typed_axis_family
+                            ),
+                            "replacement_architecture_family": (
+                                resolved_architecture_family
+                            ),
+                            "replacement_baseline_executable_id": (
+                                baseline.identity
+                            ),
+                            "replay_obligation_ids": list(
+                                decision.replay_obligation_ids
+                            ),
+                            "replacement_executable_ids": list(
+                                replacement_replay_implementation_request
+                                .executable_ids
+                            ),
+                            "replacement_batch_id": (
+                                replacement_replay_batch_spec.identity
+                            ),
+                            "replacement_request_identity": (
+                                replacement_replay_implementation_request
+                                .identity
+                            ),
+                            "replacement_lineage_id": (
+                                replacement_semantic_question_lineage.identity
+                            ),
+                            "schema": (
+                                "replay_replacement_architecture_equivalence.v1"
+                            ),
+                            "scientific_equivalence_hash": (
+                                study_equivalence_hash
+                            ),
+                            "prospective_study_binding_hash": (
+                                replacement_study_binding_hash
+                            ),
+                            "target_axis_identity": target_axis[
+                                "axis_identity"
+                            ],
+                        }
                 if not isinstance(typed_axis_identity, str) and prior_anchor is not None and (
                     (
                         self._resolved_architecture_family(
@@ -16406,10 +17478,16 @@ class StateWriter:
                     raise TransitionError(
                         "legacy Portfolio axis cannot change its prospective chassis anchor"
                     )
-                prior_baseline = self._prior_scientific_baseline(
-                    _index,
-                    baseline,
-                    portfolio_axis_identity=target_axis["axis_identity"],
+                prior_baseline = (
+                    None
+                    if replacement_architecture_equivalence is not None
+                    else self._prior_scientific_baseline(
+                        _index,
+                        baseline,
+                        portfolio_axis_identity=target_axis[
+                            "axis_identity"
+                        ],
+                    )
                 )
                 bootstrap_anchors = [
                     record
@@ -16461,6 +17539,14 @@ class StateWriter:
                 )
                 baseline_provenance = (
                     {
+                        "kind": "accepted_replay_replacement",
+                        "record_id": replacement_architecture_equivalence[
+                            "accepted_replacement_preflight_id"
+                        ],
+                    }
+                    if replacement_architecture_equivalence is not None
+                    else
+                    {
                         "kind": "trial",
                         "record_id": prior_baseline.record_id,
                     }
@@ -16511,6 +17597,18 @@ class StateWriter:
             ):
                 raise TransitionError(
                     "structural Portfolio Decision cannot pre-register a Study baseline"
+                )
+            if (
+                (
+                    replacement_replay_study_payload is not None
+                    or replacement_replay_implementation_request is not None
+                    or replacement_replay_batch_spec is not None
+                    or replacement_semantic_question_lineage is not None
+                )
+                and replacement_replay_study is None
+            ):
+                raise TransitionError(
+                    "replacement replay Study authority is unnecessary"
                 )
             target_architecture_identity = resolved_architecture_family
             if target_architecture_identity is None:
@@ -16578,10 +17676,60 @@ class StateWriter:
                         )
                     )
                 )
-                if not (same_axis_disposition or branch_match or forest_diversion):
+                diagnosis_basis = {
+                    (item.get("kind"), item.get("record_id"))
+                    for item in diagnosis.payload.get("evidence_basis", [])
+                    if isinstance(item, Mapping)
+                }
+                replaced_preflight_id = (
+                    None
+                    if replacement_trigger_for_decision is None
+                    else replacement_trigger_for_decision.payload.get(
+                        "replacement_for_preflight_id"
+                    )
+                )
+                engineering_reentry = (
+                    diagnosis.payload.get("evidence_state")
+                    == "engineering_gap"
+                    and decision.chosen.target_id == source_axis_id
+                    and chosen_action in {item.value for item in work_actions}
+                    and target_axis["primary_research_layer"] in allowed_layers
+                    and replacement_architecture_equivalence is not None
+                    and replacement_semantic_question_lineage is not None
+                    and replacement_semantic_question_lineage
+                    .predecessor_study_id
+                    == diagnosis.payload.get("study_id")
+                    and {
+                        "study-diagnosis:" + diagnosis_id,
+                        "job-implementation-preflight:"
+                        + replaced_preflight_id,
+                    }.issubset(
+                        set(
+                            replacement_semantic_question_lineage
+                            .basis_record_ids
+                        )
+                    )
+                    and isinstance(replaced_preflight_id, str)
+                    and (
+                        "job-implementation-preflight",
+                        replaced_preflight_id,
+                    )
+                    in diagnosis_basis
+                )
+                if not (
+                    same_axis_disposition
+                    or branch_match
+                    or forest_diversion
+                    or engineering_reentry
+                ):
                     raise TransitionError(
                         "Portfolio Decision does not follow or structurally exit its diagnosis"
                     )
+                if engineering_reentry:
+                    assert replacement_architecture_equivalence is not None
+                    replacement_architecture_equivalence[
+                        "engineering_gap_diagnosis_id"
+                    ] = diagnosis_id
                 if (
                     review is not None
                     and ("study-diagnosis", diagnosis_id) not in review_basis
@@ -16790,6 +17938,24 @@ class StateWriter:
                         "baseline_executable_id": baseline.identity,
                     }
                 )
+                if isinstance(diagnosis_id, str):
+                    body["next_action"]["study_diagnosis_id"] = diagnosis_id
+                if isinstance(architecture_review_id, str):
+                    body["next_action"]["architecture_review_id"] = (
+                        architecture_review_id
+                    )
+                if isinstance(scheduler_constraints, Mapping):
+                    body["next_action"].update(
+                        {
+                            name: scheduler_constraints[name]
+                            for name in ARCHITECTURE_CONTINUATION_ACTION_FIELDS
+                            if name in scheduler_constraints
+                        }
+                    )
+                if replacement_architecture_equivalence is not None:
+                    body["next_action"][
+                        "replacement_architecture_equivalence"
+                    ] = replacement_architecture_equivalence
             if next_kind == "record_portfolio_snapshot" and (
                 decision.chosen.action == PortfolioAction.NEW_MECHANISM
             ):
@@ -16851,6 +18017,9 @@ class StateWriter:
                     "study_diagnosis_id": diagnosis_id,
                     "target_axis_identity": target_axis["axis_identity"],
                     "resolved_architecture_family": resolved_architecture_family,
+                    "replacement_architecture_equivalence": (
+                        replacement_architecture_equivalence
+                    ),
                 },
             )
             return body, [*component_records, record], {

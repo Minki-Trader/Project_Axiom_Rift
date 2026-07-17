@@ -18,13 +18,19 @@ from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.component_surface import (
     COMPONENT_SURFACE_ARCHITECTURE_ROLE,
 )
-from axiom_rift.core.identity import ExecutableSpec
+from axiom_rift.core.identity import ExecutableSpec, canonical_digest
 from axiom_rift.operations.batch_budget import (
     FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
     FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON,
     FIXED_HOLD_REPLAY_CONSUMER_BUDGET,
     FIXED_HOLD_REPLAY_PRODUCER_BUDGET,
     registered_batch_budget_for_output_classes,
+)
+from axiom_rift.operations.architecture_review_direction import (
+    ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+    ArchitectureReviewDirectionError,
+    constraint_from_action,
+    required_quant_team_basis,
 )
 from axiom_rift.operations.effective_axis_projection import (
     effective_axis_resolutions,
@@ -125,6 +131,7 @@ from axiom_rift.research.replay_obligation import (
 from axiom_rift.research.semantic_question import (
     SemanticQuestionCore,
     SemanticQuestionLineageProposal,
+    SemanticQuestionRelation,
 )
 from axiom_rift.research.trials import NegativeMemory
 from axiom_rift.research.validation_v2 import (
@@ -133,11 +140,13 @@ from axiom_rift.research.validation_v2 import (
 from axiom_rift.operations.permits import Permit, PermitKind, SubjectKind
 from axiom_rift.operations.replay_job_implementation_preflight import (
     PREFLIGHT_SCHEMA,
+    ReplayJobImplementationPreflightError,
     ReplayJobImplementationPreflightRequest,
     derive_replay_job_scientific_surface,
     evaluate_replay_job_implementation_preflight,
     replay_job_scientific_surface_hash,
     require_active_replay_job_replacement_binding,
+    require_replacement_replay_study_semantics,
 )
 from axiom_rift.storage.index import IndexRecord, LocalIndexView
 
@@ -401,6 +410,7 @@ class FixedHoldReplayDesign:
     batch_spec: BatchSpec
     controlled_chassis: ControlledStudyChassis
     criterion_ids: tuple[str, ...]
+    replacement_axis_equivalence_required: bool = False
     semantic_question_lineage: SemanticQuestionLineageProposal | None = None
     protocol_revision: AxisProtocolRevisionProposal | None = None
 
@@ -427,6 +437,12 @@ class FixedHoldReplayDesign:
                 raise ValueError("replay protocol revision authority is absent")
         elif self.protocol_revision is not None:
             raise ValueError("protocol revision authority has the wrong admission")
+        if self.replacement_axis_equivalence_required and (
+            self.spec.axis_admission is not ReplayAxisAdmission.REUSE_EXACT_AXIS
+        ):
+            raise ValueError(
+                "replacement axis equivalence requires exact-axis reuse"
+            )
         if (
             self.spec.axis_admission
             is ReplayAxisAdmission.REUSE_EXACT_AXIS
@@ -554,6 +570,80 @@ def _base_snapshot_id(
     return snapshot_id
 
 
+def _decision_action_review_basis(
+    index: LocalIndexView,
+    control: Mapping[str, Any],
+) -> tuple[DecisionBasisRecord, ...]:
+    """Project every durable authority the current Decision review must cite."""
+
+    action = control.get("next_action")
+    if not isinstance(action, Mapping):
+        return ()
+    context = dict(action)
+    if action.get("kind") == "execute_portfolio_decision":
+        decision_id = action.get("decision_id")
+        decision = (
+            None
+            if not isinstance(decision_id, str)
+            else index.get("portfolio-decision", decision_id)
+        )
+        if decision is None:
+            raise RuntimeError("accepted replay Decision context is unavailable")
+        durable_context = decision.payload
+        scheduler_context = durable_context.get("scheduler_constraints")
+        if scheduler_context is not None and not isinstance(
+            scheduler_context,
+            Mapping,
+        ):
+            raise RuntimeError("accepted replay Decision context is malformed")
+        for field in (
+            "study_diagnosis_id",
+            "architecture_review_id",
+        ):
+            durable_value = durable_context.get(field)
+            active_value = context.get(field)
+            if (
+                active_value is not None
+                and durable_value is not None
+                and active_value != durable_value
+            ):
+                raise RuntimeError("accepted replay Decision context drifted")
+            if active_value is None and durable_value is not None:
+                context[field] = durable_value
+        if isinstance(scheduler_context, Mapping):
+            for field in ARCHITECTURE_CONTINUATION_ACTION_FIELDS:
+                durable_value = scheduler_context.get(field)
+                active_value = context.get(field)
+                if (
+                    active_value is not None
+                    and durable_value is not None
+                    and active_value != durable_value
+                ):
+                    raise RuntimeError("accepted replay Decision context drifted")
+                if active_value is None and durable_value is not None:
+                    context[field] = durable_value
+    pairs: set[tuple[str, str]] = set()
+    for field, kind in (
+        ("study_diagnosis_id", "study-diagnosis"),
+        ("architecture_review_id", "architecture-review"),
+    ):
+        record_id = context.get(field)
+        if isinstance(record_id, str):
+            pairs.add((kind, record_id))
+    try:
+        continuation = constraint_from_action(context)
+    except ArchitectureReviewDirectionError as exc:
+        raise RuntimeError(str(exc)) from exc
+    if continuation is not None:
+        pairs.update(required_quant_team_basis(continuation))
+    if any(index.get(kind, record_id) is None for kind, record_id in pairs):
+        raise RuntimeError("replay Decision context authority is unavailable")
+    return tuple(
+        DecisionBasisRecord(kind=kind, record_id=record_id)
+        for kind, record_id in sorted(pairs)
+    )
+
+
 def _accepted_decision_review_mode(
     index: LocalIndexView,
     operation_id: str,
@@ -642,6 +732,7 @@ def build_fixed_hold_replay_design(
         snapshot_record = index.get("portfolio-snapshot", base_snapshot_id)
         if snapshot_record is None:
             raise RuntimeError("replay base Portfolio snapshot is absent")
+        decision_action_basis = _decision_action_review_basis(index, _control)
         raw_axes = snapshot_record.payload.get("axes")
         if not isinstance(raw_axes, list) or any(
             not isinstance(axis, Mapping) for axis in raw_axes
@@ -678,6 +769,12 @@ def build_fixed_hold_replay_design(
             )
         }
         target = obligations.get(spec.target_obligation_id)
+        accepted_replacement_preflight = (
+            _current_replacement_implementation_preflight_for_spec(
+                index,
+                spec,
+            )
+        )
         family_authority_record = index.get(
             "historical-family-authority",
             historical_family_authority_id,
@@ -885,6 +982,7 @@ def build_fixed_hold_replay_design(
         architecture_chassis=controlled_chassis.architecture,
     )
     protocol_revision: AxisProtocolRevisionProposal | None = None
+    replacement_axis_overlay_required = False
     if spec.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
         if replay_axis.mechanism_family in {
             axis.mechanism_family for axis in prior_axes
@@ -914,11 +1012,27 @@ def build_fixed_hold_replay_design(
             "retain the complete forest and add one distinct replay mechanism"
         )
     elif spec.axis_admission is ReplayAxisAdmission.REUSE_EXACT_AXIS:
-        replay_axis = replace(replay_axis, status=source_axis.status)
-        if replay_axis != source_axis:
-            raise RuntimeError(
-                "exact-axis replay differs from the current axis chassis or meaning"
+        prospective_replay_axis = replace(
+            replay_axis,
+            status=source_axis.status,
+        )
+        if prospective_replay_axis != source_axis:
+            same_semantic_axis = replace(
+                prospective_replay_axis,
+                architecture_chassis=source_axis.architecture_chassis,
+                system_architecture_family=(
+                    source_axis.system_architecture_family
+                ),
             )
+            if (
+                same_semantic_axis != source_axis
+                or accepted_replacement_preflight is None
+            ):
+                raise RuntimeError(
+                    "exact-axis replay differs from the current axis meaning"
+                )
+            replacement_axis_overlay_required = True
+        replay_axis = source_axis
         expanded_axes = prior_axes
         bridge_option_id = ""
         bridge_action = PortfolioAction.PRESERVE
@@ -1011,7 +1125,7 @@ def build_fixed_hold_replay_design(
         expanded_basis = (
             "retain every unrelated axis and replace one invalidated protocol"
         )
-    bridge_options = (
+    bridge_options = () if not bridge_option_id else (
             DecisionOption(
                 option_id=bridge_option_id,
                 action=bridge_action,
@@ -1037,6 +1151,7 @@ def build_fixed_hold_replay_design(
             kind="portfolio-snapshot",
             record_id=snapshot_record.record_id,
         ),
+        *decision_action_basis,
     ]
     if protocol_revision is not None:
         bridge_basis.append(
@@ -1145,6 +1260,7 @@ def build_fixed_hold_replay_design(
                     kind="portfolio-snapshot",
                     record_id=expanded_snapshot.identity,
                 ),
+                *decision_action_basis,
             ),
             primary_lens=DecisionLens.STATISTICS,
             primary_finding=(
@@ -1195,6 +1311,40 @@ def build_fixed_hold_replay_design(
             "historical_family_identity": manifest_family.identity,
         }
     )
+    _require_prospective_semantic_lineage_admission(
+        writer,
+        spec=spec,
+        question=question,
+        lineage=semantic_question_lineage,
+    )
+    if replacement_axis_overlay_required:
+        assert accepted_replacement_preflight is not None
+        if (
+            semantic_question_lineage is None
+            or semantic_question_lineage.relation
+            is not SemanticQuestionRelation.ENGINEERING_REENTRY
+            or semantic_question_lineage.predecessor_core_id
+            != semantic_question_lineage.successor_core_id
+        ):
+            raise RuntimeError(
+                "replacement replay requires same-core engineering reentry lineage"
+            )
+        try:
+            require_replacement_replay_study_semantics(
+                accepted_payload=accepted_replacement_preflight.payload,
+                study_payload=_prospective_replay_study_payload(
+                    spec=spec,
+                    controlled_chassis=controlled_chassis,
+                    replay_axis=replay_axis,
+                    work_decision=work_decision,
+                    question=question,
+                    proposal=proposal,
+                ),
+            )
+        except ReplayJobImplementationPreflightError as exc:
+            raise RuntimeError(
+                "replacement replay differs from the reused scientific axis"
+            ) from exc
     study_hash = writer.study_input_hash(
         question=question,
         material_identity=OBSERVED_MATERIAL_ID,
@@ -1259,6 +1409,9 @@ def build_fixed_hold_replay_design(
         batch_spec=batch_spec,
         controlled_chassis=controlled_chassis,
         criterion_ids=criterion_ids,
+        replacement_axis_equivalence_required=(
+            replacement_axis_overlay_required
+        ),
     )
 
 
@@ -1428,6 +1581,157 @@ def _implementation_preflight_record(
     ):
         raise RuntimeError("replay implementation preflight projection is malformed")
     return record
+
+
+def _replay_registration_prefix(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView,
+) -> tuple[int, int | None, bool, bool]:
+    """Return counted prefix, durable-preflight insertion, and admission state.
+
+    The Batch trial stream is the authority.  Operation rows are checked only
+    as the exact journal-order witness needed to rebuild the resumable chain.
+    """
+
+    study = _index.get("study-open", design.spec.study_id)
+    if study is None:
+        return 0, None, False, False
+    batch_spec = getattr(design, "batch_spec", None)
+    batch_identity = getattr(batch_spec, "identity", None)
+    if not isinstance(batch_identity, str):
+        raise RuntimeError("replay design lacks its typed Batch identity")
+    batch = _index.get("batch-open", batch_identity)
+    if batch is None:
+        return 0, None, False, False
+    from axiom_rift.operations.replay_study_admission import (
+        ReplayStudyAdmissionError,
+        inspect_replay_study_registration,
+    )
+
+    try:
+        inspection = inspect_replay_study_registration(
+            _index,
+            study_record=study,
+            batch_record=batch,
+        ).require_usable()
+    except ReplayStudyAdmissionError as exc:
+        raise RuntimeError(str(exc)) from exc
+    expected = tuple(member.executable.identity for member in design.members)
+    if inspection.expected_executable_ids != expected:
+        raise RuntimeError(
+            "replay trial stream differs from the designed concurrent family"
+        )
+    registration_operations: list[IndexRecord] = []
+    for ordinal, member in enumerate(design.members):
+        operation_id = (
+            design.spec.operation_prefix + member.label + "-register-trial"
+        )
+        operation = _index.get("operation", operation_id)
+        if ordinal < inspection.registered_count:
+            trial = _index.event_record(
+                f"batch-trials:{design.batch_spec.identity}",
+                ordinal + 1,
+            )
+            material_identity = (
+                None if trial is None else trial.payload.get("material_identity")
+            )
+            accounting_id = (
+                None
+                if not isinstance(material_identity, str)
+                else canonical_digest(
+                    domain="material-trial",
+                    payload={
+                        "material_identity": material_identity,
+                        "executable_id": member.executable.identity,
+                    },
+                )
+            )
+            accounting = (
+                None
+                if accounting_id is None
+                else _index.get("trial-accounting", accounting_id)
+            )
+            result = (
+                None if operation is None else operation.payload.get("result")
+            )
+            if (
+                operation is None
+                or operation.status != "success"
+                or operation.payload.get("event_kind") != "trial_registered"
+                or operation.subject
+                != f"Executable:{member.executable.identity}"
+                or trial is None
+                or accounting is None
+                or operation.authority_sequence != trial.authority_sequence
+                or operation.authority_event_id != trial.authority_event_id
+                or not isinstance(result, Mapping)
+                or set(result)
+                != {"cache_hit", "global_multiplicity", "trial_delta"}
+                or result.get("cache_hit") is not False
+                or result.get("trial_delta") != 1
+                or result.get("global_multiplicity")
+                != accounting.payload.get("global_multiplicity")
+            ):
+                raise RuntimeError(
+                    "replay trial stream lacks its exact registration operation"
+                )
+            registration_operations.append(operation)
+        elif operation is not None:
+            raise RuntimeError(
+                "replay registration operation exists outside the trial stream"
+            )
+    if any(
+        type(operation.authority_sequence) is not int
+        for operation in registration_operations
+    ) or tuple(
+        operation.authority_sequence for operation in registration_operations
+    ) != tuple(
+        sorted(
+            operation.authority_sequence
+            for operation in registration_operations
+        )
+    ):
+        raise RuntimeError("replay registration operation order is malformed")
+    preflight_operation = _index.get(
+        "operation",
+        design.spec.operation_prefix + "implementation-preflight",
+    )
+    preflight_position: int | None = None
+    if preflight_operation is not None:
+        if (
+            preflight_operation.status != "success"
+            or preflight_operation.payload.get("event_kind")
+            != "replay_job_implementation_preflight_recorded"
+            or type(preflight_operation.authority_sequence) is not int
+        ):
+            raise RuntimeError(
+                "replay implementation preflight operation is malformed"
+            )
+        preflight_position = sum(
+            operation.authority_sequence
+            < preflight_operation.authority_sequence
+            for operation in registration_operations
+        )
+        if any(
+            operation.authority_sequence == preflight_operation.authority_sequence
+            for operation in registration_operations
+        ):
+            raise RuntimeError(
+                "replay registration and preflight share an authority sequence"
+            )
+    initial_admission = study.payload.get(
+        "replay_implementation_admission_id"
+    )
+    if initial_admission is not None and not isinstance(initial_admission, str):
+        raise RuntimeError("replay Study implementation admission id is malformed")
+    return (
+        inspection.registered_count,
+        preflight_position,
+        isinstance(initial_admission, str),
+        True,
+    )
 
 
 def _implementation_preflight_rejection(
@@ -2378,12 +2682,12 @@ def operation_steps(
             criterion_ids=design.criterion_ids,
         ).all_criteria_recomputed
     )
-    steps: list[OperationStep] = []
+    base_steps: list[OperationStep] = []
     if (
         design.spec.initiative_lifecycle
         is ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
     ):
-        steps.append(
+        base_steps.append(
             OperationStep(
                 prefix + "open-initiative",
                 "initiative_opened",
@@ -2391,7 +2695,7 @@ def operation_steps(
             )
         )
     if design.bridge_decision is not None:
-        steps.extend(
+        base_steps.extend(
             (
                 OperationStep(
                     prefix + "bridge-decision",
@@ -2405,7 +2709,7 @@ def operation_steps(
                 ),
             )
         )
-    steps.extend([
+    base_steps.extend([
         OperationStep(prefix + "replay-decision", "portfolio_decision_recorded", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "study-permit", "permit_issued", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "open-study", "study_opened", STUDY_CLOSE_STAGE),
@@ -2420,9 +2724,18 @@ def operation_steps(
         )
         for member in design.members
     )
-    legacy_registration_started = any(
-        _index.get("operation", step.operation_id) is not None
-        for step in registration_steps
+    (
+        registered_prefix_count,
+        recorded_preflight_position,
+        initial_implementation_admission,
+        replay_surface_open,
+    ) = _replay_registration_prefix(
+        writer,
+        design,
+        _index=_index,
+    )
+    legacy_admission_missing = (
+        replay_surface_open and not initial_implementation_admission
     )
     activation_operation_ids = list(
         _recorded_protocol_activation_operation_ids(
@@ -2432,29 +2745,125 @@ def operation_steps(
         )
     )
     current_activation_operation_id = _protocol_activation_operation_id(design)
+    activation_needed = _protocol_activation_step_needed(
+        writer,
+        design,
+        _control=_control,
+        _index=_index,
+    )
     if (
-        _protocol_activation_step_needed(
-            writer,
-            design,
-            _control=_control,
-            _index=_index,
-        )
-        # Protocol activation cannot be inserted retroactively before an
-        # already authoritative trial prefix.  Such a legacy attempt must be
-        # preflight-rejected and diagnosed; its successor activates before
-        # registering any new trial.
-        and not legacy_registration_started
+        activation_needed
         and current_activation_operation_id not in activation_operation_ids
     ):
         activation_operation_ids.append(current_activation_operation_id)
+    study_record = _index.get("study-open", design.spec.study_id)
+    if (
+        activation_needed
+        and study_record is not None
+        and initial_implementation_admission
+        and _index.get("operation", current_activation_operation_id) is None
+    ):
+        raise RuntimeError(
+            "active admitted replay Study cannot migrate protocol authority in place"
+        )
+    base_inserts: dict[
+        int,
+        list[tuple[tuple[int, int], OperationStep]],
+    ] = {}
+    registration_inserts: dict[
+        int,
+        list[tuple[tuple[int, int], OperationStep]],
+    ] = {}
+    base_records = tuple(
+        _index.get("operation", step.operation_id) for step in base_steps
+    )
+    registration_records = tuple(
+        _index.get("operation", step.operation_id)
+        for step in registration_steps
+    )
+    open_batch_record = _index.get(
+        "operation",
+        prefix + "open-batch",
+    )
     for activation_operation_id in activation_operation_ids:
-        steps.append(
-            OperationStep(
-                activation_operation_id,
-                "research_protocol_activated",
-                STUDY_CLOSE_STAGE,
+        activation_step = OperationStep(
+            activation_operation_id,
+            "research_protocol_activated",
+            STUDY_CLOSE_STAGE,
+        )
+        operation = _index.get("operation", activation_operation_id)
+        if operation is None:
+            if study_record is None:
+                position = next(
+                    index
+                    for index, step in enumerate(base_steps)
+                    if step.operation_id == prefix + "replay-decision"
+                )
+                base_inserts.setdefault(position, []).append(
+                    ((1, 0), activation_step)
+                )
+            else:
+                registration_inserts.setdefault(
+                    registered_prefix_count,
+                    [],
+                ).append(((1, 0), activation_step))
+            continue
+        if type(operation.authority_sequence) is not int:
+            raise RuntimeError(
+                "recorded replay protocol activation lacks authority order"
+            )
+        if (
+            open_batch_record is not None
+            and type(open_batch_record.authority_sequence) is int
+            and operation.authority_sequence
+            > open_batch_record.authority_sequence
+        ):
+            if any(
+                record is not None
+                and record.authority_sequence == operation.authority_sequence
+                for record in registration_records
+            ):
+                raise RuntimeError(
+                    "replay protocol activation shares a trial authority event"
+                )
+            position = sum(
+                record is not None
+                and type(record.authority_sequence) is int
+                and record.authority_sequence < operation.authority_sequence
+                for record in registration_records
+            )
+            registration_inserts.setdefault(position, []).append(
+                ((0, operation.authority_sequence), activation_step)
+            )
+        else:
+            if any(
+                record is not None
+                and record.authority_sequence == operation.authority_sequence
+                for record in base_records
+            ):
+                raise RuntimeError(
+                    "replay protocol activation shares a base authority event"
+                )
+            position = sum(
+                record is not None
+                and type(record.authority_sequence) is int
+                and record.authority_sequence < operation.authority_sequence
+                for record in base_records
+            )
+            base_inserts.setdefault(position, []).append(
+                ((0, operation.authority_sequence), activation_step)
+            )
+    steps: list[OperationStep] = []
+    for position in range(len(base_steps) + 1):
+        steps.extend(
+            step
+            for _key, step in sorted(
+                base_inserts.get(position, ()),
+                key=lambda item: item[0],
             )
         )
+        if position < len(base_steps):
+            steps.append(base_steps[position])
     preflight_step = OperationStep(
         prefix + "implementation-preflight",
         "replay_job_implementation_preflight_recorded",
@@ -2465,17 +2874,68 @@ def operation_steps(
         design,
         _index=_index,
     )
-    # New Studies must pass the non-journal admission gate before this chain.
-    # The durable step exists only to recover a legacy family that was already
-    # fully registered before the gate was introduced.
-    steps.extend(registration_steps)
-    if legacy_registration_started or preflight is not None:
-        steps.append(preflight_step)
+    # New Studies carry an immutable admission from open_study.  A legacy
+    # Study without it is recertified at the exact already-counted prefix,
+    # before any missing member can enter multiplicity.  Once recorded, the
+    # preflight is reinserted at its durable authority position on every
+    # restart so the strict operation chain remains reproducible.
+    preflight_position = recorded_preflight_position
+    if preflight is not None and preflight_position is None:
+        raise RuntimeError(
+            "replay implementation preflight lacks its operation position"
+        )
+    if preflight is None and preflight_position is not None:
+        raise RuntimeError(
+            "replay implementation preflight operation lacks its projection"
+        )
+    if preflight_position is None and legacy_admission_missing:
+        preflight_position = registered_prefix_count
+    if preflight_position is not None:
+        preflight_operation = _index.get(
+            "operation",
+            preflight_step.operation_id,
+        )
+        registration_inserts.setdefault(preflight_position, []).append(
+            (
+                (
+                    (0, preflight_operation.authority_sequence)
+                    if preflight_operation is not None
+                    and type(preflight_operation.authority_sequence) is int
+                    else (1, 1)
+                ),
+                preflight_step,
+            )
+        )
     implementation_rejection = _implementation_preflight_rejection(
         writer,
         design,
         _index=_index,
     )
+    if (
+        implementation_rejection is not None
+        and preflight_position is not None
+        and registered_prefix_count > preflight_position
+    ):
+        raise RuntimeError(
+            "rejected replay preflight has later counted registrations"
+        )
+    for position in range(len(registration_steps) + 1):
+        steps.extend(
+            step
+            for _key, step in sorted(
+                registration_inserts.get(position, ()),
+                key=lambda item: item[0],
+            )
+        )
+        if position >= len(registration_steps):
+            continue
+        if (
+            implementation_rejection is not None
+            and preflight_position is not None
+            and position >= preflight_position
+        ):
+            continue
+        steps.append(registration_steps[position])
     if implementation_rejection is None:
         for member in design.members:
             stem = prefix + member.label
@@ -2763,6 +3223,44 @@ def build_replay_job_spec(
     }
 
 
+def materialize_replay_implementation_preflight_request(
+    writer: StateWriter,
+    *,
+    spec: FixedHoldReplayMissionSpec,
+    members: tuple[FixedHoldReplayMember, ...],
+    job_implementation_materializer: Callable[[StateWriter], str],
+    replacement_for_preflight_id: str | None = None,
+) -> ReplayJobImplementationPreflightRequest:
+    """Seal one complete family before its Decision or Study can be written."""
+
+    if (
+        not isinstance(spec, FixedHoldReplayMissionSpec)
+        or not members
+        or tuple(member.ordinal for member in members)
+        != tuple(range(1, len(members) + 1))
+    ):
+        raise RuntimeError("replay implementation family is not exactly ordered")
+    for member in members:
+        plan = canonical_bytes(member.job_plan.plan)
+        if writer.evidence.finalize(plan).sha256 != member.job_plan.plan_hash:
+            raise RuntimeError("replay validation plan identity drifted")
+    implementation_identity = job_implementation_materializer(writer)
+    if implementation_identity != spec.job_implementation_identity:
+        raise RuntimeError("replay Job implementation materialization drifted")
+    return ReplayJobImplementationPreflightRequest(
+        mission_id=spec.mission_id,
+        protocol_id=spec.job_protocol,
+        callable_identity=spec.callable_identity,
+        implementation_identity=implementation_identity,
+        executables=tuple(member.executable for member in members),
+        scientific_bindings=tuple(
+            member.job_plan.scientific_binding() for member in members
+        ),
+        replay_obligation_ids=(spec.target_obligation_id,),
+        replacement_for_preflight_id=replacement_for_preflight_id,
+    )
+
+
 def _materialize_replay_implementation_preflight_request(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -2770,25 +3268,11 @@ def _materialize_replay_implementation_preflight_request(
     job_implementation_materializer: Callable[[StateWriter], str],
     replacement_for_preflight_id: str | None = None,
 ) -> ReplayJobImplementationPreflightRequest:
-    """Seal plans and implementation once for the complete replay family."""
-
-    for member in design.members:
-        plan = canonical_bytes(member.job_plan.plan)
-        if writer.evidence.finalize(plan).sha256 != member.job_plan.plan_hash:
-            raise RuntimeError("replay validation plan identity drifted")
-    implementation_identity = job_implementation_materializer(writer)
-    if implementation_identity != design.spec.job_implementation_identity:
-        raise RuntimeError("replay Job implementation materialization drifted")
-    return ReplayJobImplementationPreflightRequest(
-        mission_id=design.spec.mission_id,
-        protocol_id=design.spec.job_protocol,
-        callable_identity=design.spec.callable_identity,
-        implementation_identity=implementation_identity,
-        executables=tuple(member.executable for member in design.members),
-        scientific_bindings=tuple(
-            member.job_plan.scientific_binding() for member in design.members
-        ),
-        replay_obligation_ids=(design.spec.target_obligation_id,),
+    return materialize_replay_implementation_preflight_request(
+        writer,
+        spec=design.spec,
+        members=design.members,
+        job_implementation_materializer=job_implementation_materializer,
         replacement_for_preflight_id=replacement_for_preflight_id,
     )
 
@@ -2865,59 +3349,146 @@ def require_replay_implementation_admission(
     )
 
 
-def _prospective_replay_study_surface(
-    design: FixedHoldReplayDesign,
+def _prospective_replay_study_payload(
+    *,
+    spec: FixedHoldReplayMissionSpec,
+    controlled_chassis: ControlledStudyChassis,
+    replay_axis: PortfolioAxis,
+    work_decision: PortfolioDecision,
+    question: Mapping[str, Any],
+    proposal: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Render the exact Study fields used by the replacement science boundary."""
 
-    core = SemanticQuestionCore.from_question_manifest(design.question)
+    core = SemanticQuestionCore.from_question_manifest(question)
     return {
         "changed_domains": [
             domain.value
-            for domain in design.controlled_chassis.changed_domains
+            for domain in controlled_chassis.changed_domains
         ],
         "controlled_chassis": (
-            design.controlled_chassis.to_identity_payload()
+            controlled_chassis.to_identity_payload()
         ),
         "controlled_domains": [
             domain.value
-            for domain in design.controlled_chassis.controlled_domains
+            for domain in controlled_chassis.controlled_domains
         ],
         "material_identity": OBSERVED_MATERIAL_ID,
-        "mechanism_family": design.replay_axis.mechanism_family,
-        "mission_id": design.spec.mission_id,
-        "portfolio_action": design.work_decision.chosen.action.value,
+        "mechanism_family": replay_axis.mechanism_family,
+        "mission_id": spec.mission_id,
+        "portfolio_action": work_decision.chosen.action.value,
         "primary_research_layer": (
-            design.replay_axis.primary_research_layer.value
+            replay_axis.primary_research_layer.value
         ),
-        "question": dict(design.question),
-        "replay_obligation_ids": [design.spec.target_obligation_id],
-        "semantic_proposal": dict(design.proposal),
+        "question": dict(question),
+        "replay_obligation_ids": [spec.target_obligation_id],
+        "semantic_proposal": dict(proposal),
         "semantic_question_core_id": core.identity,
     }
 
 
-def _pending_replacement_implementation_preflight(
-    index: LocalIndexView,
+def _require_prospective_semantic_lineage_admission(
+    writer: StateWriter,
+    *,
+    spec: FixedHoldReplayMissionSpec,
+    question: Mapping[str, Any],
+    lineage: SemanticQuestionLineageProposal | None,
+) -> None:
+    """Reject an unresolvable lineage before preflight or Decision authority."""
+
+    if lineage is None:
+        return
+    from axiom_rift.operations.semantic_question_registry import (
+        SemanticQuestionRegistryError,
+        SemanticQuestionRegistryIntegrityError,
+        require_semantic_question_registry_activation,
+        semantic_question_prospective_lineage_record,
+    )
+
+    question_payload = dict(question)
+    question_hash = canonical_digest(
+        domain="study-question",
+        payload=question_payload,
+    )
+    prospective_study = IndexRecord(
+        kind="study-open",
+        record_id=spec.study_id,
+        subject=f"Study:{spec.study_id}",
+        status="open",
+        fingerprint=question_hash,
+        payload={
+            "question": question_payload,
+            "question_hash": question_hash,
+        },
+    )
+    try:
+        with writer.open_stable_index() as (_control, index):
+            if require_semantic_question_registry_activation(index) is None:
+                return
+            semantic_question_prospective_lineage_record(
+                index,
+                prospective_study,
+                lineage,
+            )
+    except (
+        SemanticQuestionRegistryError,
+        SemanticQuestionRegistryIntegrityError,
+    ) as exc:
+        raise RuntimeError(
+            "replay semantic lineage is not prospectively admissible"
+        ) from exc
+
+
+def _prospective_replay_study_surface(
     design: FixedHoldReplayDesign,
+) -> dict[str, Any]:
+    return _prospective_replay_study_payload(
+        spec=design.spec,
+        controlled_chassis=design.controlled_chassis,
+        replay_axis=design.replay_axis,
+        work_decision=design.work_decision,
+        question=design.question,
+        proposal=design.proposal,
+    )
+
+
+def _current_replacement_implementation_preflight_for_spec(
+    index: LocalIndexView,
+    spec: FixedHoldReplayMissionSpec,
 ) -> IndexRecord | None:
-    """Resolve a current accepted replacement trigger before any Study write."""
+    """Resolve an exact accepted trigger at pending or active replay head."""
 
     heads = {
         obligation.identity: head
         for obligation, head in obligation_heads(
             index,
-            mission_id=design.spec.mission_id,
+            mission_id=spec.mission_id,
         )
     }
-    head = heads.get(design.spec.target_obligation_id)
+    head = heads.get(spec.target_obligation_id)
+    if head is None:
+        return None
+    resume = head
     if (
-        head is None
-        or head.kind != "historical-replay-obligation-resume"
-        or head.status != "pending"
+        getattr(head, "kind", None)
+        != "historical-replay-obligation-resume"
+        and getattr(head, "status", None) == "in_progress"
+        and isinstance(getattr(head, "event_stream", None), str)
+        and type(getattr(head, "event_sequence", None)) is int
+        and head.event_sequence >= 2
+    ):
+        resume = index.event_record(
+            head.event_stream,
+            head.event_sequence - 1,
+        )
+    if (
+        resume is None
+        or getattr(resume, "kind", None)
+        != "historical-replay-obligation-resume"
+        or getattr(resume, "status", None) != "pending"
     ):
         return None
-    evidence = head.payload.get("resume_evidence")
+    evidence = resume.payload.get("resume_evidence")
     trigger_id = (
         None
         if not isinstance(evidence, Mapping)
@@ -2938,17 +3509,28 @@ def _pending_replacement_implementation_preflight(
         if trigger is None
         else trigger.payload.get("replacement_for_preflight_id")
     )
+    trigger_fingerprint = (
+        None
+        if trigger is None
+        else canonical_digest(
+            domain="replay-job-implementation-preflight",
+            payload=trigger.payload,
+        )
+    )
     if (
         trigger is None
+        or trigger.fingerprint != trigger_fingerprint
+        or trigger.record_id
+        != "job-implementation-preflight:" + trigger_fingerprint
         or trigger.status != "accepted"
         or trigger.payload.get("schema") != PREFLIGHT_SCHEMA
         or trigger.payload.get("outcome") != "accepted"
-        or trigger.payload.get("mission_id") != design.spec.mission_id
+        or trigger.payload.get("mission_id") != spec.mission_id
         or trigger.payload.get("batch_id") is not None
         or trigger.payload.get("study_id") is not None
         or trigger.payload.get("replay_obligation_ids")
-        != [design.spec.target_obligation_id]
-        or trigger.payload.get("protocol_id") != design.spec.job_protocol
+        != [spec.target_obligation_id]
+        or trigger.payload.get("protocol_id") != spec.job_protocol
         or not isinstance(replacement_for, str)
         or trigger.event_stream
         != (
@@ -2968,6 +3550,16 @@ def _pending_replacement_implementation_preflight(
             "pending replay replacement implementation authority is malformed"
         )
     return trigger
+
+
+def _pending_replacement_implementation_preflight(
+    index: LocalIndexView,
+    design: FixedHoldReplayDesign,
+) -> IndexRecord | None:
+    return _current_replacement_implementation_preflight_for_spec(
+        index,
+        design.spec,
+    )
 
 
 def _study_permit(
@@ -3135,9 +3727,30 @@ def _apply_study_close_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "replay-decision":
+        replacement_study = (
+            _prospective_replay_study_surface(design)
+            if design.replacement_axis_equivalence_required
+            else None
+        )
         return writer.record_portfolio_decision(
             decision=design.work_decision,
             operation_id=operation_id,
+            **(
+                {}
+                if replacement_study is None
+                else {
+                    "replacement_replay_batch_spec": design.batch_spec,
+                    "replacement_replay_implementation_request": (
+                        None
+                        if implementation_admission is None
+                        else implementation_admission.request
+                    ),
+                    "replacement_replay_study_payload": replacement_study,
+                    "replacement_semantic_question_lineage": (
+                        design.semantic_question_lineage
+                    ),
+                }
+            ),
         )
     if operation_id == prefix + "study-permit":
         permit = _study_permit(writer, design)
@@ -3612,9 +4225,56 @@ def _replay_resolution(
         }
         pair = pairs.get(design.spec.target_obligation_id)
         trial = index.get("trial", design.target_member.executable.identity)
-        if pair is None or trial is None:
-            raise RuntimeError("replay obligation or target trial is absent")
-        obligation, _ = pair
+        if pair is None:
+            raise RuntimeError("replay obligation is absent")
+        obligation, obligation_head = pair
+        if trial is None:
+            if (
+                preflight_rejection is None
+                or obligation_head.status != "pending"
+            ):
+                raise RuntimeError("replay target trial is absent")
+            from axiom_rift.operations.replay_projection import (
+                ReplayAuthorityError,
+                require_pending_replay_preflight_invalidation,
+            )
+
+            replay_study = index.get("study-open", design.spec.study_id)
+            if replay_study is None:
+                raise RuntimeError("partial replay Study projection is absent")
+            try:
+                require_pending_replay_preflight_invalidation(
+                    index,
+                    mission_id=design.spec.mission_id,
+                    study=replay_study,
+                    diagnosis=diagnosis,
+                )
+            except ReplayAuthorityError as exc:
+                raise RuntimeError(str(exc)) from exc
+            return ReplayDeferral(
+                obligation_id=design.spec.target_obligation_id,
+                basis=ReplayDeferralBasis(
+                    kind=ReplayDeferralBasisKind.STUDY_DIAGNOSIS,
+                    record_id=diagnosis.record_id,
+                    subject_id=design.spec.study_id,
+                ),
+                reason_codes=(interpretation.reason_code,),
+                resume_conditions=(
+                    ReplayResumeCondition(
+                        kind=(
+                            ReplayResumeConditionKind
+                            .REPLACEMENT_PROSPECTIVE_IMPLEMENTATION
+                        ),
+                        protocol_id=design.spec.job_protocol,
+                        original_executable_ids=tuple(
+                            member.historical_reference_executable_id
+                            for member in design.members
+                        ),
+                        criterion_ids=obligation.criterion_ids,
+                    ),
+                ),
+                execution_binding=None,
+            )
         evidence_ids = replay_evidence_record_ids(
             diagnosis=diagnosis,
             close_record=close_record,
@@ -4077,14 +4737,14 @@ def run_study_close_stage(
     initial = cursor.completed
     applied_trial_delta = 0
     implementation_admission: ReplayImplementationAdmission | None = None
-    registration_boundaries = tuple(
+    open_study_boundaries = tuple(
         ordinal
         for ordinal, item in enumerate(cursor.steps)
-        if item.event_kind == "trial_registered"
+        if item.event_kind == "study_opened"
     )
     if (
-        registration_boundaries
-        and initial <= max(registration_boundaries)
+        open_study_boundaries
+        and initial <= max(open_study_boundaries)
     ):
         implementation_admission = require_replay_implementation_admission(
             writer,
@@ -4462,6 +5122,7 @@ __all__ = [
     "fixed_hold_replay_study_input_hash",
     "inspect_replay_prefix",
     "interpret_fixed_hold_completion",
+    "materialize_replay_implementation_preflight_request",
     "operation_steps",
     "read_only_summary",
     "require_stable_head",

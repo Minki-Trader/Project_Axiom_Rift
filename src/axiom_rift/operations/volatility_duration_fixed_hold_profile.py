@@ -38,9 +38,9 @@ from axiom_rift.research.volatility_duration_fixed_hold_job import (
 
 
 VOLATILITY_DURATION_FIXED_HOLD_CAUSAL_QUESTION = (
-    "Does the exact Writer-bound four-member volatility state-age family "
-    "produce causal after-cost evidence under current completed-period "
-    "execution, exact controls, and concurrent-family inference?"
+    "Does an exact prospective reconstruction of the four-member STU-0051 "
+    "volatility state-age family preserve causal, after-cost evidence under "
+    "exact controls and concurrent-family inference?"
 )
 
 
@@ -284,15 +284,15 @@ def build_volatility_duration_fixed_hold_profile_design(
         criterion_ids=criterion_ids,
         causal_question=VOLATILITY_DURATION_FIXED_HOLD_CAUSAL_QUESTION,
         mechanism_family=(
-            "prospective-writer-bound-volatility-duration-fixed-hold"
+            "prospective-stu0051-volatility-duration-family-replay"
         ),
         why_now=(
-            "a prior replay attempt exposed reconstruction-code coupling; "
-            "the obligation now requires a clean completed-period implementation"
+            "the P0 correction queue requires a completed-bar replay of the "
+            "locally executable family after its prior satisfaction was invalidated"
         ),
         stop_or_reopen_condition=(
-            "stop after the exact four-member family; reopen only under a "
-            "typed replay resume condition or registered development material"
+            "stop after all four members; reopen only under a typed replay "
+            "resume condition or registered development material"
         ),
         semantic_question_lineage=semantic_question_lineage,
     )

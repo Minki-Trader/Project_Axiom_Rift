@@ -373,6 +373,7 @@ def _fixtures() -> dict[str, tuple[dict[str, object], dict[str, object]]]:
                 "portfolio_snapshot_id": PORTFOLIO,
                 "replay_obligation_ids": [REPLAY_0],
                 "resolved_architecture_family": "architecture-family:" + D0,
+                "study_diagnosis_id": DIAGNOSIS,
                 "target_axis_identity": AXIS,
                 "target_id": "axis-next-action",
             },
@@ -751,6 +752,69 @@ class ControlNextActionTests(unittest.TestCase):
                 action[field] = [D0, D0]
                 with self.assertRaisesRegex(ControlNextActionError, "duplicates"):
                     validate_control_next_action(action, scientific)
+
+    def test_replacement_architecture_equivalence_is_exact_and_cross_bound(
+        self,
+    ) -> None:
+        action, scientific = _fixtures()["execute_portfolio_decision"]
+        action = deepcopy(action)
+        binding = {
+            "accepted_axis_architecture_family": "architecture-family:" + D1,
+            "accepted_replacement_preflight_id": (
+                "job-implementation-preflight:" + D0
+            ),
+            "engineering_gap_diagnosis_id": DIAGNOSIS,
+            "prospective_study_binding_hash": D0,
+            "replacement_architecture_family": "architecture-family:" + D0,
+            "replacement_baseline_executable_id": EXECUTABLE,
+            "replacement_batch_id": BATCH,
+            "replacement_executable_ids": [EXECUTABLE],
+            "replacement_lineage_id": "semantic-question-lineage:" + D0,
+            "replacement_request_identity": (
+                "replay-job-implementation-preflight-request:" + D0
+            ),
+            "replay_obligation_ids": [REPLAY_0],
+            "schema": "replay_replacement_architecture_equivalence.v1",
+            "scientific_equivalence_hash": D1,
+            "target_axis_identity": AXIS,
+        }
+        action["replacement_architecture_equivalence"] = binding
+        validate_control_next_action(action, scientific)
+
+        mutations = {
+            "extra": {**binding, "forged": D0},
+            "same_family": {
+                **binding,
+                "accepted_axis_architecture_family": (
+                    binding["replacement_architecture_family"]
+                ),
+            },
+            "wrong_baseline": {
+                **binding,
+                "replacement_baseline_executable_id": "executable:" + D1,
+            },
+            "wrong_obligation": {
+                **binding,
+                "replay_obligation_ids": [REPLAY_1],
+            },
+            "wrong_axis": {
+                **binding,
+                "target_axis_identity": "axis:" + D1,
+            },
+        }
+        for name, replacement in mutations.items():
+            with self.subTest(name=name):
+                mutated = deepcopy(action)
+                mutated["replacement_architecture_equivalence"] = replacement
+                with self.assertRaises(ControlNextActionError):
+                    validate_control_next_action(mutated, scientific)
+
+        missing = deepcopy(action)
+        missing["replacement_architecture_equivalence"].pop(
+            "prospective_study_binding_hash"
+        )
+        with self.assertRaisesRegex(ControlNextActionError, "schema is not exact"):
+            validate_control_next_action(missing, scientific)
 
     def test_all_nested_resume_actions_fail_closed(self) -> None:
         cases = (

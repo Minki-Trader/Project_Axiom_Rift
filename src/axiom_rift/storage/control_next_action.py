@@ -605,6 +605,12 @@ def _validate_execute_portfolio_decision(
     action: Mapping[str, Any], scientific: Mapping[str, Any], depth: int
 ) -> None:
     del depth
+    from axiom_rift.operations.architecture_review_direction import (
+        ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+        ArchitectureReviewDirectionError,
+        constraint_from_action,
+    )
+
     architecture = {
         "architecture_chassis_identity",
         "baseline_executable_id",
@@ -613,8 +619,28 @@ def _validate_execute_portfolio_decision(
     _portfolio_mutation_base(
         "Portfolio execution action",
         action,
-        optional={*architecture, "replay_obligation_ids"},
+        optional={
+            *architecture,
+            *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+            "study_diagnosis_id",
+            "replacement_architecture_equivalence",
+            "replay_obligation_ids",
+        },
     )
+    try:
+        constraint_from_action(action)
+    except ArchitectureReviewDirectionError as exc:
+        _fail(str(exc))
+    diagnosis_id = action.get("study_diagnosis_id")
+    if diagnosis_id is not None:
+        _prefixed("Study diagnosis", diagnosis_id, "diagnosis:")
+    architecture_review_id = action.get("architecture_review_id")
+    if architecture_review_id is not None:
+        _prefixed(
+            "architecture review",
+            architecture_review_id,
+            "architecture-review:",
+        )
     if action["action"] not in _PORTFOLIO_EXECUTION_ACTIONS:
         _fail("Portfolio execution action is not executable work")
     if type(scientific.get("active_initiative")) is not str:
@@ -638,6 +664,112 @@ def _validate_execute_portfolio_decision(
             action["resolved_architecture_family"],
             "architecture-family:",
         )
+    replacement = action.get("replacement_architecture_equivalence")
+    if replacement is not None:
+        if not isinstance(replacement, Mapping):
+            _fail("replacement architecture equivalence must be an object")
+        required = {
+            "accepted_axis_architecture_family",
+            "accepted_replacement_preflight_id",
+            "prospective_study_binding_hash",
+            "replacement_architecture_family",
+            "replacement_baseline_executable_id",
+            "replacement_batch_id",
+            "replacement_executable_ids",
+            "replacement_lineage_id",
+            "replacement_request_identity",
+            "replay_obligation_ids",
+            "schema",
+            "scientific_equivalence_hash",
+            "target_axis_identity",
+        }
+        _exact(
+            "replacement architecture equivalence",
+            replacement,
+            required,
+            {"engineering_gap_diagnosis_id"},
+        )
+        if replacement["schema"] != (
+            "replay_replacement_architecture_equivalence.v1"
+        ):
+            _fail("replacement architecture equivalence schema is invalid")
+        _prefixed(
+            "accepted replacement preflight",
+            replacement["accepted_replacement_preflight_id"],
+            "job-implementation-preflight:",
+        )
+        accepted_family = _prefixed(
+            "accepted axis architecture family",
+            replacement["accepted_axis_architecture_family"],
+            "architecture-family:",
+        )
+        replacement_family = _prefixed(
+            "replacement architecture family",
+            replacement["replacement_architecture_family"],
+            "architecture-family:",
+        )
+        baseline_id = _prefixed(
+            "replacement baseline Executable",
+            replacement["replacement_baseline_executable_id"],
+            "executable:",
+        )
+        _prefixed(
+            "replacement Batch",
+            replacement["replacement_batch_id"],
+            "batch:",
+        )
+        _prefixed(
+            "replacement request",
+            replacement["replacement_request_identity"],
+            "replay-job-implementation-preflight-request:",
+        )
+        _prefixed(
+            "replacement semantic lineage",
+            replacement["replacement_lineage_id"],
+            "semantic-question-lineage:",
+        )
+        target_axis_identity = _prefixed(
+            "replacement target axis",
+            replacement["target_axis_identity"],
+            "axis:",
+        )
+        _digest(
+            "replacement scientific equivalence",
+            replacement["scientific_equivalence_hash"],
+        )
+        _digest(
+            "replacement prospective Study binding",
+            replacement["prospective_study_binding_hash"],
+        )
+        obligations = _canonical_list(
+            "replacement replay obligation",
+            replacement["replay_obligation_ids"],
+            prefix="historical-replay-obligation:",
+        )
+        _canonical_list(
+            "replacement Executable",
+            replacement["replacement_executable_ids"],
+            prefix="executable:",
+            ordered=True,
+        )
+        if "engineering_gap_diagnosis_id" in replacement:
+            _prefixed(
+                "replacement engineering-gap diagnosis",
+                replacement["engineering_gap_diagnosis_id"],
+                "diagnosis:",
+            )
+        if (
+            present != architecture
+            or "replay_obligation_ids" not in action
+            or accepted_family == replacement_family
+            or replacement_family != action["resolved_architecture_family"]
+            or baseline_id != action["baseline_executable_id"]
+            or target_axis_identity != action["target_axis_identity"]
+            or obligations != action["replay_obligation_ids"]
+        ):
+            _fail(
+                "replacement architecture equivalence differs from its action"
+            )
 
 
 def _validate_freeze_batch(

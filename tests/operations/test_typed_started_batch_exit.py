@@ -28,12 +28,20 @@ class TypedStartedBatchExitActivationTests(unittest.TestCase):
         }
         replacements, mode = desired_replacements(REPO_ROOT)
         self.assertIn(mode, {"activate", "already_materialized"})
+        expected_hashes = (
+            EXPECTED_SUCCESSOR_SHA256
+            if mode == "activate"
+            else {
+                relative: sha256(content).hexdigest()
+                for relative, content in before.items()
+            }
+        )
         self.assertEqual(
             {
                 relative: sha256(content).hexdigest()
                 for relative, content in replacements.items()
             },
-            EXPECTED_SUCCESSOR_SHA256,
+            expected_hashes,
         )
         science = yaml.safe_load(
             replacements["contracts/science.yaml"].decode("ascii")
@@ -99,10 +107,12 @@ class TypedStartedBatchExitActivationTests(unittest.TestCase):
         self.assertEqual(plan["authority_operation_id"], AUTHORITY_OPERATION_ID)
         self.assertEqual(
             plan["replacement_sha256"],
-            EXPECTED_SUCCESSOR_SHA256,
+            {
+                relative: sha256((REPO_ROOT / relative).read_bytes()).hexdigest()
+                for relative in EXPECTED_SUCCESSOR_SHA256
+            },
         )
 
 
 if __name__ == "__main__":
     unittest.main()
-

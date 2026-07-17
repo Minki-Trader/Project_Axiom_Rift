@@ -327,6 +327,11 @@ repair:
     batch_outcome_must_match_typed_engineering_completion: true
     continue_batch_can_dispose_started_batch: false
     legacy_pre_activation_projection_is_read_only: true
+    legacy_registration_only_replay_pre_job_exception:
+      authority: replay_implementation_admission.replacement_required_terminal
+      exact_registration_only_surface_required: true
+      direct_not_evaluable_without_stop_batch_job_allowed: true
+      scientific_credit_allowed: false
   required:
     - cause
     - minimum_reproduction
@@ -704,6 +709,81 @@ research_protocol:
   authority_migration_requires_additive_rebinding_before_scientific_job: true
   same_authority_duplicate_activation_allowed: false
   trial_holdout_and_candidate_delta: 0
+replay_implementation_admission:
+  single_writer: axiom_rift.operations.writer.StateWriter
+  schemas:
+    prospective_atomic_study_open: replay_implementation_admission.v1
+    legacy_registration_only_recertification: replay_implementation_admission.v2
+  exact_bindings:
+    - mission_id
+    - ordered_replay_obligation_ids
+    - study_scientific_surface_hash
+    - batch_id
+    - ordered_executable_ids
+    - callable_identity
+    - protocol_id
+    - research_protocol_activation_id
+    - authority_manifest_digest
+    - implementation_identity
+    - scientific_bindings
+    - current_source_closure_authority
+    - accepted_replacement_preflight_when_applicable
+  prospective:
+    accepted_evaluation_and_admission_are_atomic_with_study_open: true
+    rejection_writes_no_study_batch_trial_job_or_budget_state: true
+    admission_precedes_first_replay_trial_and_job: true
+    missing_admission_after_activation_boundary_is_recovery_required: true
+  legacy_registration_only_recertification:
+    study_must_precede_exact_current_protocol_activation: true
+    post_activation_missing_admission_may_recertify: false
+    exact_frozen_family_and_authenticated_trial_prefix_required: true
+    registered_prefix_must_equal_ordered_family_prefix: true
+    executable_payload_identity_recomputed: true
+    study_material_and_decision_lineage_recomputed: true
+    global_multiplicity_recomputed_from_study_floor_and_material_sequence: true
+    no_budget_job_completion_or_scientific_evidence_allowed: true
+    protocol_authority_mismatch_requires_exact_additive_rebind_before_preflight: true
+    protocol_rebind_is_replacement_or_terminal_authority: false
+    accepted_preflight_and_admission_are_same_writer_event: true
+    counted_prefix_refund_rewrite_reorder_or_recount_allowed: false
+    remaining_members_use_same_batch_and_original_ceiling: true
+    full_frozen_family_remains_multiplicity_authority: true
+  revalidation:
+    before_each_new_trial: true
+    before_each_job_declaration: true
+    current_protocol_activation_and_authority_manifest_required: true
+    current_source_closure_authority_required: true
+    complete_family_still_required_before_first_job: true
+  replacement_required_terminal:
+    same_identity_repair_or_protocol_rebind_is_terminal_authority: false
+    nonrestorable_semantic_or_implementation_replacement_evidence_required: true
+    registration_only_conditions_rederived_at_disposal: true
+    exact_registered_prefix_precedes_rejected_preflight: true
+    no_post_preflight_trial_job_or_budget_allowed: true
+    batch_outcome: not_evaluable
+    job_completion_or_stop_batch_decision_required: false
+    study_outcomes:
+      - evidence_gap
+      - not_evaluable
+    exact_engineering_gap_diagnosis_and_deferral_required: true
+    deferral_reason_code: pre_job_implementation_authority_invalid
+    resume_condition: replacement_prospective_implementation
+    resume_condition_binds_full_historical_reference_family: true
+    rejected_preflight_binds_distinct_full_prospective_executable_family: true
+    historical_reference_to_prospective_executable_mapping_is_one_to_one: true
+    one_accepted_replacement_per_rejected_preflight: true
+    replacement_uses_fresh_full_family_executable_ids: true
+    prior_counted_prefix_is_never_refunded_or_reused: true
+    replacement_multiplicity_continues_from_existing_material_head: true
+    legacy_complete_set_order_drift:
+      accepted_scope: terminal_replacement_basis_only
+      exact_same_member_set_required: true
+      exact_trial_accounting_operation_and_journal_witness_required: true
+      known_non_target_lineage_projection_may_be_reconstructed: true
+      active_study_continuation_or_recertification_allowed: false
+      scientific_claim_candidate_holdout_or_terminal_credit_delta: 0
+      fresh_replacement_must_use_exact_canonical_family_order: true
+    scientific_trial_holdout_claim_memory_candidate_exhaustion_terminal_delta: 0
 mission_axis_disposition:
   single_writer_route: record_axis_dispositions
   portfolio_snapshot_rewrite_allowed: false

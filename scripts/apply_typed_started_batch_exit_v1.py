@@ -145,6 +145,76 @@ TRANSFORMS: dict[str, Callable[[str], str]] = {
 }
 
 
+def _typed_exit_semantics_are_materialized(
+    current: dict[str, bytes],
+) -> bool:
+    """Recognize an additive descendant without freezing whole contracts.
+
+    The exact predecessor-to-successor hashes remain mandatory when this
+    migration still needs to write.  Once activated, later authority additions
+    must not make this one-off migration validator demand a document rollback.
+    """
+
+    try:
+        operations = yaml.safe_load(
+            current["contracts/operations.yaml"].decode("ascii")
+        )
+        science = yaml.safe_load(
+            current["contracts/science.yaml"].decode("ascii")
+        )
+        exit_contract = operations["repair"]["started_batch_exit"]
+        representative = science["study_kpi_projection"][
+            "representative_executable"
+        ]
+        unavailable = representative["no_final_validator_completion"]
+        legacy = unavailable[
+            "legacy_started_batch_outcomes_before_typed_exit_activation"
+        ]
+    except (KeyError, TypeError, UnicodeDecodeError, yaml.YAMLError):
+        return False
+    return bool(
+        exit_contract.get("no_final_completion_outcomes")
+        == ["budget_exhausted"]
+        and exit_contract.get(
+            "exact_frozen_budget_exhaustion_is_writer_derived"
+        )
+        is True
+        and exit_contract.get(
+            "engineering_not_evaluable_or_early_stop_requires_stop_batch"
+        )
+        is True
+        and exit_contract.get(
+            "typed_unrecovered_engineering_completion_required"
+        )
+        is True
+        and exit_contract.get(
+            "batch_outcome_must_match_typed_engineering_completion"
+        )
+        is True
+        and exit_contract.get("continue_batch_can_dispose_started_batch")
+        is False
+        and exit_contract.get("legacy_pre_activation_projection_is_read_only")
+        is True
+        and representative.get(
+            "started_nonbudget_exit_requires_exact_stop_completion"
+        )
+        is True
+        and representative.get(
+            "continue_batch_is_started_batch_close_authority"
+        )
+        is False
+        and unavailable.get("started_batch_outcomes")
+        == {"budget_exhausted": "exact_frozen_compute_wall_or_trial_bound"}
+        and legacy.get("read_only_projection_compatibility") is True
+        and legacy.get("stopped_early")
+        == "pre_activation_untyped_disposition"
+        and legacy.get("not_evaluable")
+        == "pre_activation_final_non_scientific_failure"
+        and legacy.get("engineering_failure")
+        == "pre_activation_final_non_scientific_failure"
+    )
+
+
 def _read_audit_report(root: Path = ROOT) -> bytes:
     content = (root / AUDIT_REPORT).read_bytes()
     try:
@@ -172,6 +242,8 @@ def desired_replacements(
         for relative, content in current.items()
     }
     if observed == EXPECTED_SUCCESSOR_SHA256:
+        return current, "already_materialized"
+    if _typed_exit_semantics_are_materialized(current):
         return current, "already_materialized"
     if observed != EXPECTED_PREDECESSOR_SHA256:
         raise RuntimeError(
