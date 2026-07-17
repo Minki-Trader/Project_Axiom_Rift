@@ -140,6 +140,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             materialize_volatility_duration_replay_job_implementation
         ),
+        study_id=STUDY_ID,
         argv=argv,
     )
     print(json.dumps(summary, sort_keys=True))

@@ -340,6 +340,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             authority.family.implementation_materializer
         ),
+        study_id=authority.study_id,
         argv=remaining,
     )
     print(json.dumps(summary, sort_keys=True))

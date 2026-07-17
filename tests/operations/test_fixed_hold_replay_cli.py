@@ -8,12 +8,13 @@ import axiom_rift.operations.fixed_hold_replay_cli as cli
 
 
 class FixedHoldReplayCliTests(unittest.TestCase):
-    def _run(self, argv: list[str]):
+    def _run(self, argv: list[str], *, study_id: str | None = None):
         return cli.run_fixed_hold_replay_command(
             repository_root=Path.cwd(),
             design_builder=lambda _writer: "design",
             job_runner=Mock(name="job_runner"),
             job_implementation_materializer=Mock(name="materializer"),
+            study_id=study_id,
             argv=argv,
         )
 
@@ -58,6 +59,54 @@ class FixedHoldReplayCliTests(unittest.TestCase):
             validation_registry=registry_instance,
         )
         self.assertEqual(result, {"mode": "read_only_plan"})
+
+    def test_closed_study_plan_returns_canonical_handoff_without_design(self) -> None:
+        registry_instance = object()
+        index = Mock()
+        index.get.return_value = Mock(
+            record_id="STU-0114",
+            subject="Study:STU-0114",
+            payload={
+                "completion_record_id": "completion-1",
+                "outcome": "preserved",
+                "study_id": "STU-0114",
+            },
+        )
+        control = {
+            "next_action": {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": "portfolio-1",
+            },
+            "revision": 5452,
+            "scientific": {"active_study": None},
+        }
+        stable = Mock()
+        stable.__enter__ = Mock(return_value=(control, index))
+        stable.__exit__ = Mock(return_value=False)
+        writer_instance = Mock()
+        writer_instance.open_stable_index.return_value = stable
+        design_builder = Mock(name="design_builder")
+        with (
+            patch.object(
+                cli,
+                "EvidenceValidatorRegistry",
+                return_value=registry_instance,
+            ),
+            patch.object(cli, "StateWriter", return_value=writer_instance),
+            patch.object(cli, "require_stable_head"),
+        ):
+            result = cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                study_id="STU-0114",
+                argv=[],
+            )
+        design_builder.assert_not_called()
+        self.assertEqual(result["mode"], "completed_study_handoff")
+        self.assertEqual(result["next_action"], control["next_action"])
+        self.assertEqual(result["state_revision"], 5452)
 
     def test_diagnose_uses_no_validator_or_permit_key(self) -> None:
         registry_instance = object()

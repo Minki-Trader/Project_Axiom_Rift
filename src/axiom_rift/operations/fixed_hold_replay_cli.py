@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,58 @@ from axiom_rift.research.validation_v2 import ScientificAdjudicationValidatorV2
 DesignBuilder = Callable[[StateWriter], FixedHoldReplayDesign]
 JobRunner = Callable[..., FixedHoldFamilyJobPacket]
 ImplementationMaterializer = Callable[[StateWriter], str]
+
+
+def _completed_study_handoff(
+    writer: StateWriter,
+    *,
+    study_id: str | None,
+) -> dict[str, Any] | None:
+    """Return the canonical handoff for an already closed replay runner.
+
+    A historical runner is a compatibility surface after its Study closes.  A
+    later Portfolio action can legitimately change the current axis meaning,
+    so rebuilding the old design at that boundary is both unnecessary and
+    misleading.  The immutable Study KPI is the cheap keyed close witness.
+    """
+
+    if study_id is None:
+        return None
+    if type(study_id) is not str or not study_id or not study_id.isascii():
+        raise ValueError("fixed-hold replay Study ID must be non-empty ASCII")
+    with writer.open_stable_index() as (control, index):
+        kpi = index.get("study-kpi", study_id)
+        if kpi is None:
+            return None
+        next_action = control.get("next_action")
+        scientific = control.get("scientific")
+    if (
+        kpi.record_id != study_id
+        or kpi.subject != f"Study:{study_id}"
+        or not isinstance(kpi.payload, Mapping)
+        or kpi.payload.get("study_id") != study_id
+        or not isinstance(next_action, Mapping)
+        or not isinstance(scientific, Mapping)
+        or scientific.get("active_study") == study_id
+    ):
+        raise RuntimeError("closed replay Study handoff is malformed")
+    pending_diagnosis = (
+        next_action.get("kind") == "diagnose_study"
+        and next_action.get("study_id") == study_id
+    )
+    return {
+        "completion_record_id": kpi.payload.get("completion_record_id"),
+        "mode": (
+            "study_close_pending_diagnosis"
+            if pending_diagnosis
+            else "completed_study_handoff"
+        ),
+        "next_action": dict(next_action),
+        "schema": "fixed_hold_replay_read_only_handoff.v1",
+        "state_revision": control.get("revision"),
+        "study_id": study_id,
+        "study_outcome": kpi.payload.get("outcome"),
+    }
 
 
 def parse_fixed_hold_replay_arguments(
@@ -52,6 +104,7 @@ def run_fixed_hold_replay_command(
     design_builder: DesignBuilder,
     job_runner: JobRunner,
     job_implementation_materializer: ImplementationMaterializer,
+    study_id: str | None = None,
     argv: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Run one explicit stage; omission of ``--stage`` is read-only."""
@@ -93,6 +146,10 @@ def run_fixed_hold_replay_command(
         writer,
         explicit_recovery=bool(arguments.stage and arguments.recover),
     )
+    if arguments.stage is None:
+        handoff = _completed_study_handoff(writer, study_id=study_id)
+        if handoff is not None:
+            return handoff
     design = design_builder(writer)
     if arguments.stage is None:
         return dict(read_only_summary(writer, design))
