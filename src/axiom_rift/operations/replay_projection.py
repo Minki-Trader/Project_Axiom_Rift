@@ -29,6 +29,7 @@ from axiom_rift.operations.executable_axis_lineage import (
     completion_executable_axis_lineage,
 )
 from axiom_rift.operations.completion_validity_projection import (
+    CompletionValidityHead,
     CompletionValidityProjectionError,
     current_completion_validity_invalidation,
 )
@@ -638,6 +639,91 @@ def obligation_heads(
             )
         resolved.append((obligation, current))
     return tuple(sorted(resolved, key=lambda item: item[0].identity))
+
+
+def require_initial_completion_validity_revision_record(
+    index: LocalIndex | LocalIndexView,
+    *,
+    obligation: HistoricalReplayObligation,
+    invalidation_record_id: str | None = None,
+) -> CompletionValidityHead:
+    """Authenticate an initial-obligation protocol-revision authority.
+
+    A replay obligation can be born pending because its original completion
+    used an invalid scientific clock or input.  That differs from a later
+    invalidation of an already accepted replay satisfaction.  This boundary
+    binds the former case directly to the current completion-validity head and
+    to the exact adjudication that created the obligation.
+    """
+
+    if not isinstance(obligation, HistoricalReplayObligation):
+        raise ReplayProjectionError(
+            "initial protocol revision replay obligation is not typed"
+        )
+    try:
+        validity = current_completion_validity_invalidation(
+            index,
+            obligation.original_completion_record_id,
+        )
+    except CompletionValidityProjectionError as exc:
+        raise ReplayProjectionError(
+            "initial protocol revision completion validity is malformed"
+        ) from exc
+    adjudication = index.get(
+        "historical-scientific-adjudication",
+        obligation.historical_adjudication_id,
+    )
+    overrides = (
+        None
+        if adjudication is None
+        else adjudication.payload.get("validity_overrides")
+    )
+    invalidation = None if validity is None else validity.invalidation
+    expected_invalidation_record_id = (
+        None
+        if validity is None
+        else validity.invalidation_record_id
+        if invalidation_record_id is None
+        else invalidation_record_id
+    )
+    exact_override = {
+        "evidence_record_id": expected_invalidation_record_id,
+        "reason": None if validity is None else validity.reason,
+        "subject_id": obligation.original_completion_record_id,
+    }
+    if (
+        validity is None
+        or invalidation is None
+        or validity.invalidation_record_id != expected_invalidation_record_id
+        or invalidation.study_id != obligation.original_study_id
+        or invalidation.study_close_record_id
+        != obligation.original_study_close_record_id
+        or invalidation.completion_record_id
+        != obligation.original_completion_record_id
+        or invalidation.executable_id != obligation.original_executable_id
+        or invalidation.validation_plan_hash != obligation.validation_plan_hash
+        or invalidation.measurement_artifact_hash
+        != obligation.measurement_artifact_hash
+        or invalidation.audit_artifact_hash != obligation.audit_artifact_hash
+        or invalidation.affected_claim_ids != obligation.claim_ids
+        or invalidation.affected_criterion_ids != obligation.criterion_ids
+        or validity.reason not in obligation.reason_codes
+        or "prospective_exact_replay_required" not in obligation.reason_codes
+        or adjudication is None
+        or adjudication.status != "replay_required"
+        or adjudication.payload.get("replay_obligation_id")
+        != obligation.identity
+        or adjudication.payload.get("completion_record_id")
+        != obligation.original_completion_record_id
+        or adjudication.payload.get("disposition") != "replay_required"
+        or not isinstance(overrides, list)
+        or exact_override not in overrides
+    ):
+        raise ReplayProjectionError(
+            "initial protocol revision lost its exact completion-invalidity "
+            "authority"
+        )
+    return validity
 
 
 def constraints_for_pending(
@@ -6039,6 +6125,7 @@ __all__ = [
     "replay_priority_escalation_record",
     "replay_priority_stream",
     "require_diagnosed_replay",
+    "require_initial_completion_validity_revision_record",
     "require_current_replacement_preflight_basis",
     "require_pending_replay_preflight_invalidation",
     "require_recorded_satisfaction",

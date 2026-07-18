@@ -12,6 +12,7 @@ from axiom_rift.research.historical_family_binding import (
     HistoricalFamilyBindingError,
     HistoricalFamilySpec,
     HistoricalMemberSpec,
+    PrimaryControlBinding,
     historical_family_authority_from_payload,
     historical_family_core_identity,
     historical_family_from_manifest,
@@ -87,6 +88,41 @@ def _authority(
     )
 
 
+def _primary_control_family() -> HistoricalFamilySpec:
+    members = tuple(
+        HistoricalMemberSpec(
+            ordinal=ordinal,
+            configuration_id=f"policy-{ordinal}",
+            historical_reference_executable_id=_executable(ordinal),
+            parameters={
+                "execution_policy": (
+                    "causal_spread_abstention"
+                    if ordinal == 1
+                    else "unconditional_next_open"
+                ),
+                "holding_bars": 48,
+            },
+        )
+        for ordinal in (1, 2)
+    )
+    return HistoricalFamilySpec(
+        original_study_id="STU-9002",
+        original_batch_id="batch:" + "8" * 64,
+        target_historical_executable_id=_executable(1),
+        members=members,
+        controls=(
+            PrimaryControlBinding(
+                subject_historical_executable_id=_executable(1),
+                primary_control_historical_executable_id=_executable(2),
+            ),
+            PrimaryControlBinding(
+                subject_historical_executable_id=_executable(2),
+                primary_control_historical_executable_id=_executable(1),
+            ),
+        ),
+    )
+
+
 def test_typed_family_manifest_round_trips_exact_identity_and_values() -> None:
     family = _family()
     rebuilt = historical_family_from_manifest(family.manifest())
@@ -100,6 +136,57 @@ def test_typed_family_manifest_round_trips_exact_identity_and_values() -> None:
     assert tuple(control.manifest() for control in rebuilt.controls) == tuple(
         control.manifest() for control in family.controls
     )
+
+
+def test_primary_control_pair_round_trips_without_fabricated_member() -> None:
+    family = _primary_control_family()
+    rebuilt = historical_family_from_manifest(family.manifest())
+
+    assert rebuilt.identity == family.identity
+    assert rebuilt.family_size == 2
+    assert rebuilt.manifest() == family.manifest()
+    binding = rebuilt.control_for_historical_executable(_executable(1))
+    assert isinstance(binding, PrimaryControlBinding)
+    assert binding.primary_control_historical_executable_id == _executable(2)
+
+
+def test_primary_control_family_rejects_non_pair_or_external_control() -> None:
+    family = _primary_control_family()
+    with pytest.raises(HistoricalFamilyBindingError, match="reciprocal"):
+        HistoricalFamilySpec(
+            original_study_id=family.original_study_id,
+            original_batch_id=family.original_batch_id,
+            target_historical_executable_id=family.target_historical_executable_id,
+            members=family.members,
+            controls=(
+                family.controls[0],
+                PrimaryControlBinding(
+                    subject_historical_executable_id=_executable(2),
+                    primary_control_historical_executable_id=_executable(3),
+                ),
+            ),
+        )
+
+    third = HistoricalMemberSpec(
+        ordinal=3,
+        configuration_id="policy-3",
+        historical_reference_executable_id=_executable(3),
+        parameters={"execution_policy": "third", "holding_bars": 48},
+    )
+    with pytest.raises(HistoricalFamilyBindingError, match="exactly two"):
+        HistoricalFamilySpec(
+            original_study_id=family.original_study_id,
+            original_batch_id=family.original_batch_id,
+            target_historical_executable_id=family.target_historical_executable_id,
+            members=(*family.members, third),
+            controls=(
+                *family.controls,
+                PrimaryControlBinding(
+                    subject_historical_executable_id=_executable(3),
+                    primary_control_historical_executable_id=_executable(1),
+                ),
+            ),
+        )
 
 
 def test_family_core_identity_is_independent_of_selected_target() -> None:

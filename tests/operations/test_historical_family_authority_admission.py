@@ -7,9 +7,11 @@ from unittest.mock import patch
 
 import pytest
 
+from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.historical_family_authority_admission import (
     HistoricalFamilyAuthorityAdmissionError,
+    _require_cross_study_family_evidence_bridge,
     prepare_historical_family_authority_record,
     require_recorded_historical_family_authority,
     require_sibling_recertification_family_core,
@@ -24,7 +26,9 @@ from axiom_rift.research.historical_family_binding import (
 )
 from axiom_rift.research.replay_obligation import (
     derive_historical_replay_obligation,
+    historical_replay_obligation_from_identity_payload,
 )
+from axiom_rift.storage.evidence import EvidenceStore
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 
 
@@ -365,6 +369,116 @@ def test_target_variant_authority_rejects_mismatched_family_core(
                     index=fixture.index,
                     authority=fixture.sibling_authority,
                 )
+    finally:
+        fixture.index.close()
+
+
+def test_cross_study_family_bridge_accepts_validated_negative_completion(
+    tmp_path: Path,
+) -> None:
+    fixture = _admission_fixture(tmp_path)
+    try:
+        initial = next(
+            record
+            for record in fixture.index.records_by_subject_status(
+                f"Mission:{MISSION_ID}",
+                "pending",
+            )
+            if record.kind == "historical-replay-obligation"
+        )
+        obligation = historical_replay_obligation_from_identity_payload(
+            initial.payload["obligation"]
+        )
+        origin_family = HistoricalFamilySpec(
+            original_study_id="STU-9000",
+            original_batch_id=fixture.primary_family.original_batch_id,
+            target_historical_executable_id=obligation.original_executable_id,
+            members=fixture.primary_family.members,
+            controls=fixture.primary_family.controls,
+        )
+        authority = HistoricalFamilyAuthority(
+            replay_obligation_id=obligation.identity,
+            family=origin_family,
+            reconstruction_source_path=SOURCE_RELATIVE_PATH,
+            reconstruction_source_sha256=fixture.source_sha256,
+        )
+        expected_ids = tuple(
+            member.historical_reference_executable_id
+            for member in origin_family.members
+        )
+        selection_context = [
+            {"executable_id": executable_id}
+            for executable_id in expected_ids
+        ]
+        store = EvidenceStore(fixture.repository_root / "local" / "evidence")
+        surface = store.finalize(
+            canonical_bytes(
+                {
+                    "evaluations": [
+                        {"subject_executable_id": executable_id}
+                        for executable_id in expected_ids
+                    ],
+                    "selection_context": selection_context,
+                }
+            )
+        )
+        projection = store.finalize(
+            canonical_bytes(
+                {
+                    "selection_context": selection_context,
+                    "subject_executable_id": obligation.original_executable_id,
+                    "surface_artifact_hash": surface.sha256,
+                }
+            )
+        )
+        job_id = "job:" + "9" * 64
+        output_names = ("family-surface.json", "target-projection.json")
+        fixture.index.put_many(
+            (
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=job_id,
+                    subject=f"Study:{obligation.original_study_id}",
+                    status="declared",
+                    fingerprint="9" * 64,
+                    payload={
+                        "spec": {
+                            "evidence_subject": {
+                                "id": obligation.original_executable_id,
+                                "kind": "Executable",
+                            },
+                            "expected_outputs": list(output_names),
+                        },
+                        "study_id": obligation.original_study_id,
+                    },
+                ),
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=obligation.original_completion_record_id,
+                    subject=f"Job:{job_id}",
+                    status="failed",
+                    fingerprint=obligation.original_completion_record_id,
+                    payload={
+                        "job_id": job_id,
+                        "outputs": {
+                            output_names[0]: surface.sha256,
+                            output_names[1]: projection.sha256,
+                        },
+                        "scientific": {
+                            "executable_id": obligation.original_executable_id,
+                            "verdict": "failed",
+                        },
+                    },
+                ),
+            )
+        )
+
+        _require_cross_study_family_evidence_bridge(
+            repository_root=fixture.repository_root,
+            index=fixture.index,
+            obligation=obligation,
+            authority=authority,
+        )
     finally:
         fixture.index.close()
 

@@ -17,12 +17,16 @@ from axiom_rift.research.semantic_question import (
 
 AXIS_PROTOCOL_REVISION_SCHEMA = "axis_protocol_revision_proposal.v1"
 AXIS_PROTOCOL_REVISION_SCHEMA_V2 = "axis_protocol_revision_proposal.v2"
+AXIS_PROTOCOL_REVISION_SCHEMA_V3 = "axis_protocol_revision_proposal.v3"
 
 
 class AxisProtocolRevisionReason(str, Enum):
     COMPLETION_VALIDITY_INVALIDATED = "completion_validity_invalidated"
     ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE = (
         "engineering_requires_scientific_change"
+    )
+    HISTORICAL_COMPLETION_VALIDITY_INVALIDATED = (
+        "historical_completion_validity_invalidated"
     )
 
 
@@ -57,6 +61,7 @@ class AxisProtocolRevisionProposal:
     reason_code: AxisProtocolRevisionReason
     reason: str
     scientific_change_return_record_id: str | None = None
+    completion_validity_invalidation_record_id: str | None = None
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -97,6 +102,11 @@ class AxisProtocolRevisionProposal:
                 raise ValueError(
                     "completion invalidation revision cannot bind a science return"
                 )
+            if self.completion_validity_invalidation_record_id is not None:
+                raise ValueError(
+                    "satisfaction invalidation revision cannot bind a completion "
+                    "validity invalidation"
+                )
         elif (
             self.reason_code
             is AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
@@ -109,6 +119,29 @@ class AxisProtocolRevisionProposal:
                 "scientific_change_return_record_id",
                 self.scientific_change_return_record_id,
                 prefix="historical-replay-scientific-change-return:",
+            )
+            if self.completion_validity_invalidation_record_id is not None:
+                raise ValueError(
+                    "scientific-change revision cannot bind a completion validity "
+                    "invalidation"
+                )
+        elif (
+            self.reason_code
+            is AxisProtocolRevisionReason.HISTORICAL_COMPLETION_VALIDITY_INVALIDATED
+        ):
+            if self.satisfaction_invalidation_record_id is not None:
+                raise ValueError(
+                    "historical completion revision cannot bind a satisfaction "
+                    "invalidation"
+                )
+            if self.scientific_change_return_record_id is not None:
+                raise ValueError(
+                    "historical completion revision cannot bind a science return"
+                )
+            _identity(
+                "completion_validity_invalidation_record_id",
+                self.completion_validity_invalidation_record_id,
+                prefix="historical-scientific-validity-invalidation:",
             )
         else:
             raise ValueError("protocol revision reason is unsupported")
@@ -165,11 +198,19 @@ class AxisProtocolRevisionProposal:
                 self.satisfaction_invalidation_record_id
             )
             payload["schema"] = AXIS_PROTOCOL_REVISION_SCHEMA
-        else:
+        elif (
+            self.reason_code
+            is AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
+        ):
             payload["scientific_change_return_record_id"] = (
                 self.scientific_change_return_record_id
             )
             payload["schema"] = AXIS_PROTOCOL_REVISION_SCHEMA_V2
+        else:
+            payload["completion_validity_invalidation_record_id"] = (
+                self.completion_validity_invalidation_record_id
+            )
+            payload["schema"] = AXIS_PROTOCOL_REVISION_SCHEMA_V3
         return payload
 
     @property
@@ -179,16 +220,27 @@ class AxisProtocolRevisionProposal:
             is AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
         ):
             return "historical-replay-satisfaction-invalidation"
-        return "historical-replay-scientific-change-return"
+        if (
+            self.reason_code
+            is AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
+        ):
+            return "historical-replay-scientific-change-return"
+        return "historical-scientific-validity-invalidation"
 
     @property
     def authority_record_id(self) -> str:
-        value = (
-            self.satisfaction_invalidation_record_id
-            if self.reason_code
+        if (
+            self.reason_code
             is AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
-            else self.scientific_change_return_record_id
-        )
+        ):
+            value = self.satisfaction_invalidation_record_id
+        elif (
+            self.reason_code
+            is AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
+        ):
+            value = self.scientific_change_return_record_id
+        else:
+            value = self.completion_validity_invalidation_record_id
         assert isinstance(value, str)
         return value
 
@@ -216,6 +268,10 @@ class AxisProtocolRevisionProposal:
             fields = common_fields | {"satisfaction_invalidation_record_id"}
         elif schema == AXIS_PROTOCOL_REVISION_SCHEMA_V2:
             fields = common_fields | {"scientific_change_return_record_id"}
+        elif schema == AXIS_PROTOCOL_REVISION_SCHEMA_V3:
+            fields = common_fields | {
+                "completion_validity_invalidation_record_id"
+            }
         else:
             raise ValueError("axis protocol revision schema is unsupported")
         if set(value) != fields:
@@ -250,6 +306,11 @@ class AxisProtocolRevisionProposal:
                 if schema == AXIS_PROTOCOL_REVISION_SCHEMA_V2
                 else None
             ),  # type: ignore[arg-type]
+            completion_validity_invalidation_record_id=(
+                value["completion_validity_invalidation_record_id"]
+                if schema == AXIS_PROTOCOL_REVISION_SCHEMA_V3
+                else None
+            ),  # type: ignore[arg-type]
         )
         if proposal.to_identity_payload() != dict(value):
             raise ValueError("axis protocol revision payload is not canonical")
@@ -259,6 +320,7 @@ class AxisProtocolRevisionProposal:
 __all__ = [
     "AXIS_PROTOCOL_REVISION_SCHEMA",
     "AXIS_PROTOCOL_REVISION_SCHEMA_V2",
+    "AXIS_PROTOCOL_REVISION_SCHEMA_V3",
     "AxisProtocolRevisionProposal",
     "AxisProtocolRevisionReason",
 ]

@@ -7,6 +7,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.research.historical_family_binding import (
     HistoricalFamilyAuthority,
     HistoricalFamilyBindingError,
@@ -26,10 +27,144 @@ from axiom_rift.research.replay_obligation import (
     historical_replay_obligation_from_identity_payload,
 )
 from axiom_rift.storage.index import IndexRecord, LocalIndex, LocalIndexView
+from axiom_rift.storage.evidence import EvidenceStore
 
 
 class HistoricalFamilyAuthorityAdmissionError(ValueError):
     """One proposed authority is absent, stale, or historically false."""
+
+
+def _require_cross_study_family_evidence_bridge(
+    *,
+    repository_root: Path,
+    index: LocalIndex,
+    obligation: object,
+    authority: HistoricalFamilyAuthority,
+) -> None:
+    """Prove a later Study consumed an exact earlier concurrent family.
+
+    A repair Study can reuse a previously registered Executable and therefore
+    have a one-trial Batch even though its scientific surface still evaluates
+    the exact earlier concurrent family.  The family origin and obligation
+    Study are distinct facts; this bridge authenticates both rather than
+    rewriting either identity.
+    """
+
+    original_study_id = getattr(obligation, "original_study_id", None)
+    original_completion_id = getattr(
+        obligation,
+        "original_completion_record_id",
+        None,
+    )
+    original_executable_id = getattr(
+        obligation,
+        "original_executable_id",
+        None,
+    )
+    family = authority.family
+    if family.original_study_id == original_study_id:
+        return
+    completion = (
+        None
+        if not isinstance(original_completion_id, str)
+        else index.get("job-completed", original_completion_id)
+    )
+    job_id = None if completion is None else completion.payload.get("job_id")
+    declaration = (
+        None
+        if not isinstance(job_id, str)
+        else index.get("job-declared", job_id)
+    )
+    outputs = None if completion is None else completion.payload.get("outputs")
+    scientific = (
+        None if completion is None else completion.payload.get("scientific")
+    )
+    spec = None if declaration is None else declaration.payload.get("spec")
+    subject = None if not isinstance(spec, Mapping) else spec.get("evidence_subject")
+    if (
+        completion is None
+        or completion.status not in {"success", "failed", "not_evaluable"}
+        or declaration is None
+        or declaration.payload.get("study_id") != original_study_id
+        or not isinstance(subject, Mapping)
+        or subject.get("id") != original_executable_id
+        or not isinstance(outputs, Mapping)
+        or not outputs
+        or set(outputs) != set(spec.get("expected_outputs", ()))
+        or not isinstance(scientific, Mapping)
+        or scientific.get("executable_id") != original_executable_id
+    ):
+        raise HistoricalFamilyAuthorityAdmissionError(
+            "cross-Study historical family bridge lacks its exact completion"
+        )
+    expected_ids = tuple(
+        member.historical_reference_executable_id for member in family.members
+    )
+    expected_set = set(expected_ids)
+    store = EvidenceStore(repository_root / "local" / "evidence")
+    parsed_outputs: dict[str, object] = {}
+    try:
+        for output_hash in outputs.values():
+            if not isinstance(output_hash, str):
+                raise ValueError("output hash is not text")
+            parsed_outputs[output_hash] = parse_canonical(
+                store.read_verified(output_hash)
+            )
+    except (OSError, TypeError, ValueError) as exc:
+        raise HistoricalFamilyAuthorityAdmissionError(
+            "cross-Study historical family bridge evidence is unavailable"
+        ) from exc
+
+    surfaces: list[tuple[str, Mapping[str, object]]] = []
+    for output_hash, value in parsed_outputs.items():
+        if not isinstance(value, Mapping):
+            continue
+        evaluations = value.get("evaluations")
+        selection = value.get("selection_context")
+        if not isinstance(evaluations, list) or not isinstance(selection, list):
+            continue
+        evaluation_ids = tuple(
+            item.get("subject_executable_id")
+            for item in evaluations
+            if isinstance(item, Mapping)
+        )
+        selection_ids = tuple(
+            item.get("executable_id")
+            for item in selection
+            if isinstance(item, Mapping)
+        )
+        if (
+            len(evaluation_ids) == len(expected_ids)
+            and len(selection_ids) == len(expected_ids)
+            and set(evaluation_ids) == expected_set
+            and set(selection_ids) == expected_set
+            and len(set(evaluation_ids)) == len(expected_ids)
+            and len(set(selection_ids)) == len(expected_ids)
+        ):
+            surfaces.append((output_hash, value))
+    if len(surfaces) != 1:
+        raise HistoricalFamilyAuthorityAdmissionError(
+            "cross-Study historical family bridge surface is ambiguous"
+        )
+    surface_hash, _surface = surfaces[0]
+    projections = tuple(
+        value
+        for value in parsed_outputs.values()
+        if isinstance(value, Mapping)
+        and value.get("subject_executable_id") == original_executable_id
+        and value.get("surface_artifact_hash") == surface_hash
+        and isinstance(value.get("selection_context"), list)
+        and {
+            item.get("executable_id")
+            for item in value["selection_context"]
+            if isinstance(item, Mapping)
+        }
+        == expected_set
+    )
+    if len(projections) != 1:
+        raise HistoricalFamilyAuthorityAdmissionError(
+            "cross-Study historical family bridge projection is ambiguous"
+        )
 
 
 def require_recorded_historical_family_authority(
@@ -225,7 +360,11 @@ def prepare_historical_family_authority_record(
     if (
         initial is None
         or obligation.identity != obligation_id
-        or family.original_study_id != obligation.original_study_id
+        or (
+            family.original_study_id != obligation.original_study_id
+            and family.target_historical_executable_id
+            != obligation.original_executable_id
+        )
         or family.target_historical_executable_id
         != obligation.original_executable_id
         or batch is None
@@ -249,6 +388,12 @@ def prepare_historical_family_authority_record(
         raise HistoricalFamilyAuthorityAdmissionError(
             "historical family authority differs from obligation history"
         )
+    _require_cross_study_family_evidence_bridge(
+        repository_root=repository_root,
+        index=index,
+        obligation=obligation,
+        authority=authority,
+    )
     for ordinal, member in enumerate(family.members, start=1):
         trial = index.event_record(stream, ordinal)
         executable = None if trial is None else trial.payload.get("executable")

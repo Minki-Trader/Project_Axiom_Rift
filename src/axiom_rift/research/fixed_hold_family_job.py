@@ -430,6 +430,16 @@ class FixedHoldFamilyJobPlan:
             "validator_id": SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
         }
 
+    def validated_recomputed_criterion_ids(
+        self,
+        scientific_facts: Mapping[str, object],
+    ) -> tuple[str, ...]:
+        """Expose protocol-owned coverage through the neutral workflow port."""
+
+        return validated_fixed_hold_recomputed_criterion_ids(
+            scientific_facts
+        )
+
 
 def build_fixed_hold_family_job_plan(
     *,

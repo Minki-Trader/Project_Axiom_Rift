@@ -44,6 +44,7 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "historical_family_stu0050.py": "47be790c4e7d53a793d2b9bb36c034a289970150153a11d4e115b34e7e43c3bc",
     "historical_family_stu0051.py": "803936b35a1b36639351d85931f9cfd1c6d58d708d371bf7c2080c994c37e68a",
     "historical_family_stu0061.py": "215282cdc5a63d11d248817be5dc0e807aa3d882429625e71ba33099ca073ee4",
+    "historical_family_stu0070.py": "0d875ca138ab327226a0b1f4e33c84daf108aaa9b886d17acfc49f2425e1e52f",
     "learned_state_study.py": "26ee72e7b13a36b69310c07996d62346e0471dc590c6fa706048940becf1f44b",
     "liquidity_supply_study.py": "a8ba1eee234e47aabff939b473fde0d7425a7dfd9d68b9144c3f521f64f9770f",
     "long_horizon_drift_study.py": "086bbab722a2f9d218818c1657d676e18f6a707b0b4b7f1b42776e976f10bc8c",
@@ -123,6 +124,10 @@ HISTORICAL_FAMILY_IDENTITY_BY_MODULE = {
         "historical-family:"
         "9b7d57e66deb6d570a1e352fb2354873a4c1ab71cb09643410f74b0f68af102f"
     ),
+    "historical_family_stu0070.py": (
+        "historical-family:"
+        "4aaecbfcb74a8f0e764124fcfbb7760f366f0dd2efa4f4f9e268cb8b8cf42583"
+    ),
 }
 
 # A family authority is target-specific, while the frozen reconstruction
@@ -169,6 +174,10 @@ HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE = {
     "historical_family_stu0061.py": (
         "historical-family-core:"
         "71f058b171cd0600fea08e423fe5471e4da0f5d08407bfefae626c049e70f9e5"
+    ),
+    "historical_family_stu0070.py": (
+        "historical-family-core:"
+        "d16148cc37018e3f23825ea285e99a602b7eeb219fa02817574e5f49dd2aae36"
     ),
 }
 

@@ -5075,7 +5075,7 @@ class StateWriter:
 
     @staticmethod
     def _axis_architecture_anchor(
-        index: LocalIndex,
+        index: LocalIndex | LocalIndexView,
         axis: Mapping[str, Any],
     ) -> dict[str, Any] | None:
         typed_identity = axis.get("architecture_chassis_identity")
@@ -5121,6 +5121,28 @@ class StateWriter:
                 "legacy Portfolio axis has conflicting prospective chassis anchors"
             )
         return None if not anchors else next(iter(anchors.values()))
+
+    @staticmethod
+    def _axis_architecture_authority_identity(
+        index: LocalIndex | LocalIndexView,
+        axis: Mapping[str, Any],
+    ) -> str:
+        """Return the exact typed or legacy-anchored chassis authority."""
+
+        anchor = StateWriter._axis_architecture_anchor(index, axis)
+        identity = (
+            None
+            if anchor is None
+            else anchor.get("architecture_chassis_identity")
+        )
+        if isinstance(identity, str):
+            return identity
+        legacy = axis.get("system_architecture_family")
+        if not isinstance(legacy, str):
+            raise RecoveryRequired(
+                "Portfolio axis architecture authority is unavailable"
+            )
+        return legacy
 
     def _require_registered_chassis_baseline(
         self,
@@ -5809,7 +5831,13 @@ class StateWriter:
         cache = getattr(index, "_axiom_verified_parity_cache", None)
         if cache is None:
             cache = {}
-            setattr(index, "_axiom_verified_parity_cache", cache)
+            try:
+                setattr(index, "_axiom_verified_parity_cache", cache)
+            except AttributeError:
+                # Authenticated read-only views are slot-backed.  They remain
+                # valid callers; only the optional per-transaction cache is
+                # unavailable on that boundary.
+                pass
         verified = cache.get(surface_seeds)
         if verified is None:
             verified = self._verified_component_parity_edges(
@@ -16767,6 +16795,14 @@ class StateWriter:
                     assert protocol_revision is not None
                     old_target = old_axes.get(target_id)
                     new_target = new_axes.get(target_id)
+                    old_target_architecture_authority = (
+                        None
+                        if not isinstance(old_target, Mapping)
+                        else self._axis_architecture_authority_identity(
+                            index,
+                            old_target,
+                        )
+                    )
                     immutable_fields = set(old_target or {}).difference(
                         {
                             "architecture_chassis",
@@ -16799,9 +16835,7 @@ class StateWriter:
                         != protocol_revision.mechanism_family
                         or new_target.get("mechanism_family")
                         != protocol_revision.mechanism_family
-                        or old_target.get("architecture_chassis_identity")
-                        != protocol_revision.predecessor_architecture_family
-                        or old_target.get("system_architecture_family")
+                        or old_target_architecture_authority
                         != protocol_revision.predecessor_architecture_family
                         or new_target.get("architecture_chassis_identity")
                         != protocol_revision.successor_architecture_family
@@ -17410,6 +17444,7 @@ class StateWriter:
             if protocol_revision is not None:
                 from axiom_rift.operations.replay_projection import (
                     obligation_heads,
+                    require_initial_completion_validity_revision_record,
                     require_scientific_change_return_record,
                     require_satisfaction_invalidation_record,
                 )
@@ -17423,6 +17458,12 @@ class StateWriter:
                 )
 
                 lineage = protocol_revision.semantic_question_lineage
+                current_axis_architecture_authority = (
+                    self._axis_architecture_authority_identity(
+                        _index,
+                        target_axis,
+                    )
+                )
                 matching_obligations = tuple(
                     (obligation, head)
                     for obligation, head in obligation_heads(
@@ -17444,9 +17485,7 @@ class StateWriter:
                     or protocol_revision.mechanism_family
                     != target_axis.get("mechanism_family")
                     or protocol_revision.predecessor_architecture_family
-                    != target_axis.get("architecture_chassis_identity")
-                    or protocol_revision.predecessor_architecture_family
-                    != target_axis.get("system_architecture_family")
+                    != current_axis_architecture_authority
                     or lineage.successor_study_id
                     == lineage.predecessor_study_id
                     or _index.get("study-open", lineage.successor_study_id)
@@ -17457,10 +17496,25 @@ class StateWriter:
                         "protocol revision authority differs from its current axis"
                     )
                 obligation, obligation_head = matching_obligations[0]
-                if (
-                    obligation_head.status
-                    != ReplayObligationStatus.PENDING.value
-                    or obligation_head.kind != protocol_revision.authority_kind
+                initial_completion_revision = (
+                    protocol_revision.authority_kind
+                    == "historical-scientific-validity-invalidation"
+                )
+                if obligation_head.status != ReplayObligationStatus.PENDING.value:
+                    raise TransitionError(
+                        "protocol revision lacks its current replay authority"
+                    )
+                if initial_completion_revision:
+                    if (
+                        obligation_head.kind != "historical-replay-obligation"
+                        or obligation_head.record_id != obligation.identity
+                    ):
+                        raise TransitionError(
+                            "initial protocol revision lacks its current replay "
+                            "obligation"
+                        )
+                elif (
+                    obligation_head.kind != protocol_revision.authority_kind
                     or obligation_head.record_id
                     != protocol_revision.authority_record_id
                 ):
@@ -17477,11 +17531,22 @@ class StateWriter:
                             obligation=obligation,
                             record=obligation_head,
                         )
-                    else:
+                    elif (
+                        protocol_revision.authority_kind
+                        == "historical-replay-scientific-change-return"
+                    ):
                         require_scientific_change_return_record(
                             _index,
                             obligation=obligation,
                             record=obligation_head,
+                        )
+                    else:
+                        require_initial_completion_validity_revision_record(
+                            _index,
+                            obligation=obligation,
+                            invalidation_record_id=(
+                                protocol_revision.authority_record_id
+                            ),
                         )
                     require_semantic_question_study_binding(
                         _index,
@@ -17857,6 +17922,21 @@ class StateWriter:
                 ):
                     raise TransitionError(
                         "legacy Portfolio axis cannot change its prospective chassis anchor"
+                    )
+                if (
+                    not isinstance(typed_axis_identity, str)
+                    and prior_anchor is not None
+                    and replacement_architecture_equivalence is None
+                    and (
+                        prior_anchor.get("baseline_executable_id")
+                        != baseline.identity
+                        or prior_anchor.get("baseline_executable")
+                        != baseline.to_identity_payload()
+                    )
+                ):
+                    raise TransitionError(
+                        "legacy Portfolio axis cannot change its prospective "
+                        "baseline anchor"
                     )
                 prior_baseline = (
                     None

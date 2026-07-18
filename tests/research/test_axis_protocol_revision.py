@@ -5,6 +5,7 @@ import pytest
 from axiom_rift.research.axis_protocol_revision import (
     AXIS_PROTOCOL_REVISION_SCHEMA,
     AXIS_PROTOCOL_REVISION_SCHEMA_V2,
+    AXIS_PROTOCOL_REVISION_SCHEMA_V3,
     AxisProtocolRevisionProposal,
     AxisProtocolRevisionReason,
 )
@@ -95,4 +96,49 @@ def test_scientific_change_revision_rejects_mixed_authority() -> None:
                 AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
             ),
             reason="reject mixed protocol authority",
+        )
+
+
+def test_v3_initial_historical_completion_invalidation_is_distinct() -> None:
+    invalidation_id = (
+        "historical-scientific-validity-invalidation:" + "9" * 64
+    )
+    proposal = AxisProtocolRevisionProposal(
+        **_common(),
+        satisfaction_invalidation_record_id=None,
+        completion_validity_invalidation_record_id=invalidation_id,
+        reason_code=(
+            AxisProtocolRevisionReason.HISTORICAL_COMPLETION_VALIDITY_INVALIDATED
+        ),
+        reason=(
+            "the original completion used an invalid decision-time input and "
+            "requires a corrected prospective protocol"
+        ),
+    )
+    payload = proposal.to_identity_payload()
+
+    assert payload["schema"] == AXIS_PROTOCOL_REVISION_SCHEMA_V3
+    assert "satisfaction_invalidation_record_id" not in payload
+    assert "scientific_change_return_record_id" not in payload
+    assert proposal.authority_kind == (
+        "historical-scientific-validity-invalidation"
+    )
+    assert proposal.authority_record_id == invalidation_id
+    assert AxisProtocolRevisionProposal.from_mapping(payload) == proposal
+
+
+def test_historical_completion_revision_rejects_mixed_authority() -> None:
+    with pytest.raises(ValueError, match="cannot bind a satisfaction"):
+        AxisProtocolRevisionProposal(
+            **_common(),
+            satisfaction_invalidation_record_id=(
+                "historical-replay-satisfaction-invalidation:" + "7" * 64
+            ),
+            completion_validity_invalidation_record_id=(
+                "historical-scientific-validity-invalidation:" + "9" * 64
+            ),
+            reason_code=(
+                AxisProtocolRevisionReason.HISTORICAL_COMPLETION_VALIDITY_INVALIDATED
+            ),
+            reason="reject mixed historical completion authority",
         )

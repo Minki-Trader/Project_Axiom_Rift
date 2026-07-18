@@ -42,10 +42,13 @@ def authenticated_historical_implementation_sources(
         return ()
     try:
         plan = parse_canonical(artifact_reader(plan_hash))
-    except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
-        raise HistoricalReplayImplementationAuthorityError(
-            "historical replay implementation plan is unavailable"
-        ) from exc
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
+        # A scientific binding is not itself replay authority.  Non-replay
+        # declarations may intentionally use a validator-owned or fixture
+        # plan that is unavailable at this read boundary.  The generic
+        # implementation verifier still rejects any hard-coded historical
+        # source unless an exact replay plan below authenticates it.
+        return ()
     protocol = (
         plan.get("protocol_definition")
         if isinstance(plan, Mapping)
@@ -163,7 +166,6 @@ def authenticated_historical_implementation_sources(
         or obligation_record.status != "pending"
         or obligation.identity != obligation_id
         or obligation.governing_mission_id != plan.get("mission_id")
-        or obligation.original_study_id != family.original_study_id
         or obligation.original_executable_id
         != family.target_historical_executable_id
     ):

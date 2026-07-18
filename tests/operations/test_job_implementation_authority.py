@@ -10,6 +10,9 @@ from axiom_rift.operations.job_implementation_authority import (
     hardcoded_control_ids,
     require_job_implementation_evidence,
 )
+from axiom_rift.operations.historical_replay_implementation_authority import (
+    authenticated_historical_implementation_sources,
+)
 
 
 class JobImplementationAuthorityTest(unittest.TestCase):
@@ -66,6 +69,25 @@ component = ComponentSpec(display_name="STU-0002 display", spec={})
 raise RuntimeError(f"STU-0003 failed for {component}")
 '''
         self.assertEqual(hardcoded_control_ids(source), ())
+
+    def test_unavailable_non_replay_plan_claims_no_historical_authority(
+        self,
+    ) -> None:
+        def missing(_identity: str) -> bytes:
+            raise FileNotFoundError
+
+        self.assertEqual(
+            authenticated_historical_implementation_sources(
+                {
+                    "scientific_binding": {
+                        "validation_plan_hash": "1" * 64,
+                    }
+                },
+                index=None,  # type: ignore[arg-type]
+                artifact_reader=missing,
+            ),
+            (),
+        )
 
     def test_control_bearing_static_identity_remains_rejected(self) -> None:
         source = b'STUDY_ID = "STU-0004"\n'

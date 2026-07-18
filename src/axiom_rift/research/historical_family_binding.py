@@ -22,6 +22,7 @@ from axiom_rift.core.identity import canonical_digest
 
 HISTORICAL_MEMBER_SCHEMA = "historical_family_member.v1"
 CONTROL_BINDING_SCHEMA = "historical_family_control_binding.v1"
+PRIMARY_CONTROL_BINDING_SCHEMA = "historical_primary_control_binding.v1"
 HISTORICAL_FAMILY_SCHEMA = "historical_family_spec.v1"
 HISTORICAL_FAMILY_CORE_SCHEMA = "historical_family_core.v1"
 HISTORICAL_FAMILY_AUTHORITY_SCHEMA = "historical_family_authority.v2"
@@ -216,6 +217,47 @@ class ControlBinding:
         }
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PrimaryControlBinding:
+    """Exact primary-control policy paired with one historical subject.
+
+    Some preregistered families compare one mechanism directly with one
+    primary control and contain neither an opposite-sign nor a feature
+    control.  Representing that design explicitly prevents the replay harness
+    from inventing a third member merely to satisfy a richer control schema.
+    """
+
+    subject_historical_executable_id: str
+    primary_control_historical_executable_id: str
+
+    def __post_init__(self) -> None:
+        subject = _sha256_identity(
+            "subject_historical_executable_id",
+            self.subject_historical_executable_id,
+            "executable",
+        )
+        primary = _sha256_identity(
+            "primary_control_historical_executable_id",
+            self.primary_control_historical_executable_id,
+            "executable",
+        )
+        if subject == primary:
+            raise HistoricalFamilyBindingError(
+                "subject and primary control must be distinct"
+            )
+
+    def manifest(self) -> dict[str, object]:
+        return {
+            "primary_control_historical_executable_id": (
+                self.primary_control_historical_executable_id
+            ),
+            "schema": PRIMARY_CONTROL_BINDING_SCHEMA,
+            "subject_historical_executable_id": (
+                self.subject_historical_executable_id
+            ),
+        }
+
+
 def historical_family_core_identity(family: HistoricalFamilySpec) -> str:
     """Identify immutable family membership independently of one target."""
 
@@ -245,7 +287,7 @@ class HistoricalFamilySpec:
     original_batch_id: str
     target_historical_executable_id: str
     members: tuple[HistoricalMemberSpec, ...]
-    controls: tuple[ControlBinding, ...]
+    controls: tuple[ControlBinding | PrimaryControlBinding, ...]
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -293,7 +335,10 @@ class HistoricalFamilySpec:
             type(self.controls) is not tuple
             or not self.controls
             or any(
-                not isinstance(control, ControlBinding)
+                not isinstance(
+                    control,
+                    (ControlBinding, PrimaryControlBinding),
+                )
                 for control in self.controls
             )
         ):
@@ -306,6 +351,11 @@ class HistoricalFamilySpec:
                 key=lambda item: item.subject_historical_executable_id,
             )
         )
+        control_types = {type(control) for control in controls}
+        if len(control_types) != 1:
+            raise HistoricalFamilyBindingError(
+                "historical family cannot mix control designs"
+            )
         subjects = tuple(
             control.subject_historical_executable_id for control in controls
         )
@@ -322,26 +372,53 @@ class HistoricalFamilySpec:
             raise HistoricalFamilyBindingError(
                 "historical family control subjects must be unique"
             )
-        for control in controls:
-            control_references = {
-                control.opposite_historical_executable_id,
-                *control.feature_historical_executable_ids,
-            }
-            if not control_references.issubset(reference_set):
-                raise HistoricalFamilyBindingError(
-                    "historical controls must reference exact family members"
+        if control_types == {ControlBinding}:
+            for control in controls:
+                assert isinstance(control, ControlBinding)
+                control_references = {
+                    control.opposite_historical_executable_id,
+                    *control.feature_historical_executable_ids,
+                }
+                if not control_references.issubset(reference_set):
+                    raise HistoricalFamilyBindingError(
+                        "historical controls must reference exact family members"
+                    )
+                reverse = control_by_subject.get(
+                    control.opposite_historical_executable_id
                 )
-            reverse = control_by_subject.get(
-                control.opposite_historical_executable_id
-            )
-            if (
-                reverse is None
-                or reverse.opposite_historical_executable_id
-                != control.subject_historical_executable_id
-            ):
+                if (
+                    not isinstance(reverse, ControlBinding)
+                    or reverse.opposite_historical_executable_id
+                    != control.subject_historical_executable_id
+                ):
+                    raise HistoricalFamilyBindingError(
+                        "historical opposite controls must be reciprocal"
+                    )
+        else:
+            if len(members) != 2:
                 raise HistoricalFamilyBindingError(
-                    "historical opposite controls must be reciprocal"
+                    "primary-control historical family must contain exactly two members"
                 )
+            for control in controls:
+                assert isinstance(control, PrimaryControlBinding)
+                if (
+                    control.primary_control_historical_executable_id
+                    not in reference_set
+                ):
+                    raise HistoricalFamilyBindingError(
+                        "historical primary control must reference the exact family"
+                    )
+                reverse = control_by_subject.get(
+                    control.primary_control_historical_executable_id
+                )
+                if (
+                    not isinstance(reverse, PrimaryControlBinding)
+                    or reverse.primary_control_historical_executable_id
+                    != control.subject_historical_executable_id
+                ):
+                    raise HistoricalFamilyBindingError(
+                        "historical primary controls must be reciprocal"
+                    )
         object.__setattr__(self, "members", members)
         object.__setattr__(self, "controls", controls)
         identity = canonical_digest(
@@ -374,7 +451,7 @@ class HistoricalFamilySpec:
 
     def control_for_historical_executable(
         self, historical_executable_id: str
-    ) -> ControlBinding:
+    ) -> ControlBinding | PrimaryControlBinding:
         member = self.member_for_historical_executable(
             historical_executable_id
         )
@@ -452,37 +529,65 @@ def historical_family_from_manifest(value: object) -> HistoricalFamilySpec:
                 parameters=raw_member["parameters"],
             )
         )
-    controls: list[ControlBinding] = []
+    controls: list[ControlBinding | PrimaryControlBinding] = []
     for raw_control in raw_controls:
-        if (
-            type(raw_control) is not dict
-            or set(raw_control)
-            != {
-                "feature_historical_executable_ids",
-                "opposite_historical_executable_id",
-                "schema",
-                "subject_historical_executable_id",
-            }
-            or raw_control.get("schema") != CONTROL_BINDING_SCHEMA
-            or type(raw_control.get("feature_historical_executable_ids"))
-            is not list
-        ):
+        if type(raw_control) is not dict:
             raise HistoricalFamilyBindingError(
                 "historical family control manifest is invalid"
             )
-        controls.append(
-            ControlBinding(
-                subject_historical_executable_id=(
-                    raw_control["subject_historical_executable_id"]
-                ),
-                opposite_historical_executable_id=(
-                    raw_control["opposite_historical_executable_id"]
-                ),
-                feature_historical_executable_ids=tuple(
-                    raw_control["feature_historical_executable_ids"]
-                ),
+        if raw_control.get("schema") == CONTROL_BINDING_SCHEMA:
+            if (
+                set(raw_control)
+                != {
+                    "feature_historical_executable_ids",
+                    "opposite_historical_executable_id",
+                    "schema",
+                    "subject_historical_executable_id",
+                }
+                or type(raw_control.get("feature_historical_executable_ids"))
+                is not list
+            ):
+                raise HistoricalFamilyBindingError(
+                    "historical family control manifest is invalid"
+                )
+            controls.append(
+                ControlBinding(
+                    subject_historical_executable_id=(
+                        raw_control["subject_historical_executable_id"]
+                    ),
+                    opposite_historical_executable_id=(
+                        raw_control["opposite_historical_executable_id"]
+                    ),
+                    feature_historical_executable_ids=tuple(
+                        raw_control["feature_historical_executable_ids"]
+                    ),
+                )
             )
-        )
+        elif raw_control.get("schema") == PRIMARY_CONTROL_BINDING_SCHEMA:
+            if set(raw_control) != {
+                "primary_control_historical_executable_id",
+                "schema",
+                "subject_historical_executable_id",
+            }:
+                raise HistoricalFamilyBindingError(
+                    "historical family control manifest is invalid"
+                )
+            controls.append(
+                PrimaryControlBinding(
+                    subject_historical_executable_id=(
+                        raw_control["subject_historical_executable_id"]
+                    ),
+                    primary_control_historical_executable_id=(
+                        raw_control[
+                            "primary_control_historical_executable_id"
+                        ]
+                    ),
+                )
+            )
+        else:
+            raise HistoricalFamilyBindingError(
+                "historical family control manifest is invalid"
+            )
     family = HistoricalFamilySpec(
         original_study_id=value["original_study_id"],
         original_batch_id=value["original_batch_id"],
@@ -753,6 +858,8 @@ __all__ = [
     "HistoricalFamilyAuthority",
     "HistoricalFamilySpec",
     "HistoricalMemberSpec",
+    "PRIMARY_CONTROL_BINDING_SCHEMA",
+    "PrimaryControlBinding",
     "historical_family_authority_from_payload",
     "historical_family_core_identity",
     "historical_family_from_manifest",

@@ -13,6 +13,7 @@ from axiom_rift.operations.replay_projection import (
     effective_replay_priority,
     initial_obligation_record,
     replay_priority_escalation_record,
+    require_initial_completion_validity_revision_record,
 )
 from axiom_rift.research.historical_adjudication import ReplayPriority
 from axiom_rift.research.replay_obligation import (
@@ -271,3 +272,99 @@ def test_escalation_rejects_missing_same_event_writer_inventory() -> None:
             ):
                 with pytest.raises(ReplayProjectionError, match="not exact"):
                     effective_replay_priority(index, obligation)
+
+
+def test_initial_protocol_revision_binds_exact_completion_invalidity() -> None:
+    adjudication_id = "historical-adjudication:" + _digest("c")
+    invalidation_id = (
+        "historical-scientific-validity-invalidation:" + _digest("d")
+    )
+    adjudication_payload = {
+        "adjudication": {
+            "candidate_eligible": False,
+            "claims": [{"claim_id": "claim"}],
+            "criteria": [{"criterion_id": "criterion"}],
+        },
+        "audit_artifact_hash": _digest("1"),
+        "completion_record_id": _digest("2"),
+        "disposition": "replay_required",
+        "executable_id": "executable:" + _digest("3"),
+        "measurement_artifact_hash": _digest("4"),
+        "reason_codes": [
+            "decision_input_point_in_time_unproven",
+            "prospective_exact_replay_required",
+        ],
+        "replay_priority": "p1",
+        "schema": "historical_scientific_adjudication.v2",
+        "study_close_record_id": _digest("5"),
+        "study_id": "STU-OLD",
+        "validation_plan_hash": _digest("6"),
+    }
+    obligation = derive_historical_replay_obligation(
+        governing_mission_id=MISSION_ID,
+        historical_adjudication_id=adjudication_id,
+        adjudication_payload=adjudication_payload,
+    )
+    reason = "decision_input_point_in_time_unproven"
+    recorded_adjudication = IndexRecord(
+        kind="historical-scientific-adjudication",
+        record_id=adjudication_id,
+        subject="Study:STU-OLD",
+        status="replay_required",
+        fingerprint=_digest("c"),
+        payload={
+            **adjudication_payload,
+            "replay_obligation_id": obligation.identity,
+            "validity_overrides": [
+                {
+                    "evidence_record_id": invalidation_id,
+                    "reason": reason,
+                    "subject_id": obligation.original_completion_record_id,
+                }
+            ],
+        },
+    )
+    invalidation = SimpleNamespace(
+        affected_claim_ids=obligation.claim_ids,
+        affected_criterion_ids=obligation.criterion_ids,
+        audit_artifact_hash=obligation.audit_artifact_hash,
+        completion_record_id=obligation.original_completion_record_id,
+        executable_id=obligation.original_executable_id,
+        measurement_artifact_hash=obligation.measurement_artifact_hash,
+        study_close_record_id=obligation.original_study_close_record_id,
+        study_id=obligation.original_study_id,
+        validation_plan_hash=obligation.validation_plan_hash,
+    )
+    validity = SimpleNamespace(
+        invalidation=invalidation,
+        invalidation_record_id=invalidation_id,
+        reason=reason,
+    )
+    with TemporaryDirectory() as temporary:
+        with LocalIndex(Path(temporary) / "index.sqlite") as index:
+            index.put(recorded_adjudication)
+            with patch(
+                "axiom_rift.operations.replay_projection."
+                "current_completion_validity_invalidation",
+                return_value=validity,
+            ):
+                assert (
+                    require_initial_completion_validity_revision_record(
+                        index,
+                        obligation=obligation,
+                        invalidation_record_id=invalidation_id,
+                    )
+                    is validity
+                )
+                with pytest.raises(
+                    ReplayProjectionError,
+                    match="exact completion-invalidity",
+                ):
+                    require_initial_completion_validity_revision_record(
+                        index,
+                        obligation=obligation,
+                        invalidation_record_id=(
+                            "historical-scientific-validity-invalidation:"
+                            + _digest("e")
+                        ),
+                    )

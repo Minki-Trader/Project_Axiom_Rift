@@ -43,6 +43,7 @@ from axiom_rift.operations.replay_projection import (
     ReplayProjectionError,
     obligation_heads,
     replay_evidence_record_ids,
+    require_initial_completion_validity_revision_record,
     require_scientific_change_return_record,
     require_satisfaction_invalidation_record,
     scheduler_constraints,
@@ -75,13 +76,10 @@ from axiom_rift.operations.writer import (
 from axiom_rift.research.chassis import ControlledStudyChassis
 from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID
 from axiom_rift.research.effective_axis import EffectiveAxisStatus
-from axiom_rift.research.fixed_hold_family_job import (
-    FixedHoldFamilyJobPacket,
-    FixedHoldFamilyJobPlan,
-    validated_fixed_hold_recomputed_criterion_ids,
-)
-from axiom_rift.research.fixed_hold_family_trace import (
-    FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+from axiom_rift.research.replay_family_job import (
+    ReplayFamilyJobPacket,
+    ReplayFamilyJobPlan,
+    replay_family_evidence_modes,
 )
 from axiom_rift.research.governance import (
     DiagnosisConfidence,
@@ -274,6 +272,7 @@ class FixedHoldReplayMissionSpec:
     initiative_lifecycle: ReplayInitiativeLifecycle
     axis_admission: ReplayAxisAdmission
     additional_obligation_ids: tuple[str, ...] = ()
+    family_origin_study_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -301,6 +300,11 @@ class FixedHoldReplayMissionSpec:
             raise ValueError("replay Initiative lifecycle is not typed")
         if not isinstance(self.axis_admission, ReplayAxisAdmission):
             raise ValueError("replay axis admission is not typed")
+        if self.family_origin_study_id is not None:
+            _ascii(
+                "family_origin_study_id",
+                self.family_origin_study_id,
+            )
         same_logical_axis = self.axis_id == self.bridge_axis_id
         if (
             self.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM
@@ -341,13 +345,17 @@ class FixedHoldReplayMissionSpec:
             sorted((self.target_obligation_id, *self.additional_obligation_ids))
         )
 
+    @property
+    def effective_family_origin_study_id(self) -> str:
+        return self.family_origin_study_id or self.original_study_id
+
 @dataclass(frozen=True, slots=True)
 class FixedHoldReplayMember:
     ordinal: int
     configuration_id: str
     historical_reference_executable_id: str
     executable: ExecutableSpec
-    job_plan: FixedHoldFamilyJobPlan
+    job_plan: ReplayFamilyJobPlan
 
     def __post_init__(self) -> None:
         if type(self.ordinal) is not int or self.ordinal < 1:
@@ -359,7 +367,7 @@ class FixedHoldReplayMember:
         )
         if (
             not isinstance(self.executable, ExecutableSpec)
-            or not isinstance(self.job_plan, FixedHoldFamilyJobPlan)
+            or not isinstance(self.job_plan, ReplayFamilyJobPlan)
             or self.job_plan.executable_id != self.executable.identity
         ):
             raise ValueError("replay member Executable and Job plan differ")
@@ -1136,6 +1144,33 @@ def build_fixed_hold_replay_design(
         projected_axes = {
             item["axis_id"]: item for item in raw_axes
         }
+        projected_source_axis = projected_axes.get(spec.bridge_axis_id)
+        source_axis_anchor = (
+            None
+            if (
+                spec.axis_admission is not ReplayAxisAdmission.REVISE_PROTOCOL
+                or not isinstance(projected_source_axis, Mapping)
+            )
+            else StateWriter._axis_architecture_anchor(
+                index,
+                projected_source_axis,
+            )
+        )
+        source_axis_predecessor_architecture_family = (
+            None
+            if not isinstance(projected_source_axis, Mapping)
+            else projected_source_axis.get("architecture_chassis_identity")
+        )
+        if (
+            not isinstance(
+                source_axis_predecessor_architecture_family,
+                str,
+            )
+            and isinstance(source_axis_anchor, Mapping)
+        ):
+            source_axis_predecessor_architecture_family = (
+                source_axis_anchor.get("architecture_chassis_identity")
+            )
         axis_resolutions = effective_axis_resolutions(
             index,
             tuple(projected_axes[axis.axis_id] for axis in prior_axes),
@@ -1265,6 +1300,8 @@ def build_fixed_hold_replay_design(
                     "protocol revision lacks pending replay authority"
                 )
             try:
+                revision_authority_kind = target_head.kind
+                revision_authority_id = target_head.record_id
                 if (
                     target_head.kind
                     == "historical-replay-satisfaction-invalidation"
@@ -1283,6 +1320,19 @@ def build_fixed_hold_replay_design(
                         obligation=target_obligation,
                         record=target_head,
                     )
+                elif target_head.kind == "historical-replay-obligation":
+                    validity = (
+                        require_initial_completion_validity_revision_record(
+                            index,
+                            obligation=target_obligation,
+                        )
+                    )
+                    revision_authority_kind = (
+                        "historical-scientific-validity-invalidation"
+                    )
+                    revision_authority_id = (
+                        validity.invalidation_record_id
+                    )
                 else:
                     raise ReplayProjectionError(
                         "protocol revision replay authority is unsupported"
@@ -1291,8 +1341,8 @@ def build_fixed_hold_replay_design(
                 raise RuntimeError(
                     "protocol revision replay authority is malformed"
                 ) from exc
-            initial_revision_authority_kind = target_head.kind
-            initial_revision_authority_id = target_head.record_id
+            initial_revision_authority_kind = revision_authority_kind
+            initial_revision_authority_id = revision_authority_id
     axis_already_exists = any(
         axis.axis_id == spec.axis_id for axis in prior_axes
     )
@@ -1453,7 +1503,8 @@ def build_fixed_hold_replay_design(
         or obligation.original_executable_id
         != target_members[0].historical_reference_executable_id
         or obligation.criterion_ids != criterion_ids
-        or manifest_family.original_study_id != spec.original_study_id
+        or manifest_family.original_study_id
+        != spec.effective_family_origin_study_id
         or manifest_family.target_historical_executable_id
         != obligation.original_executable_id
         or manifest_references
@@ -1578,8 +1629,11 @@ def build_fixed_hold_replay_design(
             or source_axis.controlled_domains != replay_axis.controlled_domains
             or source_axis.stop_or_reopen_condition
             != replay_axis.stop_or_reopen_condition
-            or source_axis.architecture_chassis is None
-            or source_axis.architecture_chassis.identity
+            or not isinstance(
+                source_axis_predecessor_architecture_family,
+                str,
+            )
+            or source_axis_predecessor_architecture_family
             == replay_axis.architecture_chassis.identity
         ):
             raise RuntimeError(
@@ -1607,7 +1661,7 @@ def build_fixed_hold_replay_design(
             "successor_axis_identity": replay_axis.identity,
             "mechanism_family": source_axis.mechanism_family,
             "predecessor_architecture_family": (
-                source_axis.architecture_chassis.identity
+                source_axis_predecessor_architecture_family
             ),
             "successor_architecture_family": (
                 replay_axis.architecture_chassis.identity
@@ -1644,6 +1698,26 @@ def build_fixed_hold_replay_design(
                 reason=(
                     "the prior Study requires a distinct scientific protocol "
                     "with a feasible train-only event floor"
+                ),
+            )
+        elif (
+            revision_authority_kind
+            == "historical-scientific-validity-invalidation"
+        ):
+            expected_revision = AxisProtocolRevisionProposal(
+                **common_revision,
+                satisfaction_invalidation_record_id=None,
+                completion_validity_invalidation_record_id=(
+                    revision_authority_id
+                ),
+                reason_code=(
+                    AxisProtocolRevisionReason
+                    .HISTORICAL_COMPLETION_VALIDITY_INVALIDATED
+                ),
+                reason=(
+                    "the original completion used an invalid decision-time "
+                    "input and requires the same question under a corrected "
+                    "prospective chassis"
                 ),
             )
         else:
@@ -1868,7 +1942,11 @@ def build_fixed_hold_replay_design(
             "the exact historical criteria are recomputed",
             "no candidate or holdout authority is created",
         ],
-        "evidence_modes": list(FIXED_HOLD_REPLAY_EVIDENCE_MODES),
+        "evidence_modes": list(
+            replay_family_evidence_modes(
+                tuple(member.job_plan for member in members)
+            )
+        ),
     }
     proposal = {
         "candidate_eligible": False,
@@ -2532,15 +2610,25 @@ def interpret_fixed_hold_completion(
     completion: IndexRecord,
     *,
     criterion_ids: tuple[str, ...],
+    job_plan: ReplayFamilyJobPlan | None = None,
 ) -> ReplayInterpretation:
     facts = _scientific_facts(completion)
     recomputed = False
     if facts is not None:
         try:
-            recomputed = (
-                validated_fixed_hold_recomputed_criterion_ids(facts)
-                == criterion_ids
-            )
+            if job_plan is None:
+                from axiom_rift.research.fixed_hold_family_job import (
+                    validated_fixed_hold_recomputed_criterion_ids,
+                )
+
+                observed_criterion_ids = (
+                    validated_fixed_hold_recomputed_criterion_ids(facts)
+                )
+            else:
+                observed_criterion_ids = (
+                    job_plan.validated_recomputed_criterion_ids(facts)
+                )
+            recomputed = observed_criterion_ids == criterion_ids
         except ValueError:
             recomputed = False
     adjudication = None if facts is None else facts.get("scientific_adjudication")
@@ -2578,6 +2666,29 @@ def interpret_fixed_hold_completion(
     )
 
 
+def _interpret_replay_member_completion(
+    completion: IndexRecord,
+    *,
+    criterion_ids: tuple[str, ...],
+    member: object,
+) -> ReplayInterpretation:
+    """Dispatch through a protocol plan without breaking legacy callers."""
+
+    plan = getattr(member, "job_plan", None)
+    if plan is None:
+        return interpret_fixed_hold_completion(
+            completion,
+            criterion_ids=criterion_ids,
+        )
+    if not isinstance(plan, ReplayFamilyJobPlan):
+        raise RuntimeError("replay member protocol plan is malformed")
+    return interpret_fixed_hold_completion(
+        completion,
+        criterion_ids=criterion_ids,
+        job_plan=plan,
+    )
+
+
 def _workflow_interpretation(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -2606,7 +2717,7 @@ def _workflow_interpretation(
             )
             continue
         interpretations.append(
-            interpret_fixed_hold_completion(
+            _interpret_replay_member_completion(
                 completion,
                 criterion_ids=(
                     design.criterion_ids
@@ -2620,6 +2731,7 @@ def _workflow_interpretation(
                         )
                     ].criterion_ids
                 ),
+                member=member,
             )
         )
     recomputed = tuple(
@@ -2757,9 +2869,10 @@ def _study_close_disposition_completion(
         if completion is None:
             continue
         assignment = assignment_by_executable[member.executable.identity]
-        interpretation = interpret_fixed_hold_completion(
+        interpretation = _interpret_replay_member_completion(
             completion,
             criterion_ids=assignment.criterion_ids,
+            member=member,
         )
         if aggregate.all_criteria_recomputed:
             eligible = (
@@ -3728,7 +3841,7 @@ def operation_steps(
                 )
             )
             is not None
-            and interpret_fixed_hold_completion(
+            and _interpret_replay_member_completion(
                 completion,
                 criterion_ids=(
                     design.criterion_ids
@@ -3737,6 +3850,7 @@ def operation_steps(
                         member.executable.identity
                     ].criterion_ids
                 ),
+                member=member,
             ).all_criteria_recomputed
         )
     )
@@ -4802,7 +4916,7 @@ def _apply_study_close_step(
     design: FixedHoldReplayDesign,
     step: OperationStep,
     repository_root: Path,
-    job_runner: Callable[..., FixedHoldFamilyJobPacket],
+    job_runner: Callable[..., ReplayFamilyJobPacket],
     job_implementation_materializer: Callable[[StateWriter], str],
     implementation_admission: ReplayImplementationAdmission | None = None,
 ) -> Any:
@@ -5180,9 +5294,10 @@ def _apply_study_close_step(
         interpretation = (
             _workflow_interpretation(writer, design)
             if _design_replay_assignments(design) is not None
-            else interpret_fixed_hold_completion(
+            else _interpret_replay_member_completion(
                 completion,
                 criterion_ids=design.criterion_ids,
+                member=design.target_member,
             )
         )
         return writer.close_study(
@@ -5262,7 +5377,7 @@ def _diagnosis(
         }
     )
     recomputed_selected_count = sum(
-        interpret_fixed_hold_completion(
+        _interpret_replay_member_completion(
             selected_completion,
             criterion_ids=(
                 design.criterion_ids
@@ -5271,6 +5386,7 @@ def _diagnosis(
                     member.executable.identity
                 ].criterion_ids
             ),
+            member=member,
         ).all_criteria_recomputed
         for member in _design_selected_members(design)
         if (
@@ -5500,7 +5616,10 @@ def _replay_resolution(
         assert completion is not None
         facts = _scientific_facts(completion)
         assert facts is not None
-        criterion_ids = validated_fixed_hold_recomputed_criterion_ids(facts)
+        criterion_ids = (
+            design.target_member.job_plan
+            .validated_recomputed_criterion_ids(facts)
+        )
         if criterion_ids != obligation.criterion_ids:
             raise RuntimeError("recomputed criteria differ from replay obligation")
         return ReplaySatisfaction(
@@ -5666,9 +5785,10 @@ def _plural_replay_resolutions(
             interpretation = (
                 None
                 if completion is None
-                else interpret_fixed_hold_completion(
+                else _interpret_replay_member_completion(
                     completion,
                     criterion_ids=assignment.criterion_ids,
+                    member=member,
                 )
             )
             if (
@@ -5678,7 +5798,7 @@ def _plural_replay_resolutions(
                 facts = _scientific_facts(completion)
                 assert facts is not None
                 criterion_ids = (
-                    validated_fixed_hold_recomputed_criterion_ids(facts)
+                    member.job_plan.validated_recomputed_criterion_ids(facts)
                 )
                 if criterion_ids != obligation.criterion_ids:
                     raise RuntimeError(
@@ -6099,9 +6219,10 @@ def verify_study_close_postconditions(
         interpretation = (
             _workflow_interpretation(writer, design)
             if _design_replay_assignments(design) is not None
-            else interpret_fixed_hold_completion(
+            else _interpret_replay_member_completion(
                 disposition_completion,
                 criterion_ids=design.criterion_ids,
+                member=design.target_member,
             )
         )
         _require_scientific_study_close_projection(
@@ -6183,7 +6304,7 @@ def run_study_close_stage(
     *,
     design: FixedHoldReplayDesign,
     repository_root: Path,
-    job_runner: Callable[..., FixedHoldFamilyJobPacket],
+    job_runner: Callable[..., ReplayFamilyJobPacket],
     job_implementation_materializer: Callable[[StateWriter], str],
     explicit_recovery: bool = False,
 ) -> dict[str, Any]:
