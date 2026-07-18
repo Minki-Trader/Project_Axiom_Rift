@@ -28,6 +28,10 @@ from axiom_rift.operations.batch_budget import (
     batch_budget_reservation_repair_manifest,
     registered_batch_budget_for_output_classes,
 )
+from axiom_rift.operations.diagnosis_authority_context import (
+    DiagnosisAuthorityContext,
+    DiagnosisAuthorityContextError,
+)
 from axiom_rift.operations.foundation_data_authority import (
     FOUNDATION_DATA_EXPOSURE_PATH,
     FOUNDATION_DATA_PATH,
@@ -4305,7 +4309,19 @@ class StateWriter:
         for close in closes:
             outcome_counts[close.status] = outcome_counts.get(close.status, 0) + 1
         evidence_state_counts: dict[str, int] = {}
-        for diagnosis in index.records_by_kind("study-diagnosis"):
+        from axiom_rift.operations.effective_study_diagnosis import (
+            EffectiveStudyDiagnosisError,
+            effective_study_diagnosis,
+        )
+
+        for diagnosis_record in index.records_by_kind("study-diagnosis"):
+            try:
+                diagnosis = effective_study_diagnosis(
+                    index,
+                    diagnosis_record.record_id,
+                )
+            except EffectiveStudyDiagnosisError as exc:
+                raise RecoveryRequired(str(exc)) from exc
             evidence_state_counts[diagnosis.status] = (
                 evidence_state_counts.get(diagnosis.status, 0) + 1
             )
@@ -5977,6 +5993,13 @@ class StateWriter:
         portfolio_snapshot_id: str,
         architecture_family: str,
         extra_equivalences: tuple[Mapping[str, Any], ...] = (),
+        effective_state_overrides: Mapping[str, str] | None = None,
+        effective_authority_overrides: Mapping[
+            str, tuple[str, str]
+        ] | None = None,
+        pending_diagnoses: tuple[IndexRecord, ...] = (),
+        effective_diagnoses: Sequence[Any] | None = None,
+        reviewed_diagnosis_ids: frozenset[str] | None = None,
     ) -> IndexRecord | None:
         snapshot = index.get("portfolio-snapshot", portfolio_snapshot_id)
         standard = (
@@ -5988,26 +6011,68 @@ class StateWriter:
         minimum_axes = standard.get("architecture_review_minimum_axes")
         if type(minimum_studies) is not int or type(minimum_axes) is not int:
             raise RecoveryRequired("architecture review threshold is malformed")
-        reviewed_ids: set[str] = set()
-        for review in index.records_by_payload_text(
-            "architecture-review",
-            "mission_id",
-            mission_id,
+        reviewed_ids: set[str] = (
+            set(reviewed_diagnosis_ids)
+            if reviewed_diagnosis_ids is not None
+            else set()
+        )
+        if reviewed_diagnosis_ids is None:
+            for review in index.records_by_payload_text(
+                "architecture-review",
+                "mission_id",
+                mission_id,
+            ):
+                reviewed_ids.update(
+                    value
+                    for value in review.payload.get("covered_diagnosis_ids", [])
+                    if isinstance(value, str)
+                )
+        from axiom_rift.operations.effective_study_diagnosis import (
+            EffectiveStudyDiagnosisError,
+            effective_study_diagnoses_for_mission,
+        )
+
+        if effective_diagnoses is None:
+            try:
+                effective_diagnoses = effective_study_diagnoses_for_mission(
+                    index,
+                    mission_id=mission_id,
+                )
+            except EffectiveStudyDiagnosisError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+        overrides = {} if effective_state_overrides is None else dict(
+            effective_state_overrides
+        )
+        authority_overrides = (
+            {}
+            if effective_authority_overrides is None
+            else dict(effective_authority_overrides)
+        )
+        if any(
+            diagnosis.kind != "study-diagnosis"
+            or diagnosis.payload.get("mission_id") != mission_id
+            for diagnosis in pending_diagnoses
         ):
-            reviewed_ids.update(
-                value
-                for value in review.payload.get("covered_diagnosis_ids", [])
-                if isinstance(value, str)
+            raise RecoveryRequired(
+                "pending architecture diagnosis authority is malformed"
             )
-        diagnoses: list[IndexRecord] = []
-        for diagnosis in index.records_by_payload_text(
-            "study-diagnosis",
-            "mission_id",
-            mission_id,
-        ):
+        combined: tuple[Any, ...] = (
+            *effective_diagnoses,
+            *pending_diagnoses,
+        )
+        if len({diagnosis.record_id for diagnosis in combined}) != len(combined):
+            raise RecoveryRequired(
+                "architecture review diagnosis authority is duplicated"
+            )
+        diagnoses: list[Any] = []
+        for diagnosis in combined:
+            effective_state = overrides.get(
+                diagnosis.record_id,
+                diagnosis.payload.get("evidence_state"),
+            )
             if (
                 diagnosis.record_id in reviewed_ids
-                or diagnosis.payload.get("evidence_state")
+                or effective_state
                 in {"engineering_gap", "supported_requires_confirmation"}
             ):
                 continue
@@ -6059,6 +6124,30 @@ class StateWriter:
                 "minimum_studies": minimum_studies,
             },
         }
+        authorities: list[dict[str, str]] = []
+        for diagnosis in sorted(diagnoses, key=lambda value: value.record_id):
+            authority = authority_overrides.get(diagnosis.record_id)
+            if authority is None:
+                correction = getattr(diagnosis, "correction", None)
+                authority = (
+                    ("study-diagnosis", diagnosis.record_id)
+                    if correction is None
+                    else ("study-diagnosis-correction", correction.record_id)
+                )
+            authorities.append(
+                {
+                    "effective_authority_kind": authority[0],
+                    "effective_authority_record_id": authority[1],
+                    "original_diagnosis_id": diagnosis.record_id,
+                }
+            )
+        if any(
+            authority["effective_authority_kind"]
+            == "study-diagnosis-correction"
+            for authority in authorities
+        ):
+            trigger_payload["diagnosis_authorities"] = authorities
+            trigger_payload["schema"] = "architecture_review_trigger.v2"
         trigger_id = canonical_digest(
             domain="architecture-review-trigger",
             payload=trigger_payload,
@@ -7073,6 +7162,25 @@ class StateWriter:
                     != portfolio_snapshot_id
                 ):
                     raise TransitionError("Study Portfolio Decision is unavailable or stale")
+                try:
+                    action_diagnosis_authority = (
+                        DiagnosisAuthorityContext.from_mapping(next_action)
+                    )
+                    decision_diagnosis_authority = (
+                        DiagnosisAuthorityContext.from_mapping(
+                            decision.payload
+                        )
+                    )
+                    decision_diagnosis_authority.require_effective(
+                        _index,
+                        mission_id=science["active_mission"],
+                    )
+                except DiagnosisAuthorityContextError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                if action_diagnosis_authority != decision_diagnosis_authority:
+                    raise TransitionError(
+                        "Study Portfolio Decision diagnosis authority drifted"
+                    )
                 from axiom_rift.operations.replay_projection import (
                     ReplayProjectionError,
                     ReplayTransitionError,
@@ -11969,6 +12077,129 @@ class StateWriter:
             for kind, record_id in sorted(references)
         ]
 
+    @staticmethod
+    def _study_primary_scientific_completions(
+        index: LocalIndex,
+        *,
+        study_id: str,
+    ) -> tuple[IndexRecord, ...]:
+        """Select disposition-driving completions from durable role authority."""
+
+        from axiom_rift.operations.scientific_history import (
+            ScientificHistoryProjectionError,
+            project_study_job_evidence,
+        )
+        try:
+            job_evidence = project_study_job_evidence(index, study_id=study_id)
+        except ScientificHistoryProjectionError as exc:
+            raise TransitionError(str(exc)) from exc
+        completions = job_evidence.completions
+        study = index.get("study-open", study_id)
+        if study is None:
+            raise TransitionError("Study claim-scoped diagnosis lost its Study")
+        admission_id = study.payload.get("replay_implementation_admission_id")
+        if isinstance(admission_id, str):
+            admission = index.get("replay-implementation-admission", admission_id)
+            semantic = study.payload.get("semantic_proposal")
+            family = (
+                None
+                if not isinstance(semantic, Mapping)
+                else semantic.get("concurrent_family")
+            )
+            target_reference = (
+                None
+                if not isinstance(family, Mapping)
+                else family.get("target_historical_executable_id")
+            )
+            request = None if admission is None else admission.payload.get("request")
+            manifests = (
+                None
+                if not isinstance(request, Mapping)
+                else request.get("executable_manifests")
+            )
+            if (
+                admission is None
+                or not isinstance(target_reference, str)
+                or not isinstance(manifests, list)
+            ):
+                raise TransitionError(
+                    "replay diagnosis target authority is malformed"
+                )
+            from axiom_rift.research.portfolio_projection import (
+                PortfolioProjectionError,
+                executable_from_identity_payload,
+            )
+
+            target_ids: list[str] = []
+            try:
+                for manifest in manifests:
+                    if not isinstance(manifest, Mapping):
+                        raise PortfolioProjectionError(
+                            "replay executable manifest is malformed"
+                        )
+                    parameters = manifest.get("parameters")
+                    if (
+                        isinstance(parameters, Mapping)
+                        and parameters.get("historical_reference_executable_id")
+                        == target_reference
+                    ):
+                        target_ids.append(
+                            executable_from_identity_payload(manifest).identity
+                        )
+            except PortfolioProjectionError as exc:
+                raise TransitionError(str(exc)) from exc
+            if len(target_ids) != 1:
+                raise TransitionError("replay diagnosis target is ambiguous")
+            completions = tuple(
+                completion
+                for completion in completions
+                if isinstance(completion.payload.get("scientific"), Mapping)
+                and completion.payload["scientific"].get("executable_id")
+                == target_ids[0]
+            )
+            if len(completions) != 1:
+                raise TransitionError(
+                    "replay diagnosis target completion is unavailable"
+                )
+        return tuple(completions)
+
+    @staticmethod
+    def _study_claim_scoped_diagnosis(
+        index: LocalIndex,
+        *,
+        study_id: str,
+    ) -> Any | None:
+        """Independently derive a standard primary-question diagnosis."""
+
+        from axiom_rift.research.scientific_diagnosis import (
+            ScientificDiagnosisError,
+            diagnose_scientific_adjudications,
+        )
+
+        completions = StateWriter._study_primary_scientific_completions(
+            index,
+            study_id=study_id,
+        )
+        adjudications: list[Mapping[str, Any]] = []
+        for completion in completions:
+            scientific = completion.payload.get("scientific")
+            adjudication = (
+                None
+                if not isinstance(scientific, Mapping)
+                else scientific.get("adjudication")
+            )
+            if isinstance(adjudication, Mapping):
+                adjudications.append(adjudication)
+        if not adjudications:
+            return None
+        try:
+            pattern = diagnose_scientific_adjudications(tuple(adjudications))
+        except ScientificDiagnosisError as exc:
+            raise TransitionError(
+                "Study claim-scoped diagnosis evidence is malformed"
+            ) from exc
+        return pattern if pattern.primary_question_recognized else None
+
     def record_study_diagnosis(
         self,
         *,
@@ -11997,7 +12228,10 @@ class StateWriter:
                 for name in (
                     "active_batch",
                     "active_executable",
+                    "active_holdout_evaluation",
                     "active_job",
+                    "active_lineage",
+                    "active_release",
                     "active_repair",
                     "active_study",
                 )
@@ -12025,6 +12259,10 @@ class StateWriter:
             ):
                 raise TransitionError("Study diagnosis subject is unavailable or stale")
             outcome = close_record.status
+            claim_scoped = self._study_claim_scoped_diagnosis(
+                index,
+                study_id=diagnosis.study_id,
+            )
             supported_states = {EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION}
             unavailable_states = {
                 EvidenceState.ENGINEERING_GAP,
@@ -12035,7 +12273,11 @@ class StateWriter:
                 EvidenceState.NOT_IDENTIFIABLE,
             }
             allowed_states = (
-                supported_states
+                (
+                    {claim_scoped.evidence_state}
+                    if claim_scoped is not None
+                    else supported_states
+                )
                 if outcome in {"supported", "preserved"}
                 else unavailable_states
                 if outcome in {"evidence_gap", "not_evaluable"}
@@ -12048,6 +12290,27 @@ class StateWriter:
             if diagnosis.evidence_state not in allowed_states:
                 raise TransitionError(
                     "Study diagnosis evidence state conflicts with its typed outcome"
+                )
+            if (
+                claim_scoped is not None
+                and diagnosis.evidence_state is not claim_scoped.evidence_state
+            ):
+                raise TransitionError(
+                    "Study diagnosis permits unrelated-claim compensation"
+                )
+            if claim_scoped is not None and (
+                diagnosis.diagnosis_reason_code != claim_scoped.reason_code
+                or diagnosis.supported_claim_ids
+                != claim_scoped.supported_claim_ids
+                or diagnosis.contradicted_claim_ids
+                != claim_scoped.contradicted_claim_ids
+                or diagnosis.unresolved_claim_ids
+                != claim_scoped.unresolved_claim_ids
+                or diagnosis.diagnostic_criterion_ids
+                != claim_scoped.diagnostic_criterion_ids
+            ):
+                raise TransitionError(
+                    "Study diagnosis claim inventory differs from durable evidence"
                 )
             kpi = index.get("study-kpi", diagnosis.study_id)
             unavailable_reason = (
@@ -12077,6 +12340,15 @@ class StateWriter:
                 raise TransitionError(
                     "Study diagnosis lacks a typed primary research layer"
                 ) from exc
+            raw_changed_layers = study.payload.get("changed_domains", [])
+            try:
+                changed_layers = tuple(
+                    ResearchLayer(value) for value in raw_changed_layers
+                )
+            except (TypeError, ValueError) as exc:
+                raise TransitionError(
+                    "Study diagnosis lacks typed changed research layers"
+                ) from exc
             architecture = self._study_resolved_architecture_family(
                 index=index,
                 study=study,
@@ -12084,6 +12356,8 @@ class StateWriter:
             allowed_actions, allowed_layers = diagnosis_branch(
                 diagnosis.evidence_state,
                 primary_layer=primary_layer,
+                changed_layers=changed_layers,
+                reason_code=diagnosis.diagnosis_reason_code,
             )
             evidence_basis = self._study_diagnosis_evidence_basis(
                 index,
@@ -12094,6 +12368,9 @@ class StateWriter:
                 **diagnosis.to_identity_payload(),
                 "allowed_actions": list(allowed_actions),
                 "allowed_research_layers": list(allowed_layers),
+                "claim_scoped_diagnosis": (
+                    None if claim_scoped is None else claim_scoped.to_payload()
+                ),
                 "evidence_basis": evidence_basis,
                 "mission_id": science["active_mission"],
                 "portfolio_axis_id": study.payload.get("portfolio_axis_id"),
@@ -12107,56 +12384,10 @@ class StateWriter:
                 "study_outcome": outcome,
                 "system_architecture_family": architecture,
             }
-            prior_diagnoses: list[IndexRecord] = []
-            for record in index.records_by_payload_text(
-                "study-diagnosis",
-                "mission_id",
-                science["active_mission"],
-            ):
-                if (
-                    record.payload.get("evidence_state")
-                    in {
-                        EvidenceState.ENGINEERING_GAP.value,
-                        EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value,
-                    }
-                ):
-                    continue
-                prior_study_id = record.payload.get("study_id")
-                prior_study = (
-                    None
-                    if not isinstance(prior_study_id, str)
-                    else index.get("study-open", prior_study_id)
-                )
-                if (
-                    prior_study is not None
-                    and self._study_resolved_architecture_family(
-                        index=index,
-                        study=prior_study,
-                    )
-                    == architecture
-                ):
-                    prior_diagnoses.append(record)
-            reviewed_ids: set[str] = set()
-            for review in index.records_by_payload_text(
-                "architecture-review",
-                "mission_id",
-                science["active_mission"],
-            ):
-                reviewed_ids.update(
-                    value
-                    for value in review.payload.get(
-                        "covered_diagnosis_ids", []
-                    )
-                    if isinstance(value, str)
-                )
-            unreviewed = [
-                record for record in prior_diagnoses if record.record_id not in reviewed_ids
-            ]
             current_is_reviewable = diagnosis.evidence_state not in {
                 EvidenceState.ENGINEERING_GAP,
                 EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
             }
-            review_records = [*unreviewed]
             diagnosis_sequence_head = index.event_head(
                 f"study-diagnosis:{science['active_mission']}"
             )
@@ -12175,66 +12406,16 @@ class StateWriter:
                 event_stream=f"study-diagnosis:{science['active_mission']}",
                 event_sequence=diagnosis_sequence,
             )
-            if current_is_reviewable:
-                review_records.append(diagnosis_record)
             snapshot_id = study.payload.get("portfolio_snapshot_id")
-            snapshot = (
-                None
-                if not isinstance(snapshot_id, str)
-                else index.get("portfolio-snapshot", snapshot_id)
-            )
-            standard = (
-                None if snapshot is None else snapshot.payload.get("exhaustion_standard")
-            )
             trigger_record: IndexRecord | None = None
-            if isinstance(standard, dict) and current_is_reviewable:
-                minimum_studies = standard.get(
-                    "architecture_review_minimum_studies"
+            if current_is_reviewable:
+                trigger_record = self._pending_architecture_review_trigger(
+                    index=index,
+                    mission_id=science["active_mission"],
+                    portfolio_snapshot_id=snapshot_id,
+                    architecture_family=architecture,
+                    pending_diagnoses=(diagnosis_record,),
                 )
-                minimum_axes = standard.get("architecture_review_minimum_axes")
-                axis_ids = {
-                    record.payload.get("portfolio_axis_id")
-                    for record in review_records
-                }
-                if (
-                    type(minimum_studies) is int
-                    and type(minimum_axes) is int
-                    and len(review_records) >= minimum_studies
-                    and len(axis_ids) >= minimum_axes
-                    and None not in axis_ids
-                ):
-                    trigger_payload = {
-                        "diagnosis_ids": sorted(
-                            record.record_id for record in review_records
-                        ),
-                        "mission_id": science["active_mission"],
-                        "portfolio_axis_ids": sorted(axis_ids),
-                        "portfolio_snapshot_id": snapshot_id,
-                        "primary_research_layers": sorted(
-                            {
-                                record.payload["primary_research_layer"]
-                                for record in review_records
-                            }
-                        ),
-                        "schema": "architecture_review_trigger.v1",
-                        "system_architecture_family": architecture,
-                        "threshold": {
-                            "minimum_distinct_axes": minimum_axes,
-                            "minimum_studies": minimum_studies,
-                        },
-                    }
-                    trigger_id = canonical_digest(
-                        domain="architecture-review-trigger",
-                        payload=trigger_payload,
-                    )
-                    trigger_record = _record(
-                        kind="architecture-review-trigger",
-                        record_id=trigger_id,
-                        subject=f"Mission:{science['active_mission']}",
-                        status="required",
-                        fingerprint=trigger_id,
-                        payload=trigger_payload,
-                    )
             body = self._body(current)
             if trigger_record is None:
                 body["next_action"] = {
@@ -12287,6 +12468,445 @@ class StateWriter:
             operation_id=operation_id,
             subject=f"Study:{diagnosis.study_id}",
             payload={"study_diagnosis_id": diagnosis.identity},
+            prepare=prepare,
+        )
+
+    def record_study_diagnosis_corrections(
+        self,
+        *,
+        audit: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Additively correct every evidence-derived diagnosis mismatch.
+
+        Original diagnosis, Study close, Job evidence, replay satisfaction,
+        trials, and Decisions remain immutable.  The correction only removes
+        invalid axis-level confirmation credit and supplies the effective
+        claim-scoped Portfolio branch.
+        """
+
+        from axiom_rift.operations.effective_study_diagnosis import (
+            EffectiveStudyDiagnosisError,
+        )
+        from axiom_rift.research.governance import (
+            EvidenceState,
+            ResearchLayer,
+            diagnosis_branch,
+        )
+        from axiom_rift.research.study_diagnosis_correction import (
+            StudyDiagnosisCorrectionAudit,
+        )
+
+        self._require_study_close_delivery_guard()
+        if self.engineering_fixture:
+            raise TransitionError(
+                "engineering fixtures do not correct scientific history"
+            )
+        if not isinstance(audit, StudyDiagnosisCorrectionAudit):
+            raise TransitionError(
+                "diagnosis correction requires a typed audit inventory"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("diagnosis correction requires control")
+            science = current["scientific"]
+            if science.get("active_mission") != audit.mission_id or any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "diagnosis correction requires one idle active Mission"
+                )
+            next_action = current.get("next_action", {})
+            if next_action.get("kind") != "portfolio_decision":
+                raise TransitionError(
+                    "diagnosis correction requires a stable Portfolio boundary"
+                )
+            journal_head = current.get("heads", {}).get("journal", {})
+            if (
+                audit.prior_journal_sequence != journal_head.get("sequence")
+                or audit.prior_journal_event_id != journal_head.get("event_id")
+            ):
+                raise TransitionError(
+                    "diagnosis correction audit is stale for the Journal head"
+                )
+
+            from axiom_rift.operations.effective_study_diagnosis import (
+                effective_study_diagnoses_for_mission,
+            )
+
+            try:
+                effective_mission_diagnoses = (
+                    effective_study_diagnoses_for_mission(
+                        index,
+                        mission_id=audit.mission_id,
+                    )
+                )
+            except EffectiveStudyDiagnosisError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            mismatches: list[tuple[IndexRecord, Any]] = []
+            for effective in effective_mission_diagnoses:
+                original = effective.original
+                study_id = original.payload.get("study_id")
+                if not isinstance(study_id, str):
+                    raise RecoveryRequired(
+                        "Study diagnosis correction lost its Study identity"
+                    )
+                try:
+                    pattern = self._study_claim_scoped_diagnosis(
+                        index,
+                        study_id=study_id,
+                    )
+                except TransitionError:
+                    if effective.status == EvidenceState.ENGINEERING_GAP.value:
+                        continue
+                    raise
+                if (
+                    pattern is not None
+                    and pattern.evidence_state.value != effective.status
+                ):
+                    if effective.correction is not None:
+                        raise RecoveryRequired(
+                            "effective diagnosis correction conflicts with evidence"
+                        )
+                    mismatches.append((original, pattern))
+            mismatch_ids = tuple(
+                sorted(original.record_id for original, _pattern in mismatches)
+            )
+            if mismatch_ids != audit.original_diagnosis_ids:
+                raise TransitionError(
+                    "diagnosis correction audit inventory is incomplete or stale"
+                )
+
+            audit_payload = audit.to_identity_payload()
+            audit_digest = audit.identity.removeprefix(
+                "diagnosis-correction-audit:"
+            )
+            audit_record = _record(
+                kind="study-diagnosis-correction-audit",
+                record_id=audit.identity,
+                subject=f"Mission:{audit.mission_id}",
+                status="complete_mismatch_inventory",
+                fingerprint=audit_digest,
+                payload=audit_payload,
+            )
+
+            correction_records: list[IndexRecord] = []
+            corrections_by_original: dict[str, IndexRecord] = {}
+            state_overrides: dict[str, str] = {}
+            architecture_families: set[str] = set()
+            decisions_by_diagnosis: dict[str, list[IndexRecord]] = {}
+            for decision in index.records_by_kind("portfolio-decision"):
+                diagnosis_id = decision.payload.get("study_diagnosis_id")
+                if isinstance(diagnosis_id, str):
+                    decisions_by_diagnosis.setdefault(
+                        diagnosis_id,
+                        [],
+                    ).append(decision)
+            satisfactions_by_diagnosis: dict[str, list[str]] = {}
+            for resolution in index.records_by_kind(
+                "historical-replay-obligation-resolution"
+            ):
+                resolution_payload = resolution.payload.get("resolution")
+                diagnosis_id = (
+                    None
+                    if not isinstance(resolution_payload, Mapping)
+                    else resolution_payload.get("study_diagnosis_id")
+                )
+                if isinstance(diagnosis_id, str):
+                    satisfactions_by_diagnosis.setdefault(
+                        diagnosis_id,
+                        [],
+                    ).append(resolution.record_id)
+            reviewed_diagnosis_ids: set[str] = set()
+            for review in index.records_by_payload_text(
+                "architecture-review",
+                "mission_id",
+                audit.mission_id,
+            ):
+                reviewed_diagnosis_ids.update(
+                    value
+                    for value in review.payload.get("covered_diagnosis_ids", [])
+                    if isinstance(value, str)
+                )
+            for original, pattern in sorted(
+                mismatches,
+                key=lambda item: item[0].record_id,
+            ):
+                stream = f"study-diagnosis-correction:{original.record_id}"
+                if index.event_head(stream) is not None:
+                    raise RecoveryRequired(
+                        "Study diagnosis already has correction authority"
+                    )
+                study_id = original.payload["study_id"]
+                study = index.get("study-open", study_id)
+                if study is None:
+                    raise RecoveryRequired(
+                        "diagnosis correction lost its Study record"
+                    )
+                try:
+                    primary_layer = ResearchLayer(
+                        study.payload["primary_research_layer"]
+                    )
+                    changed_layers = tuple(
+                        ResearchLayer(value)
+                        for value in study.payload.get("changed_domains", [])
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise RecoveryRequired(
+                        "diagnosis correction Study layers are malformed"
+                    ) from exc
+                allowed_actions, allowed_layers = diagnosis_branch(
+                    pattern.evidence_state,
+                    primary_layer=primary_layer,
+                    changed_layers=changed_layers,
+                    reason_code=pattern.reason_code,
+                )
+                completions = self._study_primary_scientific_completions(
+                    index,
+                    study_id=study_id,
+                )
+                completion_basis: list[dict[str, str]] = []
+                for completion in completions:
+                    scientific = completion.payload.get("scientific")
+                    adjudication = (
+                        None
+                        if not isinstance(scientific, Mapping)
+                        else scientific.get("adjudication")
+                    )
+                    executable_id = (
+                        None
+                        if not isinstance(scientific, Mapping)
+                        else scientific.get("executable_id")
+                    )
+                    if (
+                        not isinstance(adjudication, Mapping)
+                        or not isinstance(executable_id, str)
+                    ):
+                        raise RecoveryRequired(
+                            "diagnosis correction completion basis is malformed"
+                        )
+                    completion_basis.append(
+                        {
+                            "adjudication_digest": canonical_digest(
+                                domain="scientific-adjudication",
+                                payload=dict(adjudication),
+                            ),
+                            "completion_record_id": completion.record_id,
+                            "executable_id": executable_id,
+                        }
+                    )
+                satisfaction_ids = tuple(
+                    sorted(
+                        satisfactions_by_diagnosis.get(original.record_id, [])
+                    )
+                )
+                decision_qualifications: list[dict[str, str]] = []
+                for decision in decisions_by_diagnosis.get(
+                    original.record_id,
+                    [],
+                ):
+                    active = self._active_portfolio_decision(
+                        index,
+                        decision.record_id,
+                    )
+                    action = decision.status
+                    qualification = (
+                        "withdrawn_no_effect"
+                        if active is None
+                        else "historical_only_no_confirmation_credit"
+                        if action == "preserve"
+                        else "independent_protocol_authority_preserved"
+                        if action == "revise_protocol"
+                        else "direction_compatible_no_inherited_positive_credit"
+                        if action in allowed_actions
+                        else "historical_only_requires_reassessment"
+                    )
+                    decision_qualifications.append(
+                        {
+                            "action": action,
+                            "decision_id": decision.record_id,
+                            "qualification": qualification,
+                        }
+                    )
+                architecture = self._study_resolved_architecture_family(
+                    index=index,
+                    study=study,
+                )
+                architecture_families.add(architecture)
+                correction_payload = {
+                    "affected_completion_record_ids": sorted(
+                        reference.get("record_id")
+                        for reference in original.payload.get(
+                            "evidence_basis", []
+                        )
+                        if isinstance(reference, Mapping)
+                        and reference.get("kind") == "job-completed"
+                        and isinstance(reference.get("record_id"), str)
+                    ),
+                    "allowed_actions": list(allowed_actions),
+                    "allowed_research_layers": list(allowed_layers),
+                    "audit_id": audit.identity,
+                    "audit_protocol_id": audit.protocol_id,
+                    "candidate_authority_delta": 0,
+                    "claim_scoped_diagnosis": pattern.to_payload(),
+                    "completion_basis": completion_basis,
+                    "confirmation_credit_delta": (
+                        -1
+                        if original.payload.get("evidence_state")
+                        == EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value
+                        and pattern.evidence_state
+                        is not EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION
+                        else 0
+                    ),
+                    "decision_qualifications": decision_qualifications,
+                    "effective_confidence": pattern.confidence.value,
+                    "effective_evidence_state": pattern.evidence_state.value,
+                    "effective_reason_code": pattern.reason_code,
+                    "evidence_basis_digest": canonical_digest(
+                        domain="study-diagnosis-evidence-basis",
+                        payload=original.payload.get("evidence_basis", []),
+                    ),
+                    "holdout_reveal_delta": 0,
+                    "mission_id": audit.mission_id,
+                    "original_confidence": original.payload.get("confidence"),
+                    "original_diagnosis_id": original.record_id,
+                    "original_diagnosis_payload_digest": canonical_digest(
+                        domain="study-diagnosis-payload",
+                        payload=dict(original.payload),
+                    ),
+                    "original_evidence_state": original.payload.get(
+                        "evidence_state"
+                    ),
+                    "portfolio_axis_id": original.payload.get(
+                        "portfolio_axis_id"
+                    ),
+                    "portfolio_axis_identity": original.payload.get(
+                        "portfolio_axis_identity"
+                    ),
+                    "portfolio_snapshot_id": original.payload.get(
+                        "portfolio_snapshot_id"
+                    ),
+                    "projection_scope": (
+                        "study_primary_question_over_all_completion_references"
+                    ),
+                    "replay_satisfaction_delta": 0,
+                    "replay_satisfaction_record_ids": list(satisfaction_ids),
+                    "schema": "study_diagnosis_correction.v1",
+                    "scientific_trial_delta": 0,
+                    "study_close_record_id": original.payload.get(
+                        "study_close_record_id"
+                    ),
+                    "study_id": study_id,
+                    "system_architecture_family": architecture,
+                }
+                digest = canonical_digest(
+                    domain="study-diagnosis-correction",
+                    payload=correction_payload,
+                )
+                correction = _record(
+                    kind="study-diagnosis-correction",
+                    record_id="diagnosis-correction:" + digest,
+                    subject=original.subject,
+                    status=pattern.evidence_state.value,
+                    fingerprint=digest,
+                    payload=correction_payload,
+                    event_stream=stream,
+                    event_sequence=1,
+                )
+                correction_records.append(correction)
+                corrections_by_original[original.record_id] = correction
+                state_overrides[original.record_id] = pattern.evidence_state.value
+
+            snapshot_id = next_action.get("portfolio_snapshot_id")
+            if not isinstance(snapshot_id, str):
+                raise TransitionError(
+                    "diagnosis correction lost its Portfolio snapshot"
+                )
+            triggers = {
+                trigger.record_id: trigger
+                for architecture in sorted(architecture_families)
+                for trigger in (
+                    self._pending_architecture_review_trigger(
+                        index=index,
+                        mission_id=audit.mission_id,
+                        portfolio_snapshot_id=snapshot_id,
+                        architecture_family=architecture,
+                        effective_state_overrides=state_overrides,
+                        effective_authority_overrides={
+                            original_id: (
+                                "study-diagnosis-correction",
+                                correction.record_id,
+                            )
+                            for original_id, correction
+                            in corrections_by_original.items()
+                        },
+                        effective_diagnoses=effective_mission_diagnoses,
+                        reviewed_diagnosis_ids=frozenset(
+                            reviewed_diagnosis_ids
+                        ),
+                    ),
+                )
+                if trigger is not None
+            }
+            if len(triggers) > 1:
+                raise TransitionError(
+                    "diagnosis correction requires a typed architecture review queue"
+                )
+            body = self._body(current)
+            if triggers:
+                trigger = next(iter(triggers.values()))
+                body["next_action"] = {
+                    "kind": "review_architecture",
+                    "trigger_record_id": trigger.record_id,
+                }
+                records = [audit_record, *correction_records, trigger]
+            else:
+                current_diagnosis_id = next_action.get("study_diagnosis_id")
+                current_correction = corrections_by_original.get(
+                    current_diagnosis_id
+                )
+                body["next_action"] = {
+                    **next_action,
+                    "diagnosis_correction_audit_id": audit.identity,
+                    **(
+                        {}
+                        if current_correction is None
+                        else {
+                            "study_diagnosis_correction_id": (
+                                current_correction.record_id
+                            )
+                        }
+                    ),
+                }
+                records = [audit_record, *correction_records]
+            return body, records, {
+                "audit_id": audit.identity,
+                "candidate_authority_delta": 0,
+                "corrected_diagnosis_count": len(correction_records),
+                "holdout_reveal_delta": 0,
+                "replay_satisfaction_delta": 0,
+                "scientific_trial_delta": 0,
+                "study_diagnosis_correction_ids": sorted(
+                    record.record_id for record in correction_records
+                ),
+            }
+
+        return self._commit(
+            event_kind="study_diagnoses_corrected",
+            operation_id=operation_id,
+            subject=f"Mission:{audit.mission_id}",
+            payload={"audit_id": audit.identity},
             prepare=prepare,
         )
 
@@ -12356,6 +12976,56 @@ class StateWriter:
                     "primary_research_layers"
                 ],
             }
+            trigger_schema = trigger.payload.get("schema")
+            if trigger_schema == "architecture_review_trigger.v2":
+                authorities = trigger.payload.get("diagnosis_authorities")
+                if not isinstance(authorities, list):
+                    raise RecoveryRequired(
+                        "architecture review trigger authority is malformed"
+                    )
+                from axiom_rift.operations.effective_study_diagnosis import (
+                    EffectiveStudyDiagnosisError,
+                    effective_study_diagnosis,
+                )
+
+                for authority in authorities:
+                    if not isinstance(authority, Mapping):
+                        raise RecoveryRequired(
+                            "architecture review trigger authority is malformed"
+                        )
+                    original_id = authority.get("original_diagnosis_id")
+                    if not isinstance(original_id, str):
+                        raise RecoveryRequired(
+                            "architecture review trigger authority is malformed"
+                        )
+                    try:
+                        effective = effective_study_diagnosis(
+                            index,
+                            original_id,
+                        )
+                    except EffectiveStudyDiagnosisError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
+                    expected_kind = (
+                        "study-diagnosis"
+                        if effective.correction is None
+                        else "study-diagnosis-correction"
+                    )
+                    if (
+                        authority.get("effective_authority_kind")
+                        != expected_kind
+                        or authority.get("effective_authority_record_id")
+                        != effective.authority_record_id
+                    ):
+                        raise TransitionError(
+                            "architecture review diagnosis authority drifted"
+                        )
+                payload["diagnosis_authorities"] = [
+                    dict(authority) for authority in authorities
+                ]
+            elif trigger_schema != "architecture_review_trigger.v1":
+                raise RecoveryRequired(
+                    "architecture review trigger schema is unsupported"
+                )
             continuation = None
             if (
                 review.conclusion
@@ -18078,12 +18748,70 @@ class StateWriter:
                         axis=target_axis,
                     )
                 )
-            diagnosis_id = next_action.get("study_diagnosis_id")
-            diagnosis = (
-                None
-                if not isinstance(diagnosis_id, str)
-                else _index.get("study-diagnosis", diagnosis_id)
+            try:
+                diagnosis_authority = DiagnosisAuthorityContext.from_mapping(
+                    next_action
+                )
+            except DiagnosisAuthorityContextError as exc:
+                raise TransitionError(str(exc)) from exc
+            diagnosis_id = diagnosis_authority.study_diagnosis_id
+            diagnosis_correction_id = (
+                diagnosis_authority.study_diagnosis_correction_id
             )
+            diagnosis_correction_audit_id = (
+                diagnosis_authority.diagnosis_correction_audit_id
+            )
+            diagnosis = None
+            if isinstance(diagnosis_id, str):
+                from axiom_rift.operations.effective_study_diagnosis import (
+                    EffectiveStudyDiagnosisError,
+                    effective_study_diagnosis,
+                )
+
+                try:
+                    diagnosis = effective_study_diagnosis(
+                        _index,
+                        diagnosis_id,
+                    )
+                except EffectiveStudyDiagnosisError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                observed_correction_id = (
+                    None
+                    if diagnosis.correction is None
+                    else diagnosis.correction.record_id
+                )
+                if diagnosis_correction_id != observed_correction_id:
+                    raise TransitionError(
+                        "Portfolio Decision diagnosis correction is absent or stale"
+                    )
+                observed_audit_id = (
+                    None
+                    if diagnosis.correction is None
+                    else diagnosis.correction.payload.get("audit_id")
+                )
+                if (
+                    diagnosis_correction_audit_id is not None
+                    and not isinstance(diagnosis_correction_audit_id, str)
+                ) or (
+                    diagnosis.correction is not None
+                    and diagnosis_correction_audit_id != observed_audit_id
+                ):
+                    raise TransitionError(
+                        "Portfolio Decision diagnosis correction audit is absent or stale"
+                    )
+                if isinstance(diagnosis_correction_audit_id, str):
+                    audit_record = _index.get(
+                        "study-diagnosis-correction-audit",
+                        diagnosis_correction_audit_id,
+                    )
+                    if (
+                        audit_record is None
+                        or audit_record.subject
+                        != f"Mission:{science['active_mission']}"
+                    ):
+                        raise RecoveryRequired(
+                            "Portfolio Decision diagnosis correction audit is unavailable"
+                        )
             diagnosis_structural_forest_exit = False
             if isinstance(diagnosis_id, str):
                 if (
@@ -18233,6 +18961,30 @@ class StateWriter:
                 ):
                     raise TransitionError(
                         "quant-team review omits its Study-diagnosis basis"
+                    )
+                if (
+                    review is not None
+                    and diagnosis.correction is not None
+                    and (
+                        "study-diagnosis-correction",
+                        diagnosis.correction.record_id,
+                    )
+                    not in review_basis
+                ):
+                    raise TransitionError(
+                        "quant-team review omits its effective diagnosis correction"
+                    )
+                if (
+                    review is not None
+                    and isinstance(diagnosis_correction_audit_id, str)
+                    and (
+                        "study-diagnosis-correction-audit",
+                        diagnosis_correction_audit_id,
+                    )
+                    not in review_basis
+                ):
+                    raise TransitionError(
+                        "quant-team review omits its diagnosis correction audit"
                     )
             architecture_review_id = next_action.get("architecture_review_id")
             architecture_review = (
@@ -18437,6 +19189,14 @@ class StateWriter:
                 )
                 if isinstance(diagnosis_id, str):
                     body["next_action"]["study_diagnosis_id"] = diagnosis_id
+                if isinstance(diagnosis_correction_id, str):
+                    body["next_action"]["study_diagnosis_correction_id"] = (
+                        diagnosis_correction_id
+                    )
+                if isinstance(diagnosis_correction_audit_id, str):
+                    body["next_action"]["diagnosis_correction_audit_id"] = (
+                        diagnosis_correction_audit_id
+                    )
                 if isinstance(architecture_review_id, str):
                     body["next_action"]["architecture_review_id"] = (
                         architecture_review_id
@@ -18514,7 +19274,11 @@ class StateWriter:
                     "source_authority_subject_ids": list(
                         source_authority_subject_ids
                     ),
+                    "diagnosis_correction_audit_id": (
+                        diagnosis_correction_audit_id
+                    ),
                     "study_diagnosis_id": diagnosis_id,
+                    "study_diagnosis_correction_id": diagnosis_correction_id,
                     "target_axis_identity": target_axis["axis_identity"],
                     "resolved_architecture_family": resolved_architecture_family,
                     "replacement_architecture_equivalence": (
@@ -18817,9 +19581,19 @@ class StateWriter:
                         "withdrawn Decision replay constraints are stale"
                     )
                 replacement_action.update(stored_replay)
-            diagnosis_id = decision.payload.get("study_diagnosis_id")
-            if isinstance(diagnosis_id, str):
-                replacement_action["study_diagnosis_id"] = diagnosis_id
+            try:
+                diagnosis_authority = DiagnosisAuthorityContext.from_mapping(
+                    decision.payload
+                )
+                diagnosis_authority.require_effective(
+                    index,
+                    mission_id=mission_id,
+                )
+            except DiagnosisAuthorityContextError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            replacement_action.update(
+                diagnosis_authority.to_action_fields()
+            )
             review_id = decision.payload.get("architecture_review_id")
             if isinstance(review_id, str):
                 review = index.get("architecture-review", review_id)
@@ -19193,6 +19967,26 @@ class StateWriter:
                 "portfolio_snapshot_id": manifest.portfolio_snapshot_id,
                 "study_diagnosis_id": manifest.study_diagnosis_id,
             }
+            try:
+                diagnosis_authority = DiagnosisAuthorityContext.from_mapping(
+                    decision.payload
+                )
+                diagnosis_authority.require_effective(
+                    index,
+                    mission_id=mission_id,
+                )
+            except DiagnosisAuthorityContextError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            if (
+                diagnosis_authority.study_diagnosis_id
+                != manifest.study_diagnosis_id
+            ):
+                raise TransitionError(
+                    "execution-plan withdrawal diagnosis authority drifted"
+                )
+            replacement_action.update(
+                diagnosis_authority.to_action_fields()
+            )
             if replay_constraints is not None:
                 replacement_action.update(replay_constraints)
             body = self._body(current)
@@ -19486,6 +20280,19 @@ class StateWriter:
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": manifest.portfolio_snapshot_id,
             }
+            try:
+                diagnosis_authority = DiagnosisAuthorityContext.from_mapping(
+                    decision.payload
+                )
+                diagnosis_authority.require_effective(
+                    index,
+                    mission_id=mission_id,
+                )
+            except DiagnosisAuthorityContextError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            replacement_action.update(
+                diagnosis_authority.to_action_fields()
+            )
             if replay_constraints is not None:
                 replacement_action.update(replay_constraints)
             try:
@@ -24760,6 +25567,21 @@ class StateWriter:
                     ],
                     "target_id": chosen["target_id"],
                 }
+                try:
+                    parity_diagnosis_authority = (
+                        DiagnosisAuthorityContext.from_mapping(
+                            decision.payload
+                        )
+                    )
+                    parity_diagnosis_authority.require_effective(
+                        index,
+                        mission_id=science["active_mission"],
+                    )
+                except DiagnosisAuthorityContextError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                execute_action.update(
+                    parity_diagnosis_authority.to_action_fields()
+                )
                 reroute_action: dict[str, Any] | None = None
                 if disposition == "accept_component_parity":
                     review_id = decision.payload.get("architecture_review_id")
@@ -24852,11 +25674,20 @@ class StateWriter:
                                 ],
                             }
                     diagnosis_id = decision.payload.get("study_diagnosis_id")
-                    diagnosis = (
-                        None
-                        if not isinstance(diagnosis_id, str)
-                        else index.get("study-diagnosis", diagnosis_id)
-                    )
+                    diagnosis = None
+                    if isinstance(diagnosis_id, str):
+                        from axiom_rift.operations.effective_study_diagnosis import (
+                            EffectiveStudyDiagnosisError,
+                            effective_study_diagnosis,
+                        )
+
+                        try:
+                            diagnosis = effective_study_diagnosis(
+                                index,
+                                diagnosis_id,
+                            )
+                        except EffectiveStudyDiagnosisError as exc:
+                            raise RecoveryRequired(str(exc)) from exc
                     if reroute_action is None and diagnosis is not None:
                         snapshot = index.get(
                             "portfolio-snapshot",
@@ -24965,6 +25796,13 @@ class StateWriter:
                             "kind": "review_architecture",
                             "trigger_record_id": trigger.record_id,
                         }
+                if (
+                    reroute_action is not None
+                    and reroute_action.get("kind") == "portfolio_decision"
+                ):
+                    reroute_action.update(
+                        parity_diagnosis_authority.to_action_fields()
+                    )
                 body["next_action"] = (
                     execute_action if reroute_action is None else reroute_action
                 )
@@ -27901,6 +28739,10 @@ class StateWriter:
             derive_axis_evidence_binding,
             required_axes_scientific_references,
         )
+        from axiom_rift.operations.effective_study_diagnosis import (
+            EffectiveStudyDiagnosisError,
+            effective_study_diagnoses_by_study,
+        )
         from axiom_rift.research.axis_disposition import (
             AxisDisposition,
             AxisDispositionAction,
@@ -28018,6 +28860,13 @@ class StateWriter:
                 )
             except AxisDispositionEvidenceError as exc:
                 raise TransitionError(str(exc)) from exc
+            try:
+                diagnosis_projection = effective_study_diagnoses_by_study(
+                    index,
+                    mission_id=mission_id,
+                )
+            except EffectiveStudyDiagnosisError as exc:
+                raise RecoveryRequired(str(exc)) from exc
             records: list[IndexRecord] = []
             accepted_ids: list[str] = []
             for disposition in normalized:
@@ -28049,6 +28898,7 @@ class StateWriter:
                             mission_id=mission_id,
                             axis_id=disposition.axis_id,
                             axis_identity=disposition.axis_identity,
+                            diagnosis_projection=diagnosis_projection,
                         )
                         for reference in disposition.evidence_references
                     )
@@ -28166,6 +29016,10 @@ class StateWriter:
             aggregate_axis_evidence_state,
             derive_axis_evidence_binding,
             required_axes_scientific_references,
+        )
+        from axiom_rift.operations.effective_study_diagnosis import (
+            EffectiveStudyDiagnosisError,
+            effective_study_diagnoses_by_study,
         )
         from axiom_rift.research.axis_disposition import (
             AxisDispositionAction,
@@ -28330,6 +29184,13 @@ class StateWriter:
                 )
             except AxisDispositionEvidenceError as exc:
                 raise TransitionError(str(exc)) from exc
+            try:
+                diagnosis_projection = effective_study_diagnoses_by_study(
+                    index,
+                    mission_id=science["active_mission"],
+                )
+            except EffectiveStudyDiagnosisError as exc:
+                raise RecoveryRequired(str(exc)) from exc
             family_executables: dict[str, set[str]] = {
                 family: set() for family in families
             }
@@ -28444,6 +29305,7 @@ class StateWriter:
                             mission_id=science["active_mission"],
                             axis_id=axis_id,
                             axis_identity=axis_identity,
+                            diagnosis_projection=diagnosis_projection,
                         )
                         for reference in typed_references
                     )

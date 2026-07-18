@@ -141,6 +141,11 @@ from axiom_rift.research.semantic_question import (
     SemanticQuestionLineageProposal,
     SemanticQuestionRelation,
 )
+from axiom_rift.research.scientific_diagnosis import (
+    ScientificDiagnosisError,
+    ScientificDiagnosisPattern,
+    diagnose_scientific_adjudications,
+)
 from axiom_rift.research.trials import NegativeMemory
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
@@ -513,6 +518,8 @@ class ReplayInterpretation:
     diagnosis_state: EvidenceState
     disposition: PortfolioAction
     reason_code: str
+    diagnosis_confidence: DiagnosisConfidence = DiagnosisConfidence.HIGH
+    diagnosis_pattern: ScientificDiagnosisPattern | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -768,6 +775,8 @@ _DECISION_ACTION_REVIEW_BASIS_KINDS = frozenset(
     {
         "architecture-review",
         "architecture-review-trigger",
+        "study-diagnosis-correction",
+        "study-diagnosis-correction-audit",
         "study-diagnosis",
     }
 )
@@ -893,6 +902,8 @@ def _decision_action_review_basis(
             raise RuntimeError("accepted replay Decision context is malformed")
         for field in (
             "study_diagnosis_id",
+            "study_diagnosis_correction_id",
+            "diagnosis_correction_audit_id",
             "architecture_review_id",
         ):
             durable_value = durable_context.get(field)
@@ -924,6 +935,14 @@ def _decision_action_review_basis(
     pairs: set[tuple[str, str]] = set()
     for field, kind in (
         ("study_diagnosis_id", "study-diagnosis"),
+        (
+            "study_diagnosis_correction_id",
+            "study-diagnosis-correction",
+        ),
+        (
+            "diagnosis_correction_audit_id",
+            "study-diagnosis-correction-audit",
+        ),
         ("architecture_review_id", "architecture-review"),
     ):
         record_id = context.get(field)
@@ -967,9 +986,29 @@ def _require_new_axis_diagnosis_compatibility(
     diagnosis_id = next_action.get("study_diagnosis_id")
     if not isinstance(diagnosis_id, str):
         return
-    diagnosis = index.get("study-diagnosis", diagnosis_id)
-    if diagnosis is None:
-        raise RuntimeError("replay diagnosis authority is unavailable")
+    from axiom_rift.operations.effective_study_diagnosis import (
+        EffectiveStudyDiagnosisError,
+        effective_study_diagnosis,
+    )
+
+    try:
+        diagnosis = effective_study_diagnosis(index, diagnosis_id)
+    except EffectiveStudyDiagnosisError as exc:
+        raise RuntimeError(str(exc)) from exc
+    correction_id = next_action.get("study_diagnosis_correction_id")
+    observed_correction_id = (
+        None if diagnosis.correction is None else diagnosis.correction.record_id
+    )
+    if correction_id != observed_correction_id:
+        raise RuntimeError("replay diagnosis correction authority drifted")
+    audit_id = next_action.get("diagnosis_correction_audit_id")
+    observed_audit_id = (
+        None
+        if diagnosis.correction is None
+        else diagnosis.correction.payload.get("audit_id")
+    )
+    if diagnosis.correction is not None and audit_id != observed_audit_id:
+        raise RuntimeError("replay diagnosis correction audit drifted")
     allowed_actions = set(diagnosis.payload.get("allowed_actions", ()))
     allowed_layers = set(
         diagnosis.payload.get("allowed_research_layers", ())
@@ -2643,21 +2682,38 @@ def interpret_fixed_hold_completion(
         if not isinstance(adjudication, Mapping)
         else adjudication.get("state")
     )
-    if recomputed and state in {"confirmed", "frontier", "partial_positive"}:
+    if recomputed and state in {
+        "confirmed",
+        "contradicted",
+        "frontier",
+        "partial_positive",
+        "unresolved",
+    }:
+        assert isinstance(adjudication, Mapping)
+        try:
+            diagnosis = diagnose_scientific_adjudications((adjudication,))
+        except ScientificDiagnosisError:
+            diagnosis = None
+        if diagnosis is None:
+            return ReplayInterpretation(
+                all_criteria_recomputed=False,
+                close_outcome="not_evaluable",
+                diagnosis_state=EvidenceState.NOT_IDENTIFIABLE,
+                disposition=PortfolioAction.PRESERVE,
+                reason_code="scientific_claim_diagnosis_malformed",
+                diagnosis_confidence=DiagnosisConfidence.LOW,
+            )
+        positive = state in {"confirmed", "frontier", "partial_positive"}
         return ReplayInterpretation(
             all_criteria_recomputed=True,
-            close_outcome="preserved",
-            diagnosis_state=EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
-            disposition=PortfolioAction.PRESERVE,
-            reason_code="exact_original_criteria_recomputed",
-        )
-    if recomputed and state == "contradicted":
-        return ReplayInterpretation(
-            all_criteria_recomputed=True,
-            close_outcome="pruned",
-            diagnosis_state=EvidenceState.STABILITY_CONCENTRATION,
-            disposition=PortfolioAction.PRUNE,
-            reason_code="exact_original_criteria_recomputed_negative",
+            close_outcome="preserved" if positive else "pruned",
+            diagnosis_state=diagnosis.evidence_state,
+            disposition=(
+                PortfolioAction.PRESERVE if positive else PortfolioAction.PRUNE
+            ),
+            reason_code=diagnosis.reason_code,
+            diagnosis_confidence=diagnosis.confidence,
+            diagnosis_pattern=diagnosis,
         )
     return ReplayInterpretation(
         all_criteria_recomputed=False,
@@ -2708,6 +2764,7 @@ def _workflow_interpretation(
             reason_code="pre_job_implementation_authority_invalid",
         )
     interpretations: list[ReplayInterpretation] = []
+    target_adjudication: Mapping[str, Any] | None = None
     assignments = _design_replay_assignments(design)
     for member in _design_selected_members(design):
         completion = _member_completion(writer, design, member)
@@ -2722,8 +2779,7 @@ def _workflow_interpretation(
                 )
             )
             continue
-        interpretations.append(
-            _interpret_replay_member_completion(
+        interpretation = _interpret_replay_member_completion(
                 completion,
                 criterion_ids=(
                     design.criterion_ids
@@ -2739,7 +2795,20 @@ def _workflow_interpretation(
                 ),
                 member=member,
             )
+        interpretations.append(interpretation)
+        facts = _scientific_facts(completion)
+        adjudication = (
+            None
+            if facts is None
+            else facts.get("scientific_adjudication")
         )
+        if interpretation.all_criteria_recomputed and isinstance(
+            adjudication, Mapping
+        ):
+            if member.executable.identity == design.target_executable_id:
+                if target_adjudication is not None:
+                    raise RuntimeError("replay target adjudication is ambiguous")
+                target_adjudication = adjudication
     recomputed = tuple(
         item for item in interpretations if item.all_criteria_recomputed
     )
@@ -2783,6 +2852,30 @@ def _workflow_interpretation(
                 else "selected_member_recomputation_partial"
             ),
         )
+    if target_adjudication is None:
+        return ReplayInterpretation(
+            all_criteria_recomputed=False,
+            close_outcome="not_evaluable",
+            diagnosis_state=EvidenceState.NOT_IDENTIFIABLE,
+            disposition=PortfolioAction.PRESERVE,
+            reason_code="selected_target_claim_diagnosis_absent",
+            diagnosis_confidence=DiagnosisConfidence.LOW,
+        )
+    try:
+        # Each target adjudication already contains its registered family-level
+        # causal contrast.  Mixing a control member's structural self-contrast
+        # into the primary matrix can turn a truly supported target into a
+        # false stability diagnosis.
+        diagnosis = diagnose_scientific_adjudications((target_adjudication,))
+    except ScientificDiagnosisError:
+        return ReplayInterpretation(
+            all_criteria_recomputed=False,
+            close_outcome="not_evaluable",
+            diagnosis_state=EvidenceState.NOT_IDENTIFIABLE,
+            disposition=PortfolioAction.PRESERVE,
+            reason_code="selected_member_claim_diagnosis_malformed",
+            diagnosis_confidence=DiagnosisConfidence.LOW,
+        )
     if all(
         item.disposition is PortfolioAction.PRUNE
         for item in interpretations
@@ -2790,16 +2883,20 @@ def _workflow_interpretation(
         return ReplayInterpretation(
             all_criteria_recomputed=True,
             close_outcome="pruned",
-            diagnosis_state=EvidenceState.STABILITY_CONCENTRATION,
+            diagnosis_state=diagnosis.evidence_state,
             disposition=PortfolioAction.PRUNE,
-            reason_code="exact_selected_criteria_recomputed_negative",
+            reason_code=diagnosis.reason_code,
+            diagnosis_confidence=diagnosis.confidence,
+            diagnosis_pattern=diagnosis,
         )
     return ReplayInterpretation(
         all_criteria_recomputed=True,
         close_outcome="preserved",
-        diagnosis_state=EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
+        diagnosis_state=diagnosis.evidence_state,
         disposition=PortfolioAction.PRESERVE,
-        reason_code="exact_selected_criteria_recomputed",
+        reason_code=diagnosis.reason_code,
+        diagnosis_confidence=diagnosis.confidence,
+        diagnosis_pattern=diagnosis,
     )
 
 
@@ -5510,7 +5607,9 @@ def _diagnosis(
     elif interpretation.all_criteria_recomputed:
         rationale = (
             "The exact concurrent family recomputed every original criterion; "
-            f"the target scientific state is {state}."
+            f"the scientific state is {state}, while the claim-scoped primary "
+            f"question diagnosis is {interpretation.diagnosis_state.value} "
+            f"because {interpretation.reason_code}."
         )
         counterfactual = (
             "New registered development material could change the family state "
@@ -5544,18 +5643,34 @@ def _diagnosis(
             else "Reopen only when the exact missing criterion inputs are "
             "registered for the same frozen family."
         )
+    pattern = interpretation.diagnosis_pattern
     return StudyDiagnosis(
         study_id=design.spec.study_id,
         study_close_record_id=_study_close_record(writer, design).record_id,
         evidence_state=interpretation.diagnosis_state,
         confidence=(
-            DiagnosisConfidence.HIGH
+            interpretation.diagnosis_confidence
             if interpretation.all_criteria_recomputed
             else DiagnosisConfidence.LOW
         ),
         rationale=rationale,
         counterfactual=counterfactual,
         reopen_condition=reopen_condition,
+        diagnosis_reason_code=(
+            None if pattern is None else pattern.reason_code
+        ),
+        supported_claim_ids=(
+            () if pattern is None else pattern.supported_claim_ids
+        ),
+        contradicted_claim_ids=(
+            () if pattern is None else pattern.contradicted_claim_ids
+        ),
+        unresolved_claim_ids=(
+            () if pattern is None else pattern.unresolved_claim_ids
+        ),
+        diagnostic_criterion_ids=(
+            () if pattern is None else pattern.diagnostic_criterion_ids
+        ),
     )
 
 

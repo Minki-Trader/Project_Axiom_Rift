@@ -67,6 +67,7 @@ REQUIRED_INTAKE_SURFACES = frozenset(
         "mission_terminals",
         "negative_memory",
         "portfolio_decisions",
+        "semantic_question_lineage",
         "study_kpi",
         "study_questions",
         "validator_evidence",
@@ -213,6 +214,11 @@ class StudyDiagnosis:
     rationale: str
     counterfactual: str
     reopen_condition: str
+    diagnosis_reason_code: str | None = None
+    supported_claim_ids: tuple[str, ...] = ()
+    contradicted_claim_ids: tuple[str, ...] = ()
+    unresolved_claim_ids: tuple[str, ...] = ()
+    diagnostic_criterion_ids: tuple[str, ...] = ()
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -224,6 +230,37 @@ class StudyDiagnosis:
             raise ResearchGovernanceError("diagnosis confidence is not typed")
         for name in ("rationale", "counterfactual", "reopen_condition"):
             _ascii(name, getattr(self, name))
+        claim_fields = (
+            self.supported_claim_ids,
+            self.contradicted_claim_ids,
+            self.unresolved_claim_ids,
+            self.diagnostic_criterion_ids,
+        )
+        has_claim_basis = self.diagnosis_reason_code is not None or any(claim_fields)
+        if has_claim_basis:
+            _ascii("diagnosis_reason_code", self.diagnosis_reason_code)
+        for name in (
+            "supported_claim_ids",
+            "contradicted_claim_ids",
+            "unresolved_claim_ids",
+            "diagnostic_criterion_ids",
+        ):
+            object.__setattr__(
+                self,
+                name,
+                _ascii_values(name, getattr(self, name), minimum=0),
+            )
+        claim_partitions = (
+            set(self.supported_claim_ids),
+            set(self.contradicted_claim_ids),
+            set(self.unresolved_claim_ids),
+        )
+        if any(
+            left & right
+            for ordinal, left in enumerate(claim_partitions)
+            for right in claim_partitions[ordinal + 1 :]
+        ):
+            raise ResearchGovernanceError("diagnosis claim partitions overlap")
         object.__setattr__(
             self,
             "identity",
@@ -235,7 +272,7 @@ class StudyDiagnosis:
         )
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
-        return {
+        payload: dict[str, CanonicalValue] = {
             "confidence": self.confidence.value,
             "counterfactual": self.counterfactual,
             "evidence_state": self.evidence_state.value,
@@ -245,6 +282,20 @@ class StudyDiagnosis:
             "study_close_record_id": self.study_close_record_id,
             "study_id": self.study_id,
         }
+        if self.diagnosis_reason_code is not None:
+            payload.update(
+                {
+                    "contradicted_claim_ids": list(self.contradicted_claim_ids),
+                    "diagnosis_reason_code": self.diagnosis_reason_code,
+                    "diagnostic_criterion_ids": list(
+                        self.diagnostic_criterion_ids
+                    ),
+                    "schema": "study_diagnosis.v2",
+                    "supported_claim_ids": list(self.supported_claim_ids),
+                    "unresolved_claim_ids": list(self.unresolved_claim_ids),
+                }
+            )
+        return payload
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -391,6 +442,8 @@ def diagnosis_branch(
     evidence_state: EvidenceState,
     *,
     primary_layer: ResearchLayer,
+    changed_layers: tuple[ResearchLayer, ...] = (),
+    reason_code: str | None = None,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Return writer-enforced local actions and research-layer branches."""
 
@@ -470,8 +523,29 @@ def diagnosis_branch(
         ),
         EvidenceState.ENGINEERING_GAP: (primary_layer,),
     }
+    if type(changed_layers) is not tuple or any(
+        not isinstance(layer, ResearchLayer) for layer in changed_layers
+    ):
+        raise ResearchGovernanceError("changed diagnosis layers are not typed")
+    routed_layers = set(layers[evidence_state])
+    if evidence_state is EvidenceState.ABSENT_INFORMATION:
+        # A failed changed mechanism must remain researchable in the layer that
+        # was actually manipulated.  Defaults remain available as alternative
+        # explanations instead of forcing every null result back to features.
+        routed_layers.add(primary_layer)
+        routed_layers.update(changed_layers)
+        if reason_code == "registered_control_contrast_uniformly_contradicted":
+            if ResearchLayer.EXECUTION in changed_layers:
+                routed_layers.update(
+                    {
+                        ResearchLayer.SELECTOR,
+                        ResearchLayer.TRADE,
+                    }
+                )
+            if ResearchLayer.SYNTHESIS in changed_layers:
+                routed_layers.add(ResearchLayer.PORTFOLIO)
     return tuple(sorted(actions[evidence_state])), tuple(
-        sorted(layer.value for layer in layers[evidence_state])
+        sorted(layer.value for layer in routed_layers)
     )
 
 

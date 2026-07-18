@@ -181,6 +181,56 @@ class ArchitectureReviewDirectionTests(unittest.TestCase):
                 trigger_payload=tampered,
             )
 
+    def test_review_binding_preserves_effective_diagnosis_authorities(self) -> None:
+        direction = new_direction()
+        constraint = constraint_from_direction(
+            architecture_review_id=REVIEW_ID,
+            direction=direction,
+        )
+        authorities = [
+            {
+                "effective_authority_kind": (
+                    "study-diagnosis" if ordinal == 0 else "study-diagnosis-correction"
+                ),
+                "effective_authority_record_id": (
+                    diagnosis_id
+                    if ordinal == 0
+                    else "diagnosis-correction:" + D2
+                ),
+                "original_diagnosis_id": diagnosis_id,
+            }
+            for ordinal, diagnosis_id in enumerate(DIAGNOSES)
+        ]
+        trigger = {
+            **trigger_payload(),
+            "diagnosis_authorities": authorities,
+            "schema": "architecture_review_trigger.v2",
+        }
+        review = {
+            **review_payload(direction),
+            "diagnosis_authorities": authorities,
+        }
+        self.assertEqual(
+            require_review_binding(
+                constraint,
+                review_record_id=REVIEW_ID,
+                review_payload=review,
+                trigger_payload=trigger,
+            ),
+            direction,
+        )
+        forged = {**review, "diagnosis_authorities": authorities[:1]}
+        with self.assertRaisesRegex(
+            ArchitectureReviewDirectionError,
+            "exact trigger",
+        ):
+            require_review_binding(
+                constraint,
+                review_record_id=REVIEW_ID,
+                review_payload=forged,
+                trigger_payload=trigger,
+            )
+
     def test_existing_axis_is_exact_selectable_and_same_family(self) -> None:
         constraint = constraint_from_direction(
             architecture_review_id=REVIEW_ID,

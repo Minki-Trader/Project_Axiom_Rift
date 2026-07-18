@@ -19,6 +19,11 @@ from axiom_rift.operations.historical_cost_semantics_reader import (
     HistoricalCostSemanticsProjectionError,
     effective_historical_negative_memory_cost_authority,
 )
+from axiom_rift.operations.effective_study_diagnosis import (
+    EffectiveStudyDiagnosis,
+    EffectiveStudyDiagnosisError,
+    effective_study_diagnoses_by_study,
+)
 from axiom_rift.research.axis_disposition import (
     AxisEvidenceKind,
     AxisEvidenceReference,
@@ -102,6 +107,59 @@ def _state_from_adjudication(value: Mapping[str, Any]) -> AxisEvidenceState:
     raise AxisDispositionEvidenceError("scientific adjudication state is invalid")
 
 
+_DIAGNOSIS_AXIS_STATES = {
+    "absent_information": AxisEvidenceState.LOW_INFORMATION,
+    "target_mismatch": AxisEvidenceState.PARTIAL_POSITIVE,
+    "model_capacity": AxisEvidenceState.PARTIAL_POSITIVE,
+    "calibration_selection": AxisEvidenceState.PARTIAL_POSITIVE,
+    "entry_policy": AxisEvidenceState.PARTIAL_POSITIVE,
+    "execution_cost": AxisEvidenceState.PARTIAL_POSITIVE,
+    "lifecycle_risk": AxisEvidenceState.PARTIAL_POSITIVE,
+    "stability_concentration": AxisEvidenceState.PARTIAL_POSITIVE,
+    "supported_requires_confirmation": AxisEvidenceState.FRONTIER,
+    "not_identifiable": AxisEvidenceState.UNRESOLVED,
+    "engineering_gap": AxisEvidenceState.NOT_EVALUABLE,
+}
+
+
+def _axis_state_from_effective_diagnosis(status: str) -> AxisEvidenceState:
+    try:
+        return _DIAGNOSIS_AXIS_STATES[status]
+    except KeyError as exc:
+        raise AxisDispositionEvidenceError(
+            "effective Study diagnosis state is unsupported"
+        ) from exc
+
+
+def _effective_study_axis_state(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    study_id: str,
+    fallback: AxisEvidenceState,
+    diagnosis_projection: Mapping[
+        str, EffectiveStudyDiagnosis
+    ] | None = None,
+) -> AxisEvidenceState:
+    """Apply claim-scoped Study authority only to axis-level interpretation."""
+
+    try:
+        projection = (
+            diagnosis_projection
+            if diagnosis_projection is not None
+            else effective_study_diagnoses_by_study(
+                index,
+                mission_id=mission_id,
+            )
+        )
+    except EffectiveStudyDiagnosisError as exc:
+        raise AxisDispositionEvidenceError(str(exc)) from exc
+    diagnosis = projection.get(study_id)
+    if diagnosis is None:
+        return fallback
+    return _axis_state_from_effective_diagnosis(diagnosis.status)
+
+
 def _job_completion_binding(
     index: LocalIndex,
     *,
@@ -109,6 +167,9 @@ def _job_completion_binding(
     mission_id: str,
     axis_id: str,
     axis_identity: str,
+    diagnosis_projection: Mapping[
+        str, EffectiveStudyDiagnosis
+    ] | None = None,
 ) -> AxisEvidenceBinding:
     scientific = completion.payload.get("scientific")
     job_id = completion.payload.get("job_id")
@@ -144,7 +205,13 @@ def _job_completion_binding(
         raise AxisDispositionEvidenceError(
             "axis Job completion subject is not bound to its declared Study axis"
         )
-    state = _state_from_adjudication(adjudication)
+    state = _effective_study_axis_state(
+        index,
+        mission_id=mission_id,
+        study_id=lineage.study_id,
+        fallback=_state_from_adjudication(adjudication),
+        diagnosis_projection=diagnosis_projection,
+    )
     if (
         scope.cost_semantics_latch_id is not None
         and state is AxisEvidenceState.LOW_INFORMATION
@@ -166,6 +233,9 @@ def _historical_adjudication_binding(
     mission_id: str,
     axis_id: str,
     axis_identity: str,
+    diagnosis_projection: Mapping[
+        str, EffectiveStudyDiagnosis
+    ] | None = None,
 ) -> AxisEvidenceBinding:
     payload = record.payload
     completion_id = payload.get("completion_record_id")
@@ -248,6 +318,13 @@ def _historical_adjudication_binding(
         raise AxisDispositionEvidenceError(
             "historical axis adjudication effective state is invalid"
         )
+    state = _effective_study_axis_state(
+        index,
+        mission_id=mission_id,
+        study_id=lineage.study_id,
+        fallback=state,
+        diagnosis_projection=diagnosis_projection,
+    )
     if (
         scope.cost_semantics_latch_id is not None
         and state is AxisEvidenceState.LOW_INFORMATION
@@ -455,6 +532,9 @@ def derive_axis_evidence_binding(
     mission_id: str,
     axis_id: str,
     axis_identity: str,
+    diagnosis_projection: Mapping[
+        str, EffectiveStudyDiagnosis
+    ] | None = None,
 ) -> AxisEvidenceBinding:
     """Resolve one typed reference and prove its exact Mission/axis lineage."""
 
@@ -468,6 +548,7 @@ def derive_axis_evidence_binding(
             mission_id=mission_id,
             axis_id=axis_id,
             axis_identity=axis_identity,
+            diagnosis_projection=diagnosis_projection,
         )
     if reference.kind is AxisEvidenceKind.HISTORICAL_ADJUDICATION:
         return _historical_adjudication_binding(
@@ -476,6 +557,7 @@ def derive_axis_evidence_binding(
             mission_id=mission_id,
             axis_id=axis_id,
             axis_identity=axis_identity,
+            diagnosis_projection=diagnosis_projection,
         )
     if reference.kind is AxisEvidenceKind.NEGATIVE_MEMORY:
         return _negative_memory_binding(

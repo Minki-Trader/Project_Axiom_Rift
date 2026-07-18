@@ -53,10 +53,12 @@ _PORTFOLIO_DECISION_CONTEXT_FIELDS = frozenset(
     {
         "architecture_review_id",
         "constraint_source_id",
+        "diagnosis_correction_audit_id",
         "excluded_architecture_family",
         "excluded_research_layers",
         "required_target_axis_ids",
         "study_diagnosis_id",
+        "study_diagnosis_correction_id",
         *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
     }
 )

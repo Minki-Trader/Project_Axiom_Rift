@@ -548,11 +548,16 @@ class CorrectionPlanCore:
         execution = tuple(sorted(self.execution_files, key=lambda item: item.path))
         evidence = tuple(sorted(self.evidence_bindings, key=lambda item: item.role))
         events = tuple(self.event_intents)
+        authority_bytes_change = any(item.changed for item in authority)
+        authority_manifest_change = (
+            self.prospective_authority_manifest_digest
+            != self.baseline.authority_manifest_digest
+        )
         if (
             not authority
             or len({item.path for item in authority}) != len(authority)
             or not all(isinstance(item, AuthorityFileBinding) for item in authority)
-            or not any(item.changed for item in authority)
+            or authority_bytes_change != authority_manifest_change
         ):
             raise ContentAddressedCorrectionError("authority inventory is not exact")
         if (

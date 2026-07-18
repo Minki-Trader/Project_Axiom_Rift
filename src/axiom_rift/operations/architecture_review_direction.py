@@ -368,13 +368,48 @@ def require_review_binding(
         trigger_payload.get("diagnosis_ids"),
         prefix="diagnosis:",
     )
+    trigger_schema = trigger_payload.get("schema")
+    authorities = trigger_payload.get("diagnosis_authorities")
+    if trigger_schema == "architecture_review_trigger.v2":
+        if (
+            not isinstance(authorities, list)
+            or len(authorities) != len(trigger_diagnoses)
+            or tuple(
+                item.get("original_diagnosis_id")
+                for item in authorities
+                if isinstance(item, Mapping)
+            )
+            != trigger_diagnoses
+            or any(
+                not isinstance(item, Mapping)
+                or item.get("effective_authority_kind")
+                not in {
+                    "study-diagnosis",
+                    "study-diagnosis-correction",
+                }
+                or not isinstance(
+                    item.get("effective_authority_record_id"), str
+                )
+                for item in authorities
+            )
+        ):
+            raise ArchitectureReviewDirectionError(
+                "architecture review trigger diagnosis authority is malformed"
+            )
+    elif trigger_schema != "architecture_review_trigger.v1" or authorities is not None:
+        raise ArchitectureReviewDirectionError(
+            "architecture review trigger schema is invalid"
+        )
     if (
-        trigger_payload.get("schema") != "architecture_review_trigger.v1"
-        or trigger_payload.get("system_architecture_family")
+        trigger_payload.get("system_architecture_family")
         != constraint.required_architecture_family
         or direction.trigger_record_id != constraint.trigger_record_id
         or direction.covered_diagnosis_ids != trigger_diagnoses
         or review_payload.get("covered_diagnosis_ids") != list(trigger_diagnoses)
+        or (
+            trigger_schema == "architecture_review_trigger.v2"
+            and review_payload.get("diagnosis_authorities") != authorities
+        )
     ):
         raise ArchitectureReviewDirectionError(
             "architecture continuation differs from its exact trigger"

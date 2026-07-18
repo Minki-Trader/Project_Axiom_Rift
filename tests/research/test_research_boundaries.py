@@ -417,6 +417,14 @@ class RuntimeDependencyTests(unittest.TestCase):
 
 
 class PortfolioBoundaryTests(unittest.TestCase):
+    def test_runtime_mission_intake_surfaces_match_science_contract(self) -> None:
+        contract_path = Path(__file__).resolve().parents[2] / "contracts" / "science.yaml"
+        contract = yaml.safe_load(contract_path.read_text(encoding="ascii"))
+        required = contract["research_direction"]["mission_intake"][
+            "required_review_surfaces"
+        ]
+        self.assertEqual(REQUIRED_INTAKE_SURFACES, frozenset(required))
+
     def test_contract_routes_intake_diagnosis_and_architecture_review(self) -> None:
         root = Path(__file__).resolve().parents[2]
         operations = yaml.safe_load(

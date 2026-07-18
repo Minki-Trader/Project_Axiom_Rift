@@ -605,6 +605,36 @@ def _fixtures() -> dict[str, tuple[dict[str, object], dict[str, object]]]:
 
 
 class ControlNextActionTests(unittest.TestCase):
+    def test_portfolio_actions_preserve_complete_diagnosis_authority_packet(
+        self,
+    ) -> None:
+        for kind in ("portfolio_decision", "execute_portfolio_decision"):
+            action, scientific = _fixtures()[kind]
+            corrected = {
+                **action,
+                "diagnosis_correction_audit_id": (
+                    "diagnosis-correction-audit:" + D0
+                ),
+                "study_diagnosis_correction_id": (
+                    "diagnosis-correction:" + D1
+                ),
+            }
+            validate_control_next_action(corrected, scientific)
+            incomplete = dict(corrected)
+            incomplete.pop("diagnosis_correction_audit_id")
+            with self.assertRaisesRegex(
+                ControlNextActionError,
+                "must travel together",
+            ):
+                validate_control_next_action(incomplete, scientific)
+            audit_only = dict(corrected)
+            audit_only.pop("study_diagnosis_correction_id")
+            with self.assertRaisesRegex(
+                ControlNextActionError,
+                "must travel together",
+            ):
+                validate_control_next_action(audit_only, scientific)
+
     def test_fixture_union_is_the_closed_supported_union(self) -> None:
         fixtures = _fixtures()
         self.assertEqual(frozenset(fixtures), SUPPORTED_NEXT_ACTION_KINDS)

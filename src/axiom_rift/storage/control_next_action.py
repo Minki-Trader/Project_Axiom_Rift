@@ -132,6 +132,32 @@ def _prefixed(name: str, value: object, prefix: str) -> str:
     return text
 
 
+def _validate_diagnosis_authority_context(
+    action: Mapping[str, Any],
+) -> None:
+    diagnosis_id = action.get("study_diagnosis_id")
+    correction_id = action.get("study_diagnosis_correction_id")
+    audit_id = action.get("diagnosis_correction_audit_id")
+    if correction_id is not None:
+        _prefixed(
+            "Study diagnosis correction identity",
+            correction_id,
+            "diagnosis-correction:",
+        )
+    if audit_id is not None:
+        _prefixed(
+            "Study diagnosis correction audit identity",
+            audit_id,
+            "diagnosis-correction-audit:",
+        )
+    if diagnosis_id is None and (correction_id is not None or audit_id is not None):
+        _fail("diagnosis overlay authority lacks its original diagnosis")
+    if (correction_id is None) != (audit_id is None):
+        _fail(
+            "diagnosis correction and complete-inventory audit must travel together"
+        )
+
+
 def _exact(
     name: str,
     value: Mapping[str, Any],
@@ -339,12 +365,14 @@ def _validate_portfolio_decision(
     optional = {
         "architecture_review_id",
         "constraint_source_id",
+        "diagnosis_correction_audit_id",
         "excluded_architecture_family",
         "excluded_research_layers",
         "pending_replay_obligation_ids",
         "required_replay_priority",
         "required_target_axis_ids",
         "study_diagnosis_id",
+        "study_diagnosis_correction_id",
     } | set(ARCHITECTURE_CONTINUATION_ACTION_FIELDS)
     _exact("Portfolio decision action", action, required, optional)
     try:
@@ -369,6 +397,7 @@ def _validate_portfolio_decision(
             action["study_diagnosis_id"],
             "diagnosis:",
         )
+    _validate_diagnosis_authority_context(action)
     review_fields = {
         "architecture_review_id",
         "excluded_architecture_family",
@@ -622,7 +651,9 @@ def _validate_execute_portfolio_decision(
         optional={
             *architecture,
             *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+            "diagnosis_correction_audit_id",
             "study_diagnosis_id",
+            "study_diagnosis_correction_id",
             "replacement_architecture_equivalence",
             "replay_obligation_ids",
         },
@@ -634,6 +665,7 @@ def _validate_execute_portfolio_decision(
     diagnosis_id = action.get("study_diagnosis_id")
     if diagnosis_id is not None:
         _prefixed("Study diagnosis", diagnosis_id, "diagnosis:")
+    _validate_diagnosis_authority_context(action)
     architecture_review_id = action.get("architecture_review_id")
     if architecture_review_id is not None:
         _prefixed(

@@ -965,6 +965,62 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "context drifted"):
             _decision_action_review_basis(index, control)
 
+    def test_corrected_decision_context_preserves_all_authority_records(self) -> None:
+        decision_id = "decision:" + "a" * 64
+        diagnosis_id = "diagnosis:" + "b" * 64
+        correction_id = "diagnosis-correction:" + "c" * 64
+        audit_id = "diagnosis-correction-audit:" + "d" * 64
+        decision = SimpleNamespace(
+            payload={
+                "architecture_review_id": None,
+                "diagnosis_correction_audit_id": audit_id,
+                "scheduler_constraints": None,
+                "study_diagnosis_correction_id": correction_id,
+                "study_diagnosis_id": diagnosis_id,
+            }
+        )
+        records = {
+            ("portfolio-decision", decision_id): decision,
+            ("study-diagnosis", diagnosis_id): SimpleNamespace(payload={}),
+            (
+                "study-diagnosis-correction",
+                correction_id,
+            ): SimpleNamespace(payload={}),
+            (
+                "study-diagnosis-correction-audit",
+                audit_id,
+            ): SimpleNamespace(payload={}),
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+        actual = _decision_action_review_basis(
+            index,
+            {
+                "next_action": {
+                    "decision_id": decision_id,
+                    "kind": "execute_portfolio_decision",
+                }
+            },
+        )
+        self.assertEqual(
+            tuple(item.to_identity_payload() for item in actual),
+            (
+                {
+                    "kind": "study-diagnosis",
+                    "record_id": diagnosis_id,
+                },
+                {
+                    "kind": "study-diagnosis-correction",
+                    "record_id": correction_id,
+                },
+                {
+                    "kind": "study-diagnosis-correction-audit",
+                    "record_id": audit_id,
+                },
+            ),
+        )
+
     def test_accepted_decision_context_survives_next_action_advance(self) -> None:
         operation_id = "accepted-replay-decision"
         decision_id = "decision:" + "d" * 64

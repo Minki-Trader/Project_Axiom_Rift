@@ -71,11 +71,16 @@ def _core(
     authority_files: tuple[AuthorityFileBinding, ...] | None = None,
     checkpoint_files: tuple[object, ...] = (),
     execution_files: tuple[CorrectionExecutionFileBinding, ...] | None = None,
+    prospective_authority_manifest_digest: str | None = None,
 ) -> CorrectionPlanCore:
     return CorrectionPlanCore(
         operation_namespace="test-correction",
         baseline=baseline or _baseline(),
-        prospective_authority_manifest_digest=_digest("new-authority"),
+        prospective_authority_manifest_digest=(
+            _digest("new-authority")
+            if prospective_authority_manifest_digest is None
+            else prospective_authority_manifest_digest
+        ),
         authority_files=authority_files
         or (
             AuthorityFileBinding(
@@ -106,6 +111,80 @@ def _core(
         ),
         purpose="exercise exact correction delivery",
     )
+
+
+def test_implementation_only_correction_binds_unchanged_authority() -> None:
+    baseline = _baseline()
+    unchanged = AuthorityFileBinding(
+        path="authority.txt",
+        predecessor_sha256=_digest("same-file"),
+        prospective_sha256=_digest("same-file"),
+    )
+    core = CorrectionPlanCore(
+        operation_namespace="implementation-correction",
+        baseline=baseline,
+        prospective_authority_manifest_digest=(
+            baseline.authority_manifest_digest
+        ),
+        authority_files=(unchanged,),
+        code_checkpoint_files=(),
+        execution_files=(
+            CorrectionExecutionFileBinding(
+                path="runner.py",
+                sha256=_digest("runner"),
+            ),
+        ),
+        evidence_bindings=(
+            CorrectionEvidenceBinding(
+                role="diagnosis-audit",
+                sha256=_digest("diagnosis-audit"),
+            ),
+        ),
+        event_intents=(
+            CorrectionEventIntent(
+                action="diagnosis-correction",
+                event_kind="study_diagnoses_corrected",
+                subject="Mission:MIS-0006",
+                binding={"semantic_record_count": 15},
+            ),
+        ),
+        purpose="apply an existing authority without gratuitous migration",
+    )
+    assert core.authority_replacements == ()
+    assert (
+        core.prospective_authority_manifest_digest
+        == core.baseline.authority_manifest_digest
+    )
+
+
+def test_correction_rejects_authority_bytes_and_manifest_disagreement() -> None:
+    baseline = _baseline()
+    unchanged = AuthorityFileBinding(
+        path="authority.txt",
+        predecessor_sha256=_digest("same-file"),
+        prospective_sha256=_digest("same-file"),
+    )
+    with pytest.raises(
+        ContentAddressedCorrectionError,
+        match="authority inventory is not exact",
+    ):
+        _core(baseline=baseline, authority_files=(unchanged,))
+    changed = AuthorityFileBinding(
+        path="authority.txt",
+        predecessor_sha256=_digest("old-file"),
+        prospective_sha256=_digest("new-file"),
+    )
+    with pytest.raises(
+        ContentAddressedCorrectionError,
+        match="authority inventory is not exact",
+    ):
+        _core(
+            baseline=baseline,
+            authority_files=(changed,),
+            prospective_authority_manifest_digest=(
+                baseline.authority_manifest_digest
+            ),
+        )
 
 
 def _member_digest(record: dict[str, object]) -> str:

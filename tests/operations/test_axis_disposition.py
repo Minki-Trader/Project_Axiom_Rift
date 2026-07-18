@@ -10,6 +10,7 @@ from unittest.mock import patch
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.axis_disposition import (
     AxisDispositionEvidenceError,
+    _axis_state_from_effective_diagnosis,
     derive_axis_evidence_binding,
     required_axis_scientific_references,
     required_axes_scientific_references,
@@ -55,6 +56,26 @@ def _digest(domain: str, tag: str) -> str:
 
 
 class AxisDispositionModelTests(unittest.TestCase):
+    def test_identified_diagnosis_bottlenecks_preserve_partial_evidence(self) -> None:
+        for status in (
+            "target_mismatch",
+            "model_capacity",
+            "calibration_selection",
+            "entry_policy",
+            "execution_cost",
+            "lifecycle_risk",
+            "stability_concentration",
+        ):
+            with self.subTest(status=status):
+                self.assertIs(
+                    _axis_state_from_effective_diagnosis(status),
+                    AxisEvidenceState.PARTIAL_POSITIVE,
+                )
+        self.assertIs(
+            _axis_state_from_effective_diagnosis("absent_information"),
+            AxisEvidenceState.LOW_INFORMATION,
+        )
+
     def test_partial_positive_cannot_be_manufactured_as_retired(self) -> None:
         with self.assertRaises(AxisDispositionError):
             AxisDisposition(
