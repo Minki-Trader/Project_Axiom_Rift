@@ -7,6 +7,10 @@ from typing import Any, Mapping, Protocol
 from axiom_rift.operations.architecture_review_direction import (
     ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
 )
+from axiom_rift.operations.recorded_transition_authority import (
+    RecordedTransitionAuthorityError,
+    require_same_event_operation_result,
+)
 from axiom_rift.operations.replay_initiative_lifecycle import (
     ReplayInitiativeBindingPhase,
     ReplayInitiativeLifecycle,
@@ -501,6 +505,124 @@ def terminal_replay_reconstruction_allowed(
     return True
 
 
+def _pre_admission_protocol_activation_suffix_is_exact(
+    *,
+    index: LocalIndexView,
+    spec: ReplayLifecycleSpec,
+    boundary: Any,
+    current_sequence: object,
+    current_event_id: object,
+) -> bool:
+    """Admit only a contiguous authenticated zero-credit activation suffix."""
+
+    if (
+        type(current_sequence) is not int
+        or current_sequence <= boundary.sequence
+        or type(current_event_id) is not str
+        or len(current_event_id) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in current_event_id
+        )
+    ):
+        return False
+    boundary_event = index.get("journal-event", boundary.event_id)
+    if (
+        boundary_event is None
+        or boundary_event.authority_sequence != boundary.sequence
+        or boundary_event.authority_event_id != boundary.event_id
+    ):
+        return False
+    legacy_id = spec.operation_prefix + "activate-current-v2-protocol"
+    versioned_prefix = spec.operation_prefix + "activate-v2-protocol-"
+    operations = tuple(
+        sorted(
+            (
+                record
+                for record in index.records_by_kind_prefix(
+                    "operation",
+                    spec.operation_prefix,
+                )
+                if type(record.authority_sequence) is int
+                and boundary.sequence
+                < record.authority_sequence
+                <= current_sequence
+            ),
+            key=lambda record: record.authority_sequence,
+        )
+    )
+    if tuple(record.authority_sequence for record in operations) != tuple(
+        range(boundary.sequence + 1, current_sequence + 1)
+    ):
+        return False
+    for operation in operations:
+        operation_id = operation.record_id
+        if operation_id == legacy_id:
+            expected_validator_id = None
+        elif operation_id.startswith(versioned_prefix):
+            digest = operation_id.removeprefix(versioned_prefix)
+            if (
+                len(digest) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in digest
+                )
+            ):
+                return False
+            expected_validator_id = "validator:" + digest
+        else:
+            return False
+        try:
+            _event_kind, result = require_same_event_operation_result(
+                index,
+                record=operation,
+                expected_event_kinds=frozenset(
+                    {"research_protocol_activated"}
+                ),
+            )
+        except RecordedTransitionAuthorityError:
+            return False
+        activation_id = result.get("activation_record_id")
+        activation = (
+            None
+            if type(activation_id) is not str
+            else index.get("research-protocol-activation", activation_id)
+        )
+        if activation is None:
+            return False
+        try:
+            require_same_event_operation_result(
+                index,
+                record=activation,
+                expected_event_kinds=frozenset(
+                    {"research_protocol_activated"}
+                ),
+            )
+        except RecordedTransitionAuthorityError:
+            return False
+        validator_id = result.get("validator_id")
+        payload = activation.payload
+        if (
+            operation.status != "success"
+            or result.get("trial_delta") != 0
+            or result.get("protocol") != "scientific_adjudication_v2"
+            or type(validator_id) is not str
+            or expected_validator_id not in {None, validator_id}
+            or activation.status != "active"
+            or activation.subject != operation.subject
+            or payload.get("schema") != "research_protocol_activation.v1"
+            or payload.get("scientific_trial_delta") != 0
+            or payload.get("protocol") != result.get("protocol")
+            or payload.get("validator_id") != validator_id
+            or payload.get("ordinal") != result.get("ordinal")
+        ):
+            return False
+    return (
+        bool(operations)
+        and operations[-1].authority_event_id == current_event_id
+    )
+
+
 def require_borrowed_replay_admission(
     *,
     control: Mapping[str, Any],
@@ -535,6 +657,23 @@ def require_borrowed_replay_admission(
     science = control.get("scientific")
     head = control.get("heads", {}).get("journal", {})
     boundary = getattr(spec, "boundary", None)
+    exact_boundary = (
+        isinstance(head, Mapping)
+        and boundary is not None
+        and (
+            (
+                head.get("sequence") == boundary.sequence
+                and head.get("event_id") == boundary.event_id
+            )
+            or _pre_admission_protocol_activation_suffix_is_exact(
+                index=index,
+                spec=spec,
+                boundary=boundary,
+                current_sequence=head.get("sequence"),
+                current_event_id=head.get("event_id"),
+            )
+        )
+    )
     if (
         not isinstance(science, Mapping)
         or any(
@@ -550,10 +689,7 @@ def require_borrowed_replay_admission(
                 "active_study",
             )
         )
-        or not isinstance(head, Mapping)
-        or boundary is None
-        or head.get("sequence") != boundary.sequence
-        or head.get("event_id") != boundary.event_id
+        or not exact_boundary
     ):
         raise RuntimeError("borrowed replay admission boundary is not idle and exact")
     portfolio_head = index.event_head(f"portfolio:{spec.mission_id}")
