@@ -1611,8 +1611,6 @@ class RunningJobExecutionContext:
                 or family_authority.identity != family_authority_id
                 or family_authority.replay_obligation_id
                 != replay_obligation_id
-                or family.original_study_id
-                != obligation.original_study_id
                 or family.target_historical_executable_id
                 != obligation.original_executable_id
                 or family.family_size != expected_family_size

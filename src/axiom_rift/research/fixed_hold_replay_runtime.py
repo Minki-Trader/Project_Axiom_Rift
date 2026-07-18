@@ -470,13 +470,41 @@ def materialize_fixed_hold_replay_job_implementation(
 def materialize_running_job_implementation_repair_proof(
     writer: FixedHoldRepairContext,
     *,
-    adapter: FixedHoldReplayRuntimeAdapter,
+    adapter: FixedHoldReplayRuntimeAdapter | None = None,
+    callable_identity: str | None = None,
+    implementation_materializer: (
+        Callable[[FixedHoldRepairContext], str] | None
+    ) = None,
     explanation: str,
     verification_evidence_hashes: tuple[str, ...],
 ) -> str:
     """Bind a repaired closure and independent verification to one Job."""
 
     reason = _ascii("running Job Repair explanation", explanation)
+    if adapter is not None:
+        if callable_identity is not None or implementation_materializer is not None:
+            raise ValueError(
+                "running Job Repair accepts an adapter or an explicit "
+                "implementation binding, not both"
+            )
+        resolved_callable_identity = adapter.callable_identity
+
+        def materialize_implementation(context: FixedHoldRepairContext) -> str:
+            return materialize_fixed_hold_replay_job_implementation(
+                context,
+                adapter=adapter,
+            )
+
+    else:
+        resolved_callable_identity = _ascii(
+            "running Job Repair callable identity",
+            callable_identity,
+        )
+        if not callable(implementation_materializer):
+            raise ValueError(
+                "running Job Repair implementation materializer is required"
+            )
+        materialize_implementation = implementation_materializer
     with writer.open_stable_index() as (control, index):
         science = control.get("scientific")
         repair = None if not isinstance(science, Mapping) else science.get(
@@ -522,10 +550,7 @@ def materialize_running_job_implementation_repair_proof(
         )
     if not isinstance(previous_identity, str):
         raise ValueError("previous implementation identity is unavailable")
-    new_identity = materialize_fixed_hold_replay_job_implementation(
-        writer,
-        adapter=adapter,
-    )
+    new_identity = materialize_implementation(writer)
     if new_identity == previous_identity:
         raise ValueError("implementation Repair did not change source closure")
     verification_results = (
@@ -609,7 +634,7 @@ def materialize_running_job_implementation_repair_proof(
     check_plan = writer.evidence.finalize(
         canonical_bytes(
             {
-                "callable_identity": adapter.callable_identity,
+                "callable_identity": resolved_callable_identity,
                 "changed_dimension": "implementation",
                 "job_id": job["id"],
                 "new_basis_hash": new_identity,

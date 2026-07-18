@@ -318,6 +318,7 @@ def _build_fixed_hold_replay_projection(
     tamper: str | None = None,
     semantic_lineage: bool = False,
     resumed_route: bool = False,
+    obligation_origin_study_id: str | None = None,
 ) -> SimpleNamespace:
     if prefix_length not in {1, 2, 3, 4}:
         raise ValueError("fixture prefix must select one family ordinal")
@@ -375,7 +376,11 @@ def _build_fixed_hold_replay_projection(
             "historical-adjudication:" + "a" * 64
         ),
         replay_priority=ReplayPriority.P1,
-        original_study_id=family.original_study_id,
+        original_study_id=(
+            family.original_study_id
+            if obligation_origin_study_id is None
+            else obligation_origin_study_id
+        ),
         original_study_close_record_id="b" * 64,
         original_completion_record_id="c" * 64,
         original_executable_id=family.target_historical_executable_id,
@@ -2122,6 +2127,29 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
     assert projection.completed_member_executable_ids == (
         fixture.prospective_ids[:-1]
     )
+
+
+def test_fixed_hold_replay_accepts_authenticated_cross_study_family_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _build_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+        obligation_origin_study_id="STU-8002",
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    projection = context.project_bound_fixed_hold_replay_context(
+        study_id=fixture.study_id,
+        batch_id=fixture.batch_id,
+        subject_executable_id=fixture.subject_executable_id,
+        expected_family_size=4,
+        parameter_name=None,
+    )
+
+    assert projection.family.original_study_id == "STU-8001"
+    assert projection.replay_obligation_id == fixture.obligation.identity
 
 
 def test_fixed_hold_replay_target_job_accepts_authenticated_resume_route(
