@@ -319,6 +319,7 @@ def _build_fixed_hold_replay_projection(
     semantic_lineage: bool = False,
     resumed_route: bool = False,
     obligation_origin_study_id: str | None = None,
+    proposal_origin_study_id: str | None = None,
 ) -> SimpleNamespace:
     if prefix_length not in {1, 2, 3, 4}:
         raise ValueError("fixture prefix must select one family ordinal")
@@ -443,7 +444,11 @@ def _build_fixed_hold_replay_projection(
         "historical_family_identity": family.identity,
         "historical_obligation_id": obligation.identity,
         "mechanism": "fixture-fixed-hold",
-        "original_study_id": family.original_study_id,
+        "original_study_id": (
+            obligation.original_study_id
+            if proposal_origin_study_id is None
+            else proposal_origin_study_id
+        ),
     }
     question = {
         "causal_question": "fixture replay authority",
@@ -2149,7 +2154,33 @@ def test_fixed_hold_replay_accepts_authenticated_cross_study_family_origin(
     )
 
     assert projection.family.original_study_id == "STU-8001"
+    assert fixture.obligation.original_study_id == "STU-8002"
     assert projection.replay_obligation_id == fixture.obligation.identity
+
+
+def test_fixed_hold_replay_rejects_family_origin_as_obligation_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _build_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+        obligation_origin_study_id="STU-8002",
+        proposal_origin_study_id="STU-8001",
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    with pytest.raises(
+        RunningJobAuthorityError,
+        match="historical family differs from its obligation",
+    ):
+        context.project_bound_fixed_hold_replay_context(
+            study_id=fixture.study_id,
+            batch_id=fixture.batch_id,
+            subject_executable_id=fixture.subject_executable_id,
+            expected_family_size=4,
+            parameter_name=None,
+        )
 
 
 def test_fixed_hold_replay_target_job_accepts_authenticated_resume_route(

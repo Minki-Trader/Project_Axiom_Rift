@@ -22,6 +22,8 @@ from axiom_rift.operations.fixed_hold_repair_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID,
     FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY,
+    FIXED_HOLD_COST_AWARE_PROPOSAL_ORIGIN_NEW_IMPLEMENTATION_IDENTITY,
+    FIXED_HOLD_COST_AWARE_PROPOSAL_ORIGIN_OLD_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
     FixedHoldAuthorityCorrectionEquivalenceValidator,
@@ -1390,7 +1392,30 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
                 FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY
             ),
         )
-        self.assertEqual(len({id(prior), id(direct), id(cross_study)}), 3)
+        proposal_origin = _correction_profile(
+            new_implementation_identity=(
+                FIXED_HOLD_COST_AWARE_PROPOSAL_ORIGIN_NEW_IMPLEMENTATION_IDENTITY
+            ),
+            old_implementation_identity=(
+                FIXED_HOLD_COST_AWARE_PROPOSAL_ORIGIN_OLD_IMPLEMENTATION_IDENTITY
+            ),
+        )
+        self.assertEqual(
+            len({id(prior), id(direct), id(cross_study), id(proposal_origin)}),
+            4,
+        )
+        self.assertEqual(
+            proposal_origin["source_paths"],
+            cross_study["source_paths"],
+        )
+        self.assertEqual(
+            proposal_origin["required_changed_paths"],
+            cross_study["required_changed_paths"],
+        )
+        self.assertEqual(
+            proposal_origin["allowed_changed_symbols"],
+            cross_study["allowed_changed_symbols"],
+        )
         source_root = Path(__file__).resolve().parents[2] / "src"
         self.assertEqual(
             cross_study["source_paths"],

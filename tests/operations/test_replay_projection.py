@@ -954,7 +954,9 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                     ),
                 )
             )
-            payload["study_id"] = "STU-9000"
+            payload["study_id"] = (
+                "STU-9001" if token == 14 else "STU-9000"
+            )
             payload["adjudication"]["claims"] = [  # type: ignore[index]
                 {"claim_id": "family-claim"}
             ]
@@ -1029,7 +1031,7 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                     IndexRecord(
                         kind="historical-scientific-adjudication",
                         record_id=obligation.historical_adjudication_id,
-                        subject="Study:STU-9000",
+                        subject=f"Study:{payload['study_id']}",
                         status="replay_required",
                         fingerprint=obligation.identity.removeprefix(
                             "historical-replay-obligation:"
@@ -1056,7 +1058,7 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
         )
         study = IndexRecord(
             kind="study-open",
-            record_id="STU-9001",
+            record_id="STU-9002",
             subject=f"Mission:{MISSION_ID}",
             status="open",
             fingerprint="e" * 64,
@@ -1070,7 +1072,7 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                     "historical_family_authority_id": authority.identity,
                     "historical_family_identity": family.identity,
                     "historical_obligation_id": selected.identity,
-                    "original_study_id": family.original_study_id,
+                    "original_study_id": selected.original_study_id,
                 },
             },
         )

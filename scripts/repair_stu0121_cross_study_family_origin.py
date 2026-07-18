@@ -33,6 +33,9 @@ from axiom_rift.operations.permits import (  # noqa: E402
     PermitKind,
     SubjectKind,
 )
+from axiom_rift.operations.running_job import (  # noqa: E402
+    effective_running_job_implementation,
+)
 from axiom_rift.operations.validation import (  # noqa: E402
     EvidenceValidatorRegistry,
 )
@@ -53,10 +56,28 @@ from axiom_rift.research.validation_v2 import (  # noqa: E402
 FAILURE_MESSAGE = (
     "fixed-hold historical family differs from its obligation"
 )
-ROOT_CAUSE = (
-    "running Job context duplicated family admission by requiring the replay "
-    "obligation origin and the accepted statistical family origin to match"
-)
+ROOT_CAUSES = {
+    1: (
+        "running Job context duplicated family admission by requiring the "
+        "replay obligation origin and the accepted statistical family origin "
+        "to match"
+    ),
+    2: (
+        "running Job context compared the Study proposal's obligation origin "
+        "with the accepted statistical family origin instead of the replay "
+        "obligation origin"
+    ),
+}
+EXPLANATIONS = {
+    1: (
+        "remove a duplicated cross-study origin equality check without "
+        "changing the registered paired-policy scientific protocol"
+    ),
+    2: (
+        "bind the Study proposal origin to the replay obligation while "
+        "retaining the separately authenticated statistical family origin"
+    ),
+}
 
 
 def _writer() -> StateWriter:
@@ -127,7 +148,32 @@ def _context(writer: StateWriter) -> dict[str, Any]:
         )
         if member is None:
             raise RuntimeError("STU-0121 Repair Job is outside its exact pair")
-    old_identity = spec.get("implementation_identity")
+        declared_identity = spec.get("implementation_identity")
+        if not isinstance(declared_identity, str):
+            raise RuntimeError("STU-0121 declared implementation is absent")
+        old_identity, prior_close_record_id = (
+            effective_running_job_implementation(
+                index,
+                job_id=str(job["id"]),
+                declared_implementation_identity=declared_identity,
+            )
+        )
+        repair_head = index.event_head(f"job-repair:{job['id']}")
+        episode = (
+            repair.get("episode")
+            if isinstance(repair, Mapping)
+            else 1 if repair_head is None else repair_head.sequence + 1
+        )
+        if (
+            type(episode) is not int
+            or episode not in ROOT_CAUSES
+            or (
+                repair is not None
+                and repair.get("predecessor_repair_close_record_id")
+                != prior_close_record_id
+            )
+        ):
+            raise RuntimeError("STU-0121 Repair episode is not exact")
     new_identity = cost_aware_execution_pair_job_implementation_sha256()
     if (
         not isinstance(old_identity, str)
@@ -138,17 +184,20 @@ def _context(writer: StateWriter) -> dict[str, Any]:
     operation_ids = fixed_hold_replay_repair_operation_ids(
         design.spec,
         member,
-        episode=1,
+        episode=episode,
     )
     return {
         "control": control,
         "design": design,
+        "episode": episode,
+        "explanation": EXPLANATIONS[episode],
         "job": dict(job),
         "member": member,
         "new_implementation_identity": new_identity,
         "old_implementation_identity": old_identity,
         "operation_ids": operation_ids,
         "repair": None if repair is None else dict(repair),
+        "root_cause": ROOT_CAUSES[episode],
         "spec": dict(spec),
     }
 
@@ -163,6 +212,7 @@ def plan_repair(writer: StateWriter) -> dict[str, Any]:
             else context["repair"]["id"]
         ),
         "member_ordinal": context["member"].ordinal,
+        "repair_episode": context["episode"],
         "new_implementation_identity": context[
             "new_implementation_identity"
         ],
@@ -171,7 +221,7 @@ def plan_repair(writer: StateWriter) -> dict[str, Any]:
         ],
         "operation_ids": context["operation_ids"].by_role(),
         "revision": context["control"]["revision"],
-        "schema": "stu0121_cross_study_family_origin_repair_plan.v1",
+        "schema": "stu0121_cross_study_family_origin_repair_plan.v2",
     }
 
 
@@ -181,12 +231,13 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
     existing_close = _operation_result(writer, operation_ids.close)
     if existing_close is not None:
         return {
+            "repair_episode": context["episode"],
             "repair_close_record_id": existing_close[
                 "repair_close_record_id"
             ],
             "reused": True,
             "revision": writer.read_control()["revision"],
-            "schema": "stu0121_cross_study_family_origin_repair_result.v1",
+            "schema": "stu0121_cross_study_family_origin_repair_result.v2",
         }
     reproduction = writer.evidence.finalize(
         canonical_bytes(
@@ -203,9 +254,10 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
                 "old_implementation_identity": context[
                     "old_implementation_identity"
                 ],
-                "root_cause": ROOT_CAUSE,
+                "repair_episode": context["episode"],
+                "root_cause": context["root_cause"],
                 "schema": (
-                    "stu0121_cross_study_family_origin_reproduction.v1"
+                    "stu0121_cross_study_family_origin_reproduction.v2"
                 ),
                 "scientific_semantics_changed": False,
                 "study_id": STUDY_ID,
@@ -238,7 +290,7 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
                 "failure_kind": "engineering",
                 "interrupted_action": context["spec"]["callable_identity"],
                 "minimum_reproduction_evidence": [reproduction.sha256],
-                "root_cause": ROOT_CAUSE,
+                "root_cause": context["root_cause"],
             },
             operation_id=operation_ids.open,
         )
@@ -253,10 +305,7 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
         implementation_materializer=(
             materialize_cost_aware_execution_pair_job_implementation
         ),
-        explanation=(
-            "remove a duplicated cross-study origin equality check without "
-            "changing the registered paired-policy scientific protocol"
-        ),
+        explanation=context["explanation"],
         verification_evidence_hashes=(),
     )
     closed = writer.close_repair(
@@ -270,11 +319,12 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
         "effective_implementation_identity": closed.result[
             "effective_implementation_identity"
         ],
+        "repair_episode": context["episode"],
         "repair_close_record_id": closed.result["repair_close_record_id"],
         "repair_id": repair_id,
         "reused": closed.reused,
         "revision": control["revision"],
-        "schema": "stu0121_cross_study_family_origin_repair_result.v1",
+        "schema": "stu0121_cross_study_family_origin_repair_result.v2",
     }
 
 

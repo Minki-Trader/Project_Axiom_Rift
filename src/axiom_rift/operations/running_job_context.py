@@ -1617,7 +1617,7 @@ class RunningJobExecutionContext:
                 or proposal.get("historical_family_identity")
                 != family.identity
                 or proposal.get("original_study_id")
-                != family.original_study_id
+                != obligation.original_study_id
                 or proposal.get("concurrent_family") != family.manifest()
             ):
                 raise RunningJobAuthorityError(

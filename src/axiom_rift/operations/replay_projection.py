@@ -1250,7 +1250,7 @@ def _is_bound_lower_priority_family_control(
         == authority.family.identity
         and proposal.get("historical_obligation_id") == selected_id
         and proposal.get("original_study_id")
-        == authority.family.original_study_id
+        == selected.original_study_id
         and batch_record.subject == f"Study:{study_record.record_id}"
         and isinstance(profile, Mapping)
         and profile.get("historical_family_authority_id") == authority.identity
@@ -1264,7 +1264,7 @@ def _is_bound_lower_priority_family_control(
         and executable_id in member_ids
         and selected.governing_mission_id == control.governing_mission_id
         == study_record.payload.get("mission_id")
-        and selected.original_study_id == control.original_study_id
+        and control.original_study_id
         == authority.family.original_study_id
         and selected.original_executable_id
         == authority.family.target_historical_executable_id
