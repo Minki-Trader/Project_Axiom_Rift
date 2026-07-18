@@ -46,6 +46,7 @@ class StudyDiagnosisCorrectionAudit:
     prior_journal_event_id: str
     prior_journal_sequence: int
     rationale: str
+    prior_correction_ids: tuple[str, ...] = ()
     protocol_id: str = CLAIM_SCOPED_DIAGNOSIS_PROTOCOL_ID
     identity: str = field(init=False)
 
@@ -81,7 +82,39 @@ class StudyDiagnosisCorrectionAudit:
             raise StudyDiagnosisCorrectionError(
                 "correction audit diagnosis identities are not unique"
             )
+        prior_corrections = self.prior_correction_ids
+        if type(prior_corrections) is not tuple:
+            raise StudyDiagnosisCorrectionError(
+                "prior correction identities must be a tuple"
+            )
+        normalized_prior = tuple(
+            sorted(
+                _ascii("prior correction identity", value)
+                for value in prior_corrections
+            )
+        )
+        if (
+            len(set(normalized_prior)) != len(normalized_prior)
+            or len(normalized_prior) > len(normalized)
+        ):
+            raise StudyDiagnosisCorrectionError(
+                "prior correction identities are duplicated or excessive"
+            )
+        for value in normalized_prior:
+            digest = value.removeprefix("diagnosis-correction:")
+            if (
+                value == digest
+                or len(digest) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in digest
+                )
+            ):
+                raise StudyDiagnosisCorrectionError(
+                    "prior correction identity is malformed"
+                )
         object.__setattr__(self, "original_diagnosis_ids", normalized)
+        object.__setattr__(self, "prior_correction_ids", normalized_prior)
         object.__setattr__(
             self,
             "identity",
@@ -93,7 +126,7 @@ class StudyDiagnosisCorrectionAudit:
         )
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
-        return {
+        payload: dict[str, CanonicalValue] = {
             "mission_id": self.mission_id,
             "original_diagnosis_ids": list(self.original_diagnosis_ids),
             "prior_journal_event_id": self.prior_journal_event_id,
@@ -102,6 +135,12 @@ class StudyDiagnosisCorrectionAudit:
             "rationale": self.rationale,
             "schema": "study_diagnosis_correction_audit.v1",
         }
+        if self.prior_correction_ids:
+            payload["prior_correction_ids"] = list(
+                self.prior_correction_ids
+            )
+            payload["schema"] = "study_diagnosis_correction_audit.v2"
+        return payload
 
 
 __all__ = [

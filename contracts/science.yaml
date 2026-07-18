@@ -85,6 +85,8 @@ research_direction:
     effective_completion_scope_precedes_adjudication: true
     audit_only_or_validity_invalidated_confirmation_debt: false
     non_scientific_claim_inventory_is_diagnostic_only: true
+    later_scope_authority_can_supersede_prior_correction: true
+    correction_supersession_is_append_only_and_predecessor_bound: true
     evidence_states:
       - absent_information
       - target_mismatch

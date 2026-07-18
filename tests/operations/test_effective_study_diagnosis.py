@@ -22,6 +22,9 @@ from axiom_rift.research.governance import (
     StudyDiagnosis,
     diagnosis_branch,
 )
+from axiom_rift.research.study_diagnosis_correction import (
+    StudyDiagnosisCorrectionAudit,
+)
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 
 
@@ -29,6 +32,8 @@ ORIGINAL_ID = "diagnosis:" + "a" * 64
 AUTHORITY_EVENT_ID = "d" * 64
 AUTHORITY_SEQUENCE = 2
 COMPLETION_ID = "c" * 64
+V2_AUTHORITY_EVENT_ID = "e" * 64
+V2_AUTHORITY_SEQUENCE = 3
 
 
 def _original() -> IndexRecord:
@@ -193,6 +198,136 @@ def _put_valid_batch(index: LocalIndex) -> IndexRecord:
     return correction
 
 
+def _v2_audit(prior: IndexRecord) -> IndexRecord:
+    payload = {
+        "mission_id": "MIS-CORRECTION",
+        "original_diagnosis_ids": [ORIGINAL_ID],
+        "prior_correction_ids": [prior.record_id],
+        "prior_journal_event_id": AUTHORITY_EVENT_ID,
+        "prior_journal_sequence": AUTHORITY_SEQUENCE,
+        "protocol_id": "protocol:claim_scoped_noncompensating_diagnosis.v1",
+        "rationale": "apply later effective completion scope",
+        "schema": "study_diagnosis_correction_audit.v2",
+    }
+    digest = canonical_digest(
+        domain="study-diagnosis-correction-audit",
+        payload=payload,
+    )
+    return IndexRecord(
+        kind="study-diagnosis-correction-audit",
+        record_id="diagnosis-correction-audit:" + digest,
+        subject="Mission:MIS-CORRECTION",
+        status="complete_mismatch_inventory",
+        fingerprint=digest,
+        payload=payload,
+        authority_sequence=V2_AUTHORITY_SEQUENCE,
+        authority_event_id=V2_AUTHORITY_EVENT_ID,
+        authority_offset=200,
+    )
+
+
+def _v2_correction(prior: IndexRecord, audit: IndexRecord) -> IndexRecord:
+    payload = {
+        **dict(_correction().payload),
+        "allowed_actions": ["contrast", "new_mechanism", "prune", "rotate"],
+        "audit_id": audit.record_id,
+        "completion_basis": [
+            {
+                "adjudication_digest": "f" * 64,
+                "completion_record_id": COMPLETION_ID,
+                "executable_id": "executable:" + "1" * 64,
+            }
+        ],
+        "effective_completion_scope_basis": [
+            {
+                "candidate_credit": 0,
+                "completion_record_id": COMPLETION_ID,
+                "cost_semantics_latch_id": None,
+                "economic_credit": 0,
+                "evidence_modes": ["audit_integrity"],
+                "invalidation_record_id": None,
+                "overlay_record_id": "historical-evidence-scope:" + "2" * 64,
+                "scientific_credit": 0,
+                "scientific_eligible": False,
+                "terminal_credit": 0,
+            }
+        ],
+        "effective_confidence": "high",
+        "effective_evidence_state": "not_identifiable",
+        "effective_reason_code": (
+            "audit_only_scope_cannot_create_scientific_confirmation"
+        ),
+        "prior_effective_authority_record_id": prior.record_id,
+        "prior_effective_evidence_state": prior.status,
+        "schema": "study_diagnosis_correction.v2",
+        "supersedes_audit_id": prior.payload["audit_id"],
+        "supersedes_correction_id": prior.record_id,
+    }
+    digest = canonical_digest(
+        domain="study-diagnosis-correction",
+        payload=payload,
+    )
+    return IndexRecord(
+        kind="study-diagnosis-correction",
+        record_id="diagnosis-correction:" + digest,
+        subject="Study:STU-CORRECTION",
+        status="not_identifiable",
+        fingerprint=digest,
+        payload=payload,
+        event_stream=f"study-diagnosis-correction:{ORIGINAL_ID}",
+        event_sequence=2,
+        authority_sequence=V2_AUTHORITY_SEQUENCE,
+        authority_event_id=V2_AUTHORITY_EVENT_ID,
+        authority_offset=200,
+    )
+
+
+def _put_v2_batch(index: LocalIndex, prior: IndexRecord) -> IndexRecord:
+    audit = _v2_audit(prior)
+    correction = _v2_correction(prior, audit)
+    result = {
+        "audit_id": audit.record_id,
+        "candidate_authority_delta": 0,
+        "corrected_diagnosis_count": 1,
+        "holdout_reveal_delta": 0,
+        "replay_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "study_diagnosis_correction_ids": [correction.record_id],
+    }
+    operation = IndexRecord(
+        kind="operation",
+        record_id="diagnosis-correction-operation-v2",
+        subject="Mission:MIS-CORRECTION",
+        status="success",
+        fingerprint="3" * 64,
+        payload={
+            "event_kind": "study_diagnoses_corrected",
+            "result": result,
+        },
+        authority_sequence=V2_AUTHORITY_SEQUENCE,
+        authority_event_id=V2_AUTHORITY_EVENT_ID,
+        authority_offset=200,
+    )
+    event = IndexRecord(
+        kind="journal-event",
+        record_id=V2_AUTHORITY_EVENT_ID,
+        subject="Mission:MIS-CORRECTION",
+        status="study_diagnoses_corrected",
+        fingerprint=V2_AUTHORITY_EVENT_ID,
+        payload={"operation_id": operation.record_id},
+        event_stream="control",
+        event_sequence=V2_AUTHORITY_SEQUENCE,
+        authority_sequence=V2_AUTHORITY_SEQUENCE,
+        authority_event_id=V2_AUTHORITY_EVENT_ID,
+        authority_offset=200,
+    )
+    index.put(audit)
+    index.put(correction)
+    index.put(operation)
+    index.put(event)
+    return correction
+
+
 def test_effective_projection_preserves_original_lineage_and_overlays_state() -> None:
     with TemporaryDirectory() as temporary:
         path = Path(temporary) / "local" / "index.sqlite"
@@ -208,6 +343,39 @@ def test_effective_projection_preserves_original_lineage_and_overlays_state() ->
         "execution",
         "selector",
         "trade",
+    ]
+
+
+def test_later_scope_evidence_can_supersede_one_prior_correction() -> None:
+    with TemporaryDirectory() as temporary:
+        path = Path(temporary) / "local" / "index.sqlite"
+        with LocalIndex(path) as index:
+            prior = _put_valid_batch(index)
+            current = _put_v2_batch(index, prior)
+            projected = effective_study_diagnosis(index, ORIGINAL_ID)
+
+    assert projected.correction == current
+    assert projected.authority_record_id == current.record_id
+    assert projected.status == "not_identifiable"
+    assert projected.payload["diagnosis_reason_code"] == (
+        "audit_only_scope_cannot_create_scientific_confirmation"
+    )
+
+
+def test_correction_audit_v2_binds_the_prior_authority_set() -> None:
+    audit = StudyDiagnosisCorrectionAudit(
+        mission_id="MIS-CORRECTION",
+        original_diagnosis_ids=(ORIGINAL_ID,),
+        prior_correction_ids=("diagnosis-correction:" + "9" * 64,),
+        prior_journal_event_id="8" * 64,
+        prior_journal_sequence=9,
+        rationale="bind later effective evidence to its prior correction",
+    )
+
+    payload = audit.to_identity_payload()
+    assert payload["schema"] == "study_diagnosis_correction_audit.v2"
+    assert payload["prior_correction_ids"] == [
+        "diagnosis-correction:" + "9" * 64
     ]
 
 

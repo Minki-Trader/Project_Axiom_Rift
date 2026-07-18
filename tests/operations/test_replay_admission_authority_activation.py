@@ -45,88 +45,90 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
             )
         )
 
-    def prospective_blob_patch(self):
-        module = self.module
-        original = module._git_blob
-        prospective_paths = {
-            *module.EXPECTED_CHANGED_AUTHORITY_HASHES,
-            module.AUDIT_REPORT_PATH,
-        }
-
-        def blob(reference: str, relative: str) -> bytes:
-            if reference == "HEAD" and relative in prospective_paths:
-                return (ROOT / relative).read_bytes()
-            return original(reference, relative)
-
-        return patch.object(module, "_git_blob", side_effect=blob)
-
     @classmethod
-    def require_shadow_fixture(cls):
-        if hasattr(cls, "shadow_material"):
+    def require_recorded_fixture(cls):
+        if hasattr(cls, "recorded_material"):
             return
         module = cls.module
-        original = module._git_blob
-        prospective_paths = {
-            *module.EXPECTED_CHANGED_AUTHORITY_HASHES,
+        journal_events = module._read_journal()
+        core = module._durable_core(journal_events)
+        if core is None:
+            raise AssertionError("recorded activation core is unavailable")
+        suffix = tuple(
+            journal_events[
+                module.EXPECTED_BASELINE_REVISION:
+                module.EXPECTED_BASELINE_REVISION + core.event_count
+            ]
+        )
+        module.require_exact_correction_prefix(core, suffix)
+        protocol = core.intent("protocol-rebind").binding
+        migration = core.intent("authority-migration").binding
+        activation_payload = protocol["activation"]
+        activation = module.ResearchProtocolActivation(
+            protocol=module.ResearchProtocol(activation_payload["protocol"]),
+            validator_id=activation_payload["validator_id"],
+            authority_manifest_digest=activation_payload[
+                "authority_manifest_digest"
+            ],
+            audit_artifact_hash=activation_payload["audit_artifact_hash"],
+        )
+        observation_payload = migration["study_close_guard"][
+            "delivery_observation"
+        ]
+        observation = module.StudyCloseDeliveryObservation(
+            checkpoint_commit=observation_payload["checkpoint_commit"],
+            checkpoint_digest=observation_payload["checkpoint_digest"],
+            main_head=observation_payload["main_head"],
+            remote_commit=observation_payload["remote_commit"],
+            remote_ref=observation_payload["remote_ref"],
+        )
+        report_bytes = module._git_blob(
+            core.baseline.code_checkpoint_commit,
             module.AUDIT_REPORT_PATH,
-        }
+        )
+        material = module.ActivationMaterial(
+            core=core,
+            report_bytes=report_bytes,
+            activation=activation,
+            migration_payload=dict(migration["migration"]),
+            prior_protocol_record_id=protocol[
+                "supersedes_activation_record_id"
+            ],
+            protocol_ordinal=protocol["ordinal"],
+            non_authority_control_sha256=protocol[
+                "non_authority_control_sha256"
+            ],
+            scientific_inventory=dict(protocol["scientific_inventory"]),
+            study_close_delivery_observation=observation,
+        )
+        cls.recorded_material = material
+        cls.recorded_first, cls.recorded_second = suffix
+        cls.recorded_receipts = tuple(module._receipt(event) for event in suffix)
+        cls.recorded_baseline_control = module._canonical_object(
+            module._git_blob(
+                core.baseline.code_checkpoint_commit,
+                "state/control.json",
+            ),
+            label="recorded activation baseline",
+        )
+
+    def historical_blob_patch(self):
+        self.require_recorded_fixture()
+        module = self.module
+        core = self.recorded_material.core
+        original = module._git_blob
 
         def blob(reference: str, relative: str) -> bytes:
-            if reference == "HEAD" and relative in prospective_paths:
-                return (ROOT / relative).read_bytes()
-            return original(reference, relative)
-
-        cls.shadow_blob_patcher = patch.object(
-            module,
-            "_git_blob",
-            side_effect=blob,
-        )
-        cls.shadow_blob_patcher.start()
-        cls.addClassCleanup(cls.shadow_blob_patcher.stop)
-        timestamp_one = "2026-07-17T12:00:00.000001Z"
-        timestamp_two = "2026-07-17T12:00:00.000002Z"
-        journal_events = module._read_journal()
-        with module._prepared_replay(journal_events) as (
-            material,
-            replay,
-            existing_suffix,
-        ):
-            if existing_suffix:
-                raise AssertionError("canonical activation fixture is not pristine")
-            journal_path = (
-                replay.writer.root / material.core.baseline.journal_path
+            selected = (
+                core.baseline.code_checkpoint_commit
+                if reference == "HEAD"
+                else core.baseline.origin_main_commit
+                if reference == "origin/main"
+                else reference
             )
-            before_size = journal_path.stat().st_size
-            before_hash = module.sha256(journal_path.read_bytes()).hexdigest()
-            with cls._assert_raises_static(Exception):
-                with replay.writer.journal.expect_next_event({}):
-                    module._invoke_at(
-                        replay.writer,
-                        timestamp_one,
-                        lambda: module._apply_action(
-                            replay.writer,
-                            material,
-                            1,
-                        ),
-                    )
-            cls.preappend_unchanged = (
-                journal_path.stat().st_size == before_size
-                and module.sha256(journal_path.read_bytes()).hexdigest()
-                == before_hash
-            )
-            first = replay.preview_next(timestamp_one)
-            replay.accept_next(first)
-            second = replay.preview_next(timestamp_two)
-            replay.accept_next(second)
-            receipts = tuple(replay.receipts)
-        cls.shadow_material = material
-        cls.shadow_first = first
-        cls.shadow_second = second
-        cls.shadow_receipts = receipts
+            return original(selected, relative)
 
-    @staticmethod
-    def _assert_raises_static(exception_type):
-        return unittest.TestCase().assertRaises(exception_type)
+        return patch.object(module, "_git_blob", side_effect=blob)
 
     def material(self):
         module = self.module
@@ -379,20 +381,49 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         ):
             module._exact_recovery_arguments(())
 
-    def test_shadow_replay_proves_both_full_events_without_real_state_write(self):
+    def test_recorded_correction_proves_both_full_events_without_state_write(self):
         module = self.module
-        self.require_shadow_fixture()
+        self.require_recorded_fixture()
         control_before = (ROOT / "state/control.json").read_bytes()
         journal_before = (ROOT / "records/journal/journal-000002.jsonl").read_bytes()
-        material = self.shadow_material
-        first = self.shadow_first
-        second = self.shadow_second
-        self.assertEqual(first["occurred_at_utc"], "2026-07-17T12:00:00.000001Z")
+        material = self.recorded_material
+        first = self.recorded_first
+        second = self.recorded_second
         self.assertEqual(len(first["payload"]["evidence"]), 2)
         self.assertEqual(second["payload"]["evidence"], [])
+        cursor = module._IndependentCursor(
+            journal_offset=(
+                material.core.baseline.journal_start_offset
+                + material.core.baseline.journal_size_bytes
+            ),
+            previous_event_id=material.core.baseline.journal_event_id,
+            index_record_count=material.core.baseline.index_record_count,
+            index_projection_digest=(
+                material.core.baseline.index_projection_digest
+            ),
+        )
+        with patch.object(
+            module,
+            "_baseline_control_from_core",
+            return_value=self.recorded_baseline_control,
+        ), self.historical_blob_patch():
+            cursor = module._validate_event_envelope(
+                material,
+                first,
+                ordinal=1,
+                cursor=cursor,
+                occurred_at_utc=first["occurred_at_utc"],
+            )
+            module._validate_event_envelope(
+                material,
+                second,
+                ordinal=2,
+                cursor=cursor,
+                occurred_at_utc=second["occurred_at_utc"],
+            )
         envelope = module.CorrectionReceiptEnvelope(
             core=material.core,
-            event_receipts=self.shadow_receipts,
+            event_receipts=self.recorded_receipts,
         )
         module.require_exact_correction_receipts(
             envelope,
@@ -406,9 +437,9 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
 
     def test_partial_prefix_replay_rejects_offset_and_projection_tampering(self):
         module = self.module
-        self.require_shadow_fixture()
-        material = self.shadow_material
-        first = self.shadow_first
+        self.require_recorded_fixture()
+        material = self.recorded_material
+        first = self.recorded_first
         cursor = module._IndependentCursor(
             journal_offset=(
                 material.core.baseline.journal_start_offset
@@ -418,54 +449,61 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
             index_record_count=material.core.baseline.index_record_count,
             index_projection_digest=material.core.baseline.index_projection_digest,
         )
-        module._validate_event_envelope(
-            material,
-            first,
-            ordinal=1,
-            cursor=cursor,
-            occurred_at_utc=first["occurred_at_utc"],
-        )
-        for field, replacement in (
-            ("journal_offset", first["journal_offset"] + 1),
-            ("index_record_count", first["index_record_count"] + 1),
-            ("index_projection_digest", "f" * 64),
-        ):
-            with self.subTest(field=field):
-                tampered = json.loads(json.dumps(first))
-                tampered[field] = replacement
-                with self.assertRaisesRegex(
-                    module.ReplayAdmissionActivationError,
-                    "full independent envelope|projection",
-                ):
-                    module._validate_event_envelope(
-                        material,
-                        tampered,
-                        ordinal=1,
-                        cursor=cursor,
-                        occurred_at_utc=first["occurred_at_utc"],
-                    )
+        with patch.object(
+            module,
+            "_baseline_control_from_core",
+            return_value=self.recorded_baseline_control,
+        ), self.historical_blob_patch():
+            module._validate_event_envelope(
+                material,
+                first,
+                ordinal=1,
+                cursor=cursor,
+                occurred_at_utc=first["occurred_at_utc"],
+            )
+            for field, replacement in (
+                ("journal_offset", first["journal_offset"] + 1),
+                ("index_record_count", first["index_record_count"] + 1),
+                ("index_projection_digest", "f" * 64),
+            ):
+                with self.subTest(field=field):
+                    tampered = json.loads(json.dumps(first))
+                    tampered[field] = replacement
+                    with self.assertRaisesRegex(
+                        module.ReplayAdmissionActivationError,
+                        "full independent envelope|projection",
+                    ):
+                        module._validate_event_envelope(
+                            material,
+                            tampered,
+                            ordinal=1,
+                            cursor=cursor,
+                            occurred_at_utc=first["occurred_at_utc"],
+                        )
 
-    def test_preappend_expectation_mismatch_leaves_shadow_journal_unchanged(self):
-        self.require_shadow_fixture()
-        self.assertIs(self.preappend_unchanged, True)
+    def test_recorded_correction_chain_is_contiguous_and_complete(self):
+        self.require_recorded_fixture()
+        first = self.recorded_first
+        second = self.recorded_second
+        self.assertEqual(
+            first["sequence"],
+            self.recorded_material.core.baseline.journal_sequence + 1,
+        )
+        self.assertEqual(second["sequence"], first["sequence"] + 1)
+        self.assertEqual(second["previous_event_id"], first["event_id"])
 
     def test_durable_core_reentry_preserves_canonical_authority_order(self):
         module = self.module
-        self.require_shadow_fixture()
-        material = self.shadow_material
-        prior = (
-            material.prior_protocol_record_id,
-            material.protocol_ordinal - 1,
-            dict(material.scientific_inventory),
+        self.require_recorded_fixture()
+        material = self.recorded_material
+        rebuilt = module.CorrectionPlanCore.from_bytes(
+            material.core.core_bytes,
+            expected_core_hash=material.core.core_hash,
         )
-        rebuilt = module._material_from_core(
-            material.core,
-            prior_protocol=prior,
-        )
-        self.assertEqual(rebuilt.core, material.core)
+        self.assertEqual(rebuilt, material.core)
         self.assertEqual(
-            [item.path for item in rebuilt.core.authority_files],
-            sorted(item.path for item in rebuilt.core.authority_files),
+            [item.path for item in rebuilt.authority_files],
+            sorted(item.path for item in rebuilt.authority_files),
         )
 
     def test_unsafe_apply_is_rejected_before_project_imports(self):

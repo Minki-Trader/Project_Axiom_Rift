@@ -110,6 +110,143 @@ def effective_study_diagnosis(
         and reference.get("kind") == "job-completed"
         and isinstance(reference.get("record_id"), str)
     )
+    correction_schema = (
+        None if not isinstance(payload, Mapping) else payload.get("schema")
+    )
+    audit_schema = (
+        None
+        if not isinstance(audit_payload, Mapping)
+        else audit_payload.get("schema")
+    )
+    previous = (
+        None
+        if correction is None
+        or correction.event_sequence is None
+        or correction.event_sequence <= 1
+        else index.event_record(stream, correction.event_sequence - 1)
+    )
+    prior_correction_ids = (
+        []
+        if not isinstance(audit_payload, Mapping)
+        else audit_payload.get("prior_correction_ids", [])
+    )
+    scope_basis = (
+        None
+        if not isinstance(payload, Mapping)
+        else payload.get("effective_completion_scope_basis")
+    )
+    completion_basis = (
+        None
+        if not isinstance(payload, Mapping)
+        else payload.get("completion_basis")
+    )
+    scope_completion_ids = (
+        []
+        if not isinstance(scope_basis, list)
+        else [
+            item.get("completion_record_id")
+            for item in scope_basis
+            if isinstance(item, Mapping)
+        ]
+    )
+    completion_basis_ids = (
+        []
+        if not isinstance(completion_basis, list)
+        else [
+            item.get("completion_record_id")
+            for item in completion_basis
+            if isinstance(item, Mapping)
+        ]
+    )
+    expected_scope_fields = {
+        "candidate_credit",
+        "completion_record_id",
+        "cost_semantics_latch_id",
+        "economic_credit",
+        "evidence_modes",
+        "invalidation_record_id",
+        "overlay_record_id",
+        "scientific_credit",
+        "scientific_eligible",
+        "terminal_credit",
+    }
+    v2_scope_valid = (
+        correction_schema == "study_diagnosis_correction.v2"
+        and isinstance(scope_basis, list)
+        and bool(scope_basis)
+        and len(scope_completion_ids) == len(scope_basis)
+        and scope_completion_ids == completion_basis_ids
+        and all(isinstance(value, str) for value in scope_completion_ids)
+        and len(set(scope_completion_ids)) == len(scope_completion_ids)
+        and all(
+            isinstance(item, Mapping)
+            and set(item) == expected_scope_fields
+            and type(item.get("completion_record_id")) is str
+            and isinstance(item.get("evidence_modes"), list)
+            and all(
+                type(mode) is str and mode.isascii()
+                for mode in item.get("evidence_modes", [])
+            )
+            and item.get("evidence_modes")
+            == sorted(set(item.get("evidence_modes", [])))
+            and type(item.get("scientific_eligible")) is bool
+            and item.get("scientific_credit") in {0, 1}
+            and item.get("scientific_eligible")
+            == bool(item.get("scientific_credit"))
+            and item.get("candidate_credit") in {0, 1}
+            and item.get("economic_credit") in {0, 1}
+            and item.get("terminal_credit") in {0, 1}
+            and all(
+                item.get(name) is None
+                or isinstance(item.get(name), str)
+                for name in (
+                    "cost_semantics_latch_id",
+                    "invalidation_record_id",
+                    "overlay_record_id",
+                )
+            )
+            for item in scope_basis
+        )
+    )
+    v2_prior_valid = False
+    if correction_schema == "study_diagnosis_correction.v2" and correction is not None:
+        if correction.event_sequence == 1:
+            v2_prior_valid = (
+                previous is None
+                and payload.get("supersedes_correction_id") is None
+                and payload.get("supersedes_audit_id") is None
+                and payload.get("prior_effective_authority_record_id")
+                == original.record_id
+                and payload.get("prior_effective_evidence_state")
+                == original.status
+            )
+        elif previous is not None:
+            previous_payload = previous.payload
+            previous_digest = canonical_digest(
+                domain="study-diagnosis-correction",
+                payload=dict(previous_payload),
+            )
+            v2_prior_valid = (
+                previous.kind == "study-diagnosis-correction"
+                and previous.event_stream == stream
+                and previous.event_sequence == correction.event_sequence - 1
+                and previous.subject == original.subject
+                and previous_payload.get("original_diagnosis_id")
+                == original.record_id
+                and previous_payload.get("effective_evidence_state")
+                == previous.status
+                and previous.record_id
+                == "diagnosis-correction:" + previous_digest
+                and previous.fingerprint == previous_digest
+                and payload.get("supersedes_correction_id")
+                == previous.record_id
+                and payload.get("supersedes_audit_id")
+                == previous_payload.get("audit_id")
+                and payload.get("prior_effective_authority_record_id")
+                == previous.record_id
+                and payload.get("prior_effective_evidence_state")
+                == previous.status
+            )
     if (
         correction is None
         or correction.kind != "study-diagnosis-correction"
@@ -117,7 +254,19 @@ def effective_study_diagnosis(
         or correction.event_sequence != head.sequence
         or correction.subject != original.subject
         or not isinstance(payload, Mapping)
-        or payload.get("schema") != "study_diagnosis_correction.v1"
+        or correction_schema
+        not in {
+            "study_diagnosis_correction.v1",
+            "study_diagnosis_correction.v2",
+        }
+        or (
+            correction_schema == "study_diagnosis_correction.v1"
+            and correction.event_sequence != 1
+        )
+        or (
+            correction_schema == "study_diagnosis_correction.v2"
+            and (not v2_scope_valid or not v2_prior_valid)
+        )
         or payload.get("original_diagnosis_id") != original.record_id
         or payload.get("study_id") != original.payload.get("study_id")
         or payload.get("study_close_record_id")
@@ -149,8 +298,23 @@ def effective_study_diagnosis(
         or audit.record_id != audit_id
         or audit.subject != f"Mission:{payload.get('mission_id')}"
         or not isinstance(audit_payload, Mapping)
-        or audit_payload.get("schema")
-        != "study_diagnosis_correction_audit.v1"
+        or audit_schema
+        not in {
+            "study_diagnosis_correction_audit.v1",
+            "study_diagnosis_correction_audit.v2",
+        }
+        or (
+            audit_schema == "study_diagnosis_correction_audit.v1"
+            and prior_correction_ids != []
+        )
+        or (
+            audit_schema == "study_diagnosis_correction_audit.v2"
+            and (
+                not isinstance(prior_correction_ids, list)
+                or prior_correction_ids
+                != sorted(set(prior_correction_ids))
+            )
+        )
         or audit_payload.get("mission_id") != payload.get("mission_id")
         or audit_payload.get("protocol_id") != payload.get("audit_protocol_id")
         or not isinstance(audit_original_ids, list)
@@ -184,6 +348,19 @@ def effective_study_diagnosis(
             if all(isinstance(value, str) for value in raw_same_event_original_ids)
             else []
         )
+        raw_same_event_prior_ids = tuple(
+            record.payload.get("supersedes_correction_id")
+            for record in same_event
+            if record.payload.get("supersedes_correction_id") is not None
+        )
+        same_event_prior_ids = (
+            sorted(raw_same_event_prior_ids)
+            if all(
+                isinstance(value, str)
+                for value in raw_same_event_prior_ids
+            )
+            else []
+        )
         expected_result = {
             "audit_id": audit.record_id,
             "candidate_authority_delta": 0,
@@ -207,6 +384,7 @@ def effective_study_diagnosis(
             ) from exc
         if (
             same_event_original_ids != audit_original_ids
+            or same_event_prior_ids != prior_correction_ids
             or any(
                 record.authority_event_id != correction.authority_event_id
                 or record.payload.get("audit_id") != audit.record_id

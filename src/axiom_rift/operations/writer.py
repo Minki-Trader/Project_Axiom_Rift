@@ -12722,7 +12722,7 @@ class StateWriter:
                 )
             except EffectiveStudyDiagnosisError as exc:
                 raise RecoveryRequired(str(exc)) from exc
-            mismatches: list[tuple[IndexRecord, Any]] = []
+            mismatches: list[tuple[Any, Any]] = []
             for effective in effective_mission_diagnoses:
                 original = effective.original
                 study_id = original.payload.get("study_id")
@@ -12743,17 +12743,27 @@ class StateWriter:
                     pattern is not None
                     and pattern.evidence_state.value != effective.status
                 ):
-                    if effective.correction is not None:
-                        raise RecoveryRequired(
-                            "effective diagnosis correction conflicts with evidence"
-                        )
-                    mismatches.append((original, pattern))
+                    mismatches.append((effective, pattern))
             mismatch_ids = tuple(
-                sorted(original.record_id for original, _pattern in mismatches)
+                sorted(
+                    effective.record_id
+                    for effective, _pattern in mismatches
+                )
             )
             if mismatch_ids != audit.original_diagnosis_ids:
                 raise TransitionError(
                     "diagnosis correction audit inventory is incomplete or stale"
+                )
+            prior_correction_ids = tuple(
+                sorted(
+                    effective.correction.record_id
+                    for effective, _pattern in mismatches
+                    if effective.correction is not None
+                )
+            )
+            if prior_correction_ids != audit.prior_correction_ids:
+                raise TransitionError(
+                    "diagnosis correction audit prior authority is incomplete or stale"
                 )
 
             audit_payload = audit.to_identity_payload()
@@ -12807,15 +12817,34 @@ class StateWriter:
                     for value in review.payload.get("covered_diagnosis_ids", [])
                     if isinstance(value, str)
                 )
-            for original, pattern in sorted(
+            for effective, pattern in sorted(
                 mismatches,
                 key=lambda item: item[0].record_id,
             ):
+                original = effective.original
                 stream = f"study-diagnosis-correction:{original.record_id}"
-                if index.event_head(stream) is not None:
-                    raise RecoveryRequired(
-                        "Study diagnosis already has correction authority"
+                stream_head = index.event_head(stream)
+                prior_correction = effective.correction
+                if (
+                    (stream_head is None) != (prior_correction is None)
+                    or (
+                        stream_head is not None
+                        and prior_correction is not None
+                        and (
+                            stream_head.record_kind != prior_correction.kind
+                            or stream_head.record_id
+                            != prior_correction.record_id
+                            or stream_head.sequence
+                            != prior_correction.event_sequence
+                        )
                     )
+                ):
+                    raise RecoveryRequired(
+                        "Study diagnosis correction head conflicts with effective authority"
+                    )
+                correction_sequence = (
+                    1 if stream_head is None else stream_head.sequence + 1
+                )
                 study_id = original.payload["study_id"]
                 study = index.get("study-open", study_id)
                 if study is None:
@@ -12845,6 +12874,11 @@ class StateWriter:
                     study_id=study_id,
                 )
                 completion_basis: list[dict[str, str]] = []
+                effective_scope_basis: list[dict[str, Any]] = []
+                from axiom_rift.operations.evidence_scope_projection import (
+                    EvidenceScopeProjectionError,
+                    effective_completion_evidence_scope,
+                )
                 for completion in completions:
                     scientific = completion.payload.get("scientific")
                     adjudication = (
@@ -12872,6 +12906,33 @@ class StateWriter:
                             ),
                             "completion_record_id": completion.record_id,
                             "executable_id": executable_id,
+                        }
+                    )
+                    try:
+                        scope = effective_completion_evidence_scope(
+                            index,
+                            completion,
+                        )
+                    except EvidenceScopeProjectionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
+                    effective_scope_basis.append(
+                        {
+                            "candidate_credit": scope.candidate_credit,
+                            "completion_record_id": completion.record_id,
+                            "cost_semantics_latch_id": (
+                                scope.cost_semantics_latch_id
+                            ),
+                            "economic_credit": scope.economic_credit,
+                            "evidence_modes": list(scope.evidence_modes),
+                            "invalidation_record_id": (
+                                scope.invalidation_record_id
+                            ),
+                            "overlay_record_id": scope.overlay_record_id,
+                            "scientific_credit": scope.scientific_credit,
+                            "scientific_eligible": (
+                                scope.scientific_eligible
+                            ),
+                            "terminal_credit": scope.terminal_credit,
                         }
                     )
                 satisfaction_ids = tuple(
@@ -12931,7 +12992,7 @@ class StateWriter:
                     "completion_basis": completion_basis,
                     "confirmation_credit_delta": (
                         -1
-                        if original.payload.get("evidence_state")
+                        if effective.status
                         == EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value
                         and pattern.evidence_state
                         is not EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION
@@ -12939,6 +13000,9 @@ class StateWriter:
                     ),
                     "decision_qualifications": decision_qualifications,
                     "effective_confidence": pattern.confidence.value,
+                    "effective_completion_scope_basis": (
+                        effective_scope_basis
+                    ),
                     "effective_evidence_state": pattern.evidence_state.value,
                     "effective_reason_code": pattern.reason_code,
                     "evidence_basis_digest": canonical_digest(
@@ -12968,15 +13032,29 @@ class StateWriter:
                     "projection_scope": (
                         "study_primary_question_over_all_completion_references"
                     ),
+                    "prior_effective_authority_record_id": (
+                        effective.authority_record_id
+                    ),
+                    "prior_effective_evidence_state": effective.status,
                     "replay_satisfaction_delta": 0,
                     "replay_satisfaction_record_ids": list(satisfaction_ids),
-                    "schema": "study_diagnosis_correction.v1",
+                    "schema": "study_diagnosis_correction.v2",
                     "scientific_trial_delta": 0,
                     "study_close_record_id": original.payload.get(
                         "study_close_record_id"
                     ),
                     "study_id": study_id,
                     "system_architecture_family": architecture,
+                    "supersedes_audit_id": (
+                        None
+                        if prior_correction is None
+                        else prior_correction.payload.get("audit_id")
+                    ),
+                    "supersedes_correction_id": (
+                        None
+                        if prior_correction is None
+                        else prior_correction.record_id
+                    ),
                 }
                 digest = canonical_digest(
                     domain="study-diagnosis-correction",
@@ -12990,7 +13068,7 @@ class StateWriter:
                     fingerprint=digest,
                     payload=correction_payload,
                     event_stream=stream,
-                    event_sequence=1,
+                    event_sequence=correction_sequence,
                 )
                 correction_records.append(correction)
                 corrections_by_original[original.record_id] = correction
@@ -13044,19 +13122,16 @@ class StateWriter:
                 current_correction = corrections_by_original.get(
                     current_diagnosis_id
                 )
-                body["next_action"] = {
-                    **next_action,
-                    "diagnosis_correction_audit_id": audit.identity,
-                    **(
-                        {}
-                        if current_correction is None
-                        else {
+                body["next_action"] = dict(next_action)
+                if current_correction is not None:
+                    body["next_action"].update(
+                        {
+                            "diagnosis_correction_audit_id": audit.identity,
                             "study_diagnosis_correction_id": (
                                 current_correction.record_id
-                            )
+                            ),
                         }
-                    ),
-                }
+                    )
                 records = [audit_record, *correction_records]
             return body, records, {
                 "audit_id": audit.identity,

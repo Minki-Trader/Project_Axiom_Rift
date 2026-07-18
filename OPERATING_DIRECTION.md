@@ -968,7 +968,10 @@ runtime_eligible; semantic change requires a new source contract.
   without rewriting the original event. Study diagnosis reads that effective
   completion scope before adjudication. Audit-only or scientific-validity-
   invalidated completions preserve their exact diagnostic claims but cannot
-  create scientific confirmation debt.
+  create scientific confirmation debt. Later effective-scope authority may
+  supersede a prior diagnosis correction only through an append-only,
+  predecessor-bound correction chain; neither the original nor the prior
+  correction is rewritten.
 - [MUST] OD-AUD-021 Scientific evidence preserves an exact plan, atomic support,
   statistical proof, execution trace, and result. The trace binds protocol,
   data, split, Executable, decision, entry and exit times, fold and regime,

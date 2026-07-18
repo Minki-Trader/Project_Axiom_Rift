@@ -337,6 +337,11 @@ axis-level scientific confirmation debt. When no disposition-driving completion
 retains scientific authority, use the typed non-identifiable branch rather than
 promoting supported audit claims or a stale historical verdict.
 
+If later scope authority changes a diagnosis that already has an additive
+correction, bind the exact current correction and its audit and append the next
+correction in that stream. Never reject later valid evidence merely because one
+correction exists, and never overwrite or reinterpret either predecessor.
+
 Classify engineering reentry from exact gap and repair evidence, not from a
 diagnosis label alone. `not_identifiable` may support reentry only when the
 bound record proves a recoverable non-scientific inability and the successor
