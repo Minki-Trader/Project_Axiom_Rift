@@ -28,6 +28,10 @@ from axiom_rift.operations.executable_axis_lineage import (
     completion_executable_axis_lineage,
     declared_executable_axis_lineage,
 )
+from axiom_rift.operations.effective_study_diagnosis import (
+    EffectiveStudyDiagnosisError,
+    effective_study_diagnoses_by_study,
+)
 from axiom_rift.operations.historical_cost_semantics_common import (
     COMPLETION_SCOPE_RECORD_KIND,
 )
@@ -44,6 +48,7 @@ from axiom_rift.operations.replay_projection import (
 )
 from axiom_rift.research.effective_axis import (
     EffectiveAxisResolution,
+    EffectiveDiagnosisAxisBinding,
     EvidenceScopeAxisBinding,
     HistoricalCostAxisBinding,
     ReplayAxisBinding,
@@ -256,9 +261,18 @@ def source_authority_subject_ids(
 
 
 @dataclass(frozen=True, slots=True)
+class _AxisStudyBinding:
+    axis_identity: str
+    mission_id: str
+    study_id: str
+    authority_sequence: int
+
+
+@dataclass(frozen=True, slots=True)
 class _AxisLineageProjection:
     source_ids_by_axis: Mapping[str, frozenset[str]]
     executable_ids_by_axis: Mapping[str, tuple[str, ...]]
+    studies_by_axis: Mapping[str, tuple[_AxisStudyBinding, ...]]
 
 
 def _axis_lineage_projection(
@@ -284,6 +298,7 @@ def _axis_lineage_projection(
     }
     study_axis_by_id: dict[str, str] = {}
     study_mission_ids: set[str] = set()
+    studies_by_axis: dict[str, list[_AxisStudyBinding]] = {}
 
     def register(
         identity: object,
@@ -345,9 +360,26 @@ def _axis_lineage_projection(
             "axis:",
         )
         study_axis_by_id[study.record_id] = study_axis_identity
-        study_mission_ids.add(
-            _ascii("Study Mission id", study.payload.get("mission_id"))
+        study_mission_id = _ascii(
+            "Study Mission id", study.payload.get("mission_id")
         )
+        study_mission_ids.add(study_mission_id)
+        if study.authority_sequence is not None and (
+            type(study.authority_sequence) is not int
+            or study.authority_sequence < 1
+        ):
+            raise EffectiveAxisProjectionError(
+                "Study axis lineage lacks authority sequence"
+            )
+        if study.authority_sequence is not None:
+            studies_by_axis.setdefault(study_axis_identity, []).append(
+                _AxisStudyBinding(
+                    axis_identity=study_axis_identity,
+                    mission_id=study_mission_id,
+                    study_id=study.record_id,
+                    authority_sequence=study.authority_sequence,
+                )
+            )
         controlled = study.payload.get("controlled_chassis")
         baseline = (
             None
@@ -421,7 +453,124 @@ def _axis_lineage_projection(
             axis_identity: tuple(sorted(values))
             for axis_identity, values in executable_ids.items()
         },
+        studies_by_axis={
+            axis_identity: tuple(
+                sorted(
+                    values,
+                    key=lambda item: (
+                        item.authority_sequence,
+                        item.study_id,
+                    ),
+                )
+            )
+            for axis_identity, values in studies_by_axis.items()
+        },
     )
+
+
+def _effective_diagnosis_axis_bindings(
+    index: LocalIndex | LocalIndexView,
+    *,
+    axes: Sequence[Mapping[str, Any]],
+    lineage: _AxisLineageProjection,
+) -> Mapping[str, EffectiveDiagnosisAxisBinding]:
+    """Bind each named axis to its latest diagnosed Study, if any."""
+
+    axes_by_identity: dict[str, Mapping[str, Any]] = {}
+    for axis in axes:
+        axis_identity = _identity(
+            "diagnosis Portfolio axis identity",
+            axis.get("axis_identity"),
+            "axis:",
+        )
+        if axis_identity in axes_by_identity:
+            raise EffectiveAxisProjectionError(
+                "Portfolio diagnosis axis identities are ambiguous"
+            )
+        axes_by_identity[axis_identity] = axis
+    mission_ids = tuple(
+        sorted(
+            {
+                study.mission_id
+                for axis_identity in axes_by_identity
+                for study in lineage.studies_by_axis.get(axis_identity, ())
+            }
+        )
+    )
+    try:
+        diagnoses_by_mission = {
+            mission_id: effective_study_diagnoses_by_study(
+                index,
+                mission_id=mission_id,
+            )
+            for mission_id in mission_ids
+        }
+    except EffectiveStudyDiagnosisError as exc:
+        raise EffectiveAxisProjectionError(
+            "effective diagnosis axis authority is malformed"
+        ) from exc
+    result: dict[str, EffectiveDiagnosisAxisBinding] = {}
+    for axis_identity, axis in axes_by_identity.items():
+        candidates: list[
+            tuple[int, int, EffectiveDiagnosisAxisBinding]
+        ] = []
+        for study in lineage.studies_by_axis.get(axis_identity, ()):
+            diagnosis = diagnoses_by_mission[study.mission_id].get(
+                study.study_id
+            )
+            if diagnosis is None:
+                continue
+            original = diagnosis.original
+            payload = diagnosis.payload
+            correction = diagnosis.correction
+            original_sequence = original.authority_sequence
+            if (
+                type(original_sequence) is not int
+                or original_sequence <= study.authority_sequence
+                or original.subject != f"Study:{study.study_id}"
+                or payload.get("study_id") != study.study_id
+                or payload.get("mission_id") != study.mission_id
+                or payload.get("portfolio_axis_id") != axis.get("axis_id")
+            ):
+                raise EffectiveAxisProjectionError(
+                    "effective diagnosis differs from its Study axis lineage"
+                )
+            correction_id = (
+                None if correction is None else correction.record_id
+            )
+            correction_audit_id = (
+                None
+                if correction is None
+                else correction.payload.get("audit_id")
+            )
+            try:
+                binding = EffectiveDiagnosisAxisBinding(
+                    axis_id=axis["axis_id"],
+                    axis_identity=axis_identity,
+                    study_id=study.study_id,
+                    original_diagnosis_id=original.record_id,
+                    authority_record_id=diagnosis.authority_record_id,
+                    evidence_state=diagnosis.status,
+                    allowed_actions=tuple(payload.get("allowed_actions", ())),
+                    original_authority_sequence=original_sequence,
+                    correction_id=correction_id,
+                    correction_audit_id=correction_audit_id,
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise EffectiveAxisProjectionError(
+                    "effective diagnosis axis binding is malformed"
+                ) from exc
+            candidates.append(
+                (original_sequence, study.authority_sequence, binding)
+            )
+        if candidates:
+            candidates.sort(key=lambda item: (item[0], item[1]))
+            if len(candidates) > 1 and candidates[-2][:2] == candidates[-1][:2]:
+                raise EffectiveAxisProjectionError(
+                    "latest effective diagnosis axis binding is ambiguous"
+                )
+            result[axis_identity] = candidates[-1][2]
+    return result
 
 
 def _axis_source_contract_ids_from_lineage(
@@ -1617,6 +1766,7 @@ def _effective_axis_resolution_from_projection(
     prospective_source_ids: Sequence[str],
     source_lineage: _AxisLineageProjection,
     authority: _EffectiveAuthorityIndex,
+    diagnosis_bindings: Mapping[str, EffectiveDiagnosisAxisBinding],
 ) -> EffectiveAxisResolution:
     axis_identity = _identity(
         "Portfolio axis identity", axis.get("axis_identity"), "axis:"
@@ -1704,6 +1854,7 @@ def _effective_axis_resolution_from_projection(
             historical_cost_bindings=authority.historical_cost_by_axis.get(
                 axis_identity, ()
             ),
+            diagnosis_binding=diagnosis_bindings.get(axis_identity),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise EffectiveAxisProjectionError(
@@ -1726,11 +1877,17 @@ def effective_axis_resolution(
         index,
         axis_identities=(axis_identity,),
     )
+    diagnosis_bindings = _effective_diagnosis_axis_bindings(
+        index,
+        axes=(axis,),
+        lineage=source_lineage,
+    )
     return _effective_axis_resolution_from_projection(
         index,
         axis,
         prospective_source_ids=prospective_source_ids,
         source_lineage=source_lineage,
+        diagnosis_bindings=diagnosis_bindings,
         authority=_effective_authority_index(
             index,
             heads=_obligation_heads_for_executables(
@@ -1847,6 +2004,11 @@ def _effective_axis_resolutions_in_session(
         index,
         axis_identities=axis_identities,
     )
+    diagnosis_bindings = _effective_diagnosis_axis_bindings(
+        index,
+        axes=values,
+        lineage=source_lineage,
+    )
     executable_ids = tuple(
         sorted(
             {
@@ -1872,6 +2034,7 @@ def _effective_axis_resolutions_in_session(
             prospective_source_ids=normalized_prospective.get(axis_id, ()),
             source_lineage=source_lineage,
             authority=authority,
+            diagnosis_bindings=diagnosis_bindings,
         )
         for axis_id, axis in zip(axis_ids, values, strict=True)
     )
@@ -1881,13 +2044,32 @@ def selectable_axis_ids(
     index: LocalIndex | LocalIndexView,
     axes: Sequence[Mapping[str, Any]],
 ) -> tuple[str, ...]:
-    """Resolve a scheduler set without allowing one blocked axis to hide peers."""
+    """Return status-selectable axes; this is not action permission."""
 
     resolutions = effective_axis_resolutions(index, axes)
     axis_ids = tuple(item.axis_id for item in resolutions)
     if len(axis_ids) != len(set(axis_ids)):
         raise EffectiveAxisProjectionError("Portfolio scheduler axis ids are ambiguous")
     return tuple(sorted(item.axis_id for item in resolutions if item.selectable))
+
+
+def portfolio_axis_action_matrix(
+    index: LocalIndex | LocalIndexView,
+    axes: Sequence[Mapping[str, Any]],
+) -> dict[str, tuple[str, ...]]:
+    """Expose exact generic actions before a scheduler spends design work."""
+
+    resolutions = effective_axis_resolutions(index, axes)
+    axis_ids = tuple(item.axis_id for item in resolutions)
+    if len(axis_ids) != len(set(axis_ids)):
+        raise EffectiveAxisProjectionError(
+            "Portfolio scheduler axis ids are ambiguous"
+        )
+    return {
+        item.axis_id: item.generic_portfolio_actions
+        for item in sorted(resolutions, key=lambda value: value.axis_id)
+        if item.decision_option_eligible
+    }
 
 
 def audit_effective_axis_projection(
@@ -1919,6 +2101,7 @@ def audit_effective_axis_projection(
     ) if axis_identities else _AxisLineageProjection(
         source_ids_by_axis={},
         executable_ids_by_axis={},
+        studies_by_axis={},
     )
     overlay_records = index.records_by_kind(
         "historical-evidence-scope-overlay"
@@ -1984,6 +2167,7 @@ __all__ = [
     "effective_axis_resolutions",
     "effective_replay_axis_bindings",
     "mission_effective_axis_blockers",
+    "portfolio_axis_action_matrix",
     "selectable_axis_ids",
     "source_authority_subject_ids",
     "validate_source_replacement_lineage",

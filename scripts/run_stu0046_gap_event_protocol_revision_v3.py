@@ -194,6 +194,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             materialize_gap_event_fixed_hold_v3_job_implementation
         ),
+        operation_prefix=OPERATION_PREFIX,
         study_id=STUDY_ID,
         argv=remaining,
     )

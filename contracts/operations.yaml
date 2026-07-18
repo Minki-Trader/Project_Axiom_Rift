@@ -134,6 +134,19 @@ research_direction:
     threshold_preregistered_in_initial_portfolio: true
     exact_unreviewed_diagnosis_set_bound: true
     required_before_later_scientific_mutation: true
+  generic_portfolio_planning:
+    authenticated_effective_axis_action_matrix_required: true
+    snapshot_selectable_status_is_not_unrestricted_action_permission: true
+    latest_effective_diagnosis_required_before_design_work: true
+    typed_architecture_review_and_replay_constraints_keep_exact_scope: true
+  post_holdout_reentry:
+    exact_authority_survives_registration_initiative_decision_snapshot_and_study: true
+    structural_snapshot_mutation_preserves_authority_until_scientific_execution: true
+    quant_team_review_cites_exact_authority: true
+    executable_data_and_split_must_match_authorized_material: true
+    old_axis_diagnosis_cannot_veto_genuinely_later_material: true
+    authority_is_not_a_generic_action_override: true
+    replay_scheduler_constraints_survive_registration_and_initiative_admission: true
   study_continuation:
     action: review_study_continuation
     record_kind: study-continuation-decision
@@ -1093,6 +1106,13 @@ study_close_delivery_checkpoint:
     no_op_commit_allowed: false
     later_science_freshness_gate: false
 project_goal_audit_v2_operations:
+  replay_runner_operation_namespace:
+    owner_source: exact_open_study_operation_and_same_event_study_record
+    one_shot_after_natural_study_binding: true
+    foreign_study_read_only_handoff_required: true
+    foreign_study_stage_execution_allowed: false
+    successor_protocol_requires_distinct_namespace: true
+    generic_malformed_projection_error_for_foreign_owner_allowed: false
   implementation_closure:
     component_to_executable_to_job_required: true
     executable_component_current_byte_identities_required: true

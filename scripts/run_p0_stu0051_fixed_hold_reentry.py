@@ -37,6 +37,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             materialize_volatility_duration_fixed_hold_job_implementation
         ),
+        operation_prefix="p0-stu0051-fixed-hold-reentry-v1-run-",
         study_id=STUDY_ID,
         argv=argv,
     )

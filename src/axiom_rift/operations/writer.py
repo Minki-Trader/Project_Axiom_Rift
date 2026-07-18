@@ -4899,6 +4899,26 @@ class StateWriter:
             portfolio_head = index.event_head(
                 f"portfolio:{science['active_mission']}"
             )
+            next_action = current["next_action"]
+            post_holdout_development_id = next_action.get(
+                "post_holdout_development_id"
+            )
+            if post_holdout_development_id is not None:
+                required_holdout_id = science.get("required_future_holdout_id")
+                if (
+                    science.get("holdout_reveals", 0) < 1
+                    or not isinstance(required_holdout_id, str)
+                    or not isinstance(post_holdout_development_id, str)
+                ):
+                    raise TransitionError(
+                        "Initiative post-holdout reentry authority is malformed"
+                    )
+                self._require_post_holdout_development_authority(
+                    index,
+                    mission_id=science["active_mission"],
+                    record_id=post_holdout_development_id,
+                    required_holdout_id=required_holdout_id,
+                )
             replay_constraints = self._replay_scheduler_constraints(
                 index,
                 mission_id=science["active_mission"],
@@ -4917,7 +4937,6 @@ class StateWriter:
                 )
             research_intake_id: str | None = None
             if not self.engineering_fixture:
-                next_action = current["next_action"]
                 if portfolio_head is None:
                     research_intake_id = next_action.get("research_intake_id")
                     intake = (
@@ -4960,6 +4979,10 @@ class StateWriter:
                     "kind": "portfolio_decision",
                     "portfolio_snapshot_id": snapshot.record_id,
                 }
+                if isinstance(post_holdout_development_id, str):
+                    body["next_action"]["post_holdout_development_id"] = (
+                        post_holdout_development_id
+                    )
                 if replay_constraints is not None:
                     body["next_action"].update(replay_constraints)
             authorization = self._authorization(
@@ -5112,6 +5135,124 @@ class StateWriter:
                 "withdrawn Portfolio Decision lost its accepted provenance"
             )
         return None
+
+    @staticmethod
+    def _require_post_holdout_development_authority(
+        index: LocalIndex,
+        *,
+        mission_id: str,
+        record_id: str,
+        required_holdout_id: str,
+        data_contract: str | None = None,
+        split_contract: str | None = None,
+    ) -> tuple[IndexRecord, IndexRecord]:
+        """Rejoin one future-development authority to its material and holdout."""
+
+        if (
+            type(record_id) is not str
+            or len(record_id) != 64
+            or any(character not in "0123456789abcdef" for character in record_id)
+        ):
+            raise TransitionError(
+                "post-holdout development authority identity is invalid"
+            )
+        authority = index.get("post-holdout-development", record_id)
+        payload = {} if authority is None else authority.payload
+        material_identity = payload.get("material_identity")
+        material = (
+            None
+            if not isinstance(material_identity, str)
+            else index.get("development-material", material_identity)
+        )
+        holdout = index.get("holdout-seal", required_holdout_id)
+        expected_id = (
+            None
+            if not isinstance(material_identity, str)
+            else canonical_digest(
+                domain="post-holdout-development",
+                payload={
+                    "holdout_id": required_holdout_id,
+                    "material_identity": material_identity,
+                    "mission_id": mission_id,
+                },
+            )
+        )
+        if (
+            authority is None
+            or authority.status != "accepted"
+            or authority.record_id != expected_id
+            or authority.subject != f"Material:{material_identity}"
+            or payload.get("mission_id") != mission_id
+            or payload.get("holdout_id") != required_holdout_id
+            or authority.authority_sequence is None
+            or authority.authority_event_id is None
+            or material is None
+            or material.status != "accepted"
+            or material.subject != f"Mission:{mission_id}"
+            or material.payload.get("post_holdout_development_id") != record_id
+            or material.payload.get("material_identity") != material_identity
+            or material.authority_sequence != authority.authority_sequence
+            or material.authority_event_id != authority.authority_event_id
+            or holdout is None
+            or holdout.status != "sealed_unrevealed"
+            or index.event_head(f"holdout-reveal:{required_holdout_id}") is not None
+            or (
+                data_contract is not None
+                and data_contract != f"data:{material_identity}"
+            )
+            or (
+                split_contract is not None
+                and split_contract != f"split:{payload.get('split_identity')}"
+            )
+        ):
+            raise TransitionError(
+                "post-holdout development authority is absent, stale, or misbound"
+        )
+        return authority, material
+
+    @classmethod
+    def _require_post_holdout_decision_binding(
+        cls,
+        index: LocalIndex,
+        *,
+        science: Mapping[str, Any],
+        decision: IndexRecord,
+        next_action: Mapping[str, Any] | None = None,
+        data_contract: str | None = None,
+        split_contract: str | None = None,
+    ) -> tuple[str | None, IndexRecord | None]:
+        """Revalidate and rejoin one Decision-carried development authority."""
+
+        record_id = decision.payload.get("post_holdout_development_id")
+        if (
+            next_action is not None
+            and next_action.get("post_holdout_development_id") != record_id
+        ):
+            raise TransitionError(
+                "post-holdout development authority drifted from its Decision"
+            )
+        if record_id is None:
+            return None, None
+        mission_id = science.get("active_mission")
+        required_holdout_id = science.get("required_future_holdout_id")
+        if (
+            science.get("holdout_reveals", 0) < 1
+            or not isinstance(mission_id, str)
+            or not isinstance(required_holdout_id, str)
+            or not isinstance(record_id, str)
+        ):
+            raise TransitionError(
+                "post-holdout Decision authority is malformed"
+            )
+        _, material = cls._require_post_holdout_development_authority(
+            index,
+            mission_id=mission_id,
+            record_id=record_id,
+            required_holdout_id=required_holdout_id,
+            data_contract=data_contract,
+            split_contract=split_contract,
+        )
+        return record_id, material
 
     @staticmethod
     def _historical_replay_obligation_heads(
@@ -7278,6 +7419,7 @@ class StateWriter:
             controlled_domains: list[str] | None = None
             portfolio_action: str | None = None
             commitment_batches: int | None = None
+            post_holdout_development_id: str | None = None
             replay_obligation_ids: tuple[str, ...] = ()
             replacement_preflight: IndexRecord | None = None
             if not self.engineering_fixture:
@@ -7397,6 +7539,47 @@ class StateWriter:
                 if not isinstance(decision_baseline, Mapping):
                     raise RecoveryRequired(
                         "accepted Portfolio Decision baseline is malformed"
+                    )
+                raw_post_holdout_id = next_action.get(
+                    "post_holdout_development_id"
+                )
+                baseline_data_contract = decision_baseline.get(
+                    "data_contract"
+                )
+                baseline_split_contract = decision_baseline.get(
+                    "split_contract"
+                )
+                if raw_post_holdout_id is not None and (
+                    not isinstance(baseline_data_contract, str)
+                    or not isinstance(baseline_split_contract, str)
+                ):
+                    raise TransitionError(
+                        "Study post-holdout development authority is malformed"
+                    )
+                post_holdout_development_id, authorized_material = (
+                    self._require_post_holdout_decision_binding(
+                        _index,
+                        science=science,
+                        decision=decision,
+                        next_action=next_action,
+                        data_contract=(
+                            baseline_data_contract
+                            if isinstance(raw_post_holdout_id, str)
+                            else None
+                        ),
+                        split_contract=(
+                            baseline_split_contract
+                            if isinstance(raw_post_holdout_id, str)
+                            else None
+                        ),
+                    )
+                )
+                if (
+                    authorized_material is not None
+                    and authorized_material.record_id != material_identity
+                ):
+                    raise TransitionError(
+                        "Study material differs from its post-holdout authority"
                     )
                 source_authority_subject_ids = (
                     self._source_authority_subject_ids(
@@ -8023,6 +8206,15 @@ class StateWriter:
                     "portfolio_axis_identity": portfolio_axis_identity,
                     "portfolio_decision_id": portfolio_decision_id,
                     "portfolio_snapshot_id": portfolio_snapshot_id,
+                    **(
+                        {
+                            "post_holdout_development_id": (
+                                post_holdout_development_id
+                            )
+                        }
+                        if isinstance(post_holdout_development_id, str)
+                        else {}
+                    ),
                     "commitment_batches": commitment_batches,
                     "semantic_proposal": semantic_proposal_manifest,
                     "semantic_question_core_id": semantic_question_core.identity,
@@ -13210,6 +13402,27 @@ class StateWriter:
                 != review.system_architecture_family
             ):
                 raise TransitionError("architecture review trigger is absent or stale")
+            post_holdout_development_id = next_action.get(
+                "post_holdout_development_id"
+            )
+            if post_holdout_development_id is not None:
+                required_holdout_id = science.get(
+                    "required_future_holdout_id"
+                )
+                if (
+                    science.get("holdout_reveals", 0) < 1
+                    or not isinstance(required_holdout_id, str)
+                    or not isinstance(post_holdout_development_id, str)
+                ):
+                    raise TransitionError(
+                        "architecture review post-holdout authority is malformed"
+                    )
+                self._require_post_holdout_development_authority(
+                    index,
+                    mission_id=review.mission_id,
+                    record_id=post_holdout_development_id,
+                    required_holdout_id=required_holdout_id,
+                )
             payload = {
                 **review.to_identity_payload(),
                 "covered_diagnosis_ids": trigger.payload["diagnosis_ids"],
@@ -13219,6 +13432,10 @@ class StateWriter:
                     "primary_research_layers"
                 ],
             }
+            if isinstance(post_holdout_development_id, str):
+                payload["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             trigger_schema = trigger.payload.get("schema")
             if trigger_schema == "architecture_review_trigger.v2":
                 authorities = trigger.payload.get("diagnosis_authorities")
@@ -13336,6 +13553,10 @@ class StateWriter:
                 "constraint_source_id": review.identity,
                 "portfolio_snapshot_id": trigger.payload["portfolio_snapshot_id"],
             }
+            if isinstance(post_holdout_development_id, str):
+                body["next_action"]["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             if continuation is not None:
                 body["next_action"].update(continuation.to_action_fields())
             elif (
@@ -17486,6 +17707,7 @@ class StateWriter:
             required_target_axis_ids: list[str] = []
             constraint_source_id: str | None = None
             continuation = None
+            post_holdout_development_id: str | None = None
             replay_scheduler_projection_recovered = False
             replay_constraints = self._replay_scheduler_constraints(
                 index,
@@ -17570,6 +17792,14 @@ class StateWriter:
                     raise TransitionError(
                         "Portfolio snapshot mutation requires the current structural Decision"
                     )
+                post_holdout_development_id, _ = (
+                    self._require_post_holdout_decision_binding(
+                        index,
+                        science=science,
+                        decision=decision,
+                        next_action=next_action,
+                    )
+                )
                 from axiom_rift.operations.replay_projection import (
                     ReplayTransitionError,
                     validate_snapshot_scheduler_projection,
@@ -17957,6 +18187,10 @@ class StateWriter:
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": snapshot.identity,
             }
+            if isinstance(post_holdout_development_id, str):
+                body["next_action"]["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             if continuation is not None:
                 body["next_action"].update(
                     continuation.with_materialized_targets(
@@ -18092,6 +18326,14 @@ class StateWriter:
                 raise TransitionError(
                     "axis reopen authority lost its exact Decision and snapshot"
                 )
+            post_holdout_development_id, _ = (
+                self._require_post_holdout_decision_binding(
+                    index,
+                    science=science,
+                    decision=decision,
+                    next_action=next_action,
+                )
+            )
             resolution = self._effective_axis_resolution(index, axis)
             reopen_evidence = axis_reopen_evidence(resolution)
             if decision.payload.get("effective_axis") != (
@@ -18108,6 +18350,10 @@ class StateWriter:
                 "target_axis_identity": target_identity,
                 "target_id": target_id,
             }
+            if isinstance(post_holdout_development_id, str):
+                expected_action["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             expected_action.update(reopen_evidence.to_action_fields())
             decision_obligations = decision.payload.get(
                 "replay_obligation_ids"
@@ -18253,6 +18499,7 @@ class StateWriter:
             if snapshot is None or snapshot.kind != "portfolio-snapshot":
                 raise TransitionError("Portfolio Decision requires a current snapshot")
             review = decision.quant_team_review
+            review_basis: set[tuple[str, str]] = set()
             if (
                 not self.engineering_fixture
                 and review is None
@@ -18290,6 +18537,32 @@ class StateWriter:
                 )
             ):
                 raise TransitionError("Portfolio Decision is not the exact next action")
+            post_holdout_development_id = next_action.get(
+                "post_holdout_development_id"
+            )
+            if post_holdout_development_id is not None:
+                required_holdout_id = science.get("required_future_holdout_id")
+                if (
+                    science.get("holdout_reveals", 0) < 1
+                    or not isinstance(required_holdout_id, str)
+                    or not isinstance(post_holdout_development_id, str)
+                ):
+                    raise TransitionError(
+                        "Portfolio Decision post-holdout authority is malformed"
+                    )
+                self._require_post_holdout_development_authority(
+                    _index,
+                    mission_id=science["active_mission"],
+                    record_id=post_holdout_development_id,
+                    required_holdout_id=required_holdout_id,
+                )
+                if review is None or (
+                    "post-holdout-development",
+                    post_holdout_development_id,
+                ) not in review_basis:
+                    raise TransitionError(
+                        "quant-team review omits post-holdout development authority"
+                    )
             axis_values = tuple(snapshot.payload["axes"])
             axes_by_id = {axis["axis_id"]: axis for axis in axis_values}
             axis_resolutions = self._effective_axis_resolutions(
@@ -18317,6 +18590,19 @@ class StateWriter:
                     "Portfolio Decision names an undeclared or effectively blocked target axis"
                 )
             chosen_effective_axis = effective_axes[decision.chosen.target_id]
+            diagnosis_binding = chosen_effective_axis.diagnosis_binding
+            generic_portfolio_boundary = (
+                not isinstance(
+                    next_action.get("study_diagnosis_id"),
+                    str,
+                )
+                and continuation is None
+                and not isinstance(
+                    next_action.get("architecture_review_id"),
+                    str,
+                )
+                and not isinstance(post_holdout_development_id, str)
+            )
             if chosen_effective_axis.requires_reopen and decision.chosen.action not in {
                 PortfolioAction.PRESERVE,
                 PortfolioAction.PRUNE,
@@ -18406,6 +18692,32 @@ class StateWriter:
                     raise RecoveryRequired(str(exc)) from exc
                 except ReplayTransitionError as exc:
                     raise TransitionError(str(exc)) from exc
+            diagnosis_constrained_generic_boundary = (
+                generic_portfolio_boundary and replay_constraints is None
+            )
+            if (
+                diagnosis_constrained_generic_boundary
+                and diagnosis_binding is not None
+                and not chosen_effective_axis.permits_generic_portfolio_action(
+                    decision.chosen.action.value
+                )
+            ):
+                raise TransitionError(
+                    "Portfolio Decision action is excluded by the latest "
+                    "effective Study diagnosis"
+                )
+            if (
+                diagnosis_constrained_generic_boundary
+                and diagnosis_binding is not None
+                and review is not None
+                and not set(
+                    diagnosis_binding.required_review_basis
+                ).issubset(review_basis)
+            ):
+                raise TransitionError(
+                    "quant-team review omits the latest effective axis "
+                    "diagnosis authority"
+                )
             scheduler_constraints = None
             if continuation is not None:
                 scheduler_constraints = {
@@ -18583,6 +18895,19 @@ class StateWriter:
                     baseline.to_identity_payload(),
                     error_type=TransitionError,
                 )
+                if isinstance(post_holdout_development_id, str):
+                    required_holdout_id = science.get(
+                        "required_future_holdout_id"
+                    )
+                    assert isinstance(required_holdout_id, str)
+                    self._require_post_holdout_development_authority(
+                        _index,
+                        mission_id=science["active_mission"],
+                        record_id=post_holdout_development_id,
+                        required_holdout_id=required_holdout_id,
+                        data_contract=baseline.data_contract,
+                        split_contract=baseline.split_contract,
+                    )
             if not self.engineering_fixture and decision.chosen.action in work_actions:
                 if baseline is None or architecture is None:
                     raise TransitionError(
@@ -19480,6 +19805,10 @@ class StateWriter:
                 "target_axis_identity": target_axis["axis_identity"],
                 "portfolio_snapshot_id": snapshot.record_id,
             }
+            if isinstance(post_holdout_development_id, str):
+                body["next_action"]["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             if decision.replay_obligation_ids:
                 body["next_action"]["replay_obligation_ids"] = list(
                     decision.replay_obligation_ids
@@ -19590,6 +19919,9 @@ class StateWriter:
                         decision.chosen.target_id
                     ].to_projection_payload(),
                     "portfolio_snapshot_id": snapshot.record_id,
+                    "post_holdout_development_id": (
+                        post_holdout_development_id
+                    ),
                     "scheduler_constraints": scheduler_constraints,
                     "source_authority_subject_ids": list(
                         source_authority_subject_ids
@@ -19828,11 +20160,23 @@ class StateWriter:
                 raise RecoveryRequired(
                     "Portfolio Decision withdrawal evidence changed before commit"
                 )
+            post_holdout_development_id, _ = (
+                self._require_post_holdout_decision_binding(
+                    index,
+                    science=science,
+                    decision=decision,
+                    next_action=next_action,
+                )
+            )
             body = self._body(current)
             replacement_action: dict[str, Any] = {
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": decision.payload["portfolio_snapshot_id"],
             }
+            if isinstance(post_holdout_development_id, str):
+                replacement_action["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             constraints = decision.payload.get("scheduler_constraints")
             if constraints is not None:
                 allowed_constraint_fields = {
@@ -20282,11 +20626,23 @@ class StateWriter:
                 raise RecoveryRequired(
                     "execution-plan Portfolio Decision evidence changed"
                 )
+            post_holdout_development_id, _ = (
+                self._require_post_holdout_decision_binding(
+                    index,
+                    science=science,
+                    decision=decision,
+                    next_action=next_action,
+                )
+            )
             replacement_action: dict[str, Any] = {
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": manifest.portfolio_snapshot_id,
                 "study_diagnosis_id": manifest.study_diagnosis_id,
             }
+            if isinstance(post_holdout_development_id, str):
+                replacement_action["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             try:
                 diagnosis_authority = DiagnosisAuthorityContext.from_mapping(
                     decision.payload
@@ -20600,6 +20956,18 @@ class StateWriter:
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": manifest.portfolio_snapshot_id,
             }
+            post_holdout_development_id, _ = (
+                self._require_post_holdout_decision_binding(
+                    index,
+                    science=science,
+                    decision=decision,
+                    next_action=next_action,
+                )
+            )
+            if isinstance(post_holdout_development_id, str):
+                replacement_action["post_holdout_development_id"] = (
+                    post_holdout_development_id
+                )
             try:
                 diagnosis_authority = DiagnosisAuthorityContext.from_mapping(
                     decision.payload
@@ -26242,6 +26610,45 @@ class StateWriter:
                     raise TransitionError(
                         "component parity Decision lacks its architecture chassis"
                     )
+                decision_baseline = decision.payload.get(
+                    "baseline_executable"
+                )
+                raw_post_holdout_id = decision.payload.get(
+                    "post_holdout_development_id"
+                )
+                if raw_post_holdout_id is not None and (
+                    not isinstance(decision_baseline, Mapping)
+                    or not isinstance(
+                        decision_baseline.get("data_contract"),
+                        str,
+                    )
+                    or not isinstance(
+                        decision_baseline.get("split_contract"),
+                        str,
+                    )
+                ):
+                    raise RecoveryRequired(
+                        "component parity post-holdout baseline is malformed"
+                    )
+                post_holdout_development_id, _ = (
+                    self._require_post_holdout_decision_binding(
+                        index,
+                        science=science,
+                        decision=decision,
+                        data_contract=(
+                            decision_baseline.get("data_contract")
+                            if isinstance(raw_post_holdout_id, str)
+                            and isinstance(decision_baseline, Mapping)
+                            else None
+                        ),
+                        split_contract=(
+                            decision_baseline.get("split_contract")
+                            if isinstance(raw_post_holdout_id, str)
+                            and isinstance(decision_baseline, Mapping)
+                            else None
+                        ),
+                    )
+                )
                 extra_equivalences: tuple[Mapping[str, Any], ...] = ()
                 if disposition == "accept_component_parity":
                     assert isinstance(component_parity, dict)
@@ -26296,6 +26703,10 @@ class StateWriter:
                     ],
                     "target_id": chosen["target_id"],
                 }
+                if isinstance(post_holdout_development_id, str):
+                    execute_action["post_holdout_development_id"] = (
+                        post_holdout_development_id
+                    )
                 try:
                     parity_diagnosis_authority = (
                         DiagnosisAuthorityContext.from_mapping(
@@ -26531,6 +26942,15 @@ class StateWriter:
                 ):
                     reroute_action.update(
                         parity_diagnosis_authority.to_action_fields()
+                    )
+                if (
+                    isinstance(post_holdout_development_id, str)
+                    and reroute_action is not None
+                    and reroute_action.get("kind")
+                    in {"portfolio_decision", "review_architecture"}
+                ):
+                    reroute_action["post_holdout_development_id"] = (
+                        post_holdout_development_id
                     )
                 body["next_action"] = (
                     execute_action if reroute_action is None else reroute_action
@@ -30278,10 +30698,15 @@ class StateWriter:
                     "post_holdout_development_id": receipt_id,
                 },
             )
+            replay_constraints = self._replay_scheduler_constraints(
+                index,
+                mission_id=mission_id,
+            )
             if science["active_initiative"] is None:
                 body["next_action"] = {
                     "kind": "open_initiative",
                     "mission_id": mission_id,
+                    "post_holdout_development_id": receipt_id,
                 }
             else:
                 portfolio_head = index.event_head(f"portfolio:{mission_id}")
@@ -30298,8 +30723,11 @@ class StateWriter:
                     )
                 body["next_action"] = {
                     "kind": "portfolio_decision",
+                    "post_holdout_development_id": receipt_id,
                     "portfolio_snapshot_id": snapshot.record_id,
                 }
+            if replay_constraints is not None:
+                body["next_action"].update(replay_constraints)
             return body, [authority, material], {
                 "material_identity": material_identity,
                 "post_holdout_development_id": receipt_id,

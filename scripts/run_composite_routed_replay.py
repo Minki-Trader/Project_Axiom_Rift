@@ -340,6 +340,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             authority.family.implementation_materializer
         ),
+        operation_prefix=authority.family.operation_prefix,
         study_id=authority.study_id,
         argv=remaining,
     )

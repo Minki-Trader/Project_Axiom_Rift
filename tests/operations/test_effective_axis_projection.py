@@ -19,6 +19,7 @@ from axiom_rift.operations.effective_axis_projection import (
     effective_axis_resolutions,
     effective_replay_axis_bindings,
     mission_effective_axis_blockers,
+    portfolio_axis_action_matrix,
     selectable_axis_ids,
     source_authority_subject_ids,
 )
@@ -768,6 +769,243 @@ def _satisfy_audit_only_replay(
 
 
 class EffectiveAxisProjectionTests(unittest.TestCase):
+    def test_latest_effective_diagnosis_constrains_generic_axis_actions(
+        self,
+    ) -> None:
+        axis = _axis("9")
+        diagnosis_id = "diagnosis:" + "9" * 64
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(
+                    (
+                        IndexRecord(
+                            kind="study-open",
+                            record_id="STU-9009",
+                            subject=f"Mission:{MISSION_ID}",
+                            status="open",
+                            fingerprint="8" * 64,
+                            payload={
+                                "controlled_chassis": None,
+                                "mission_id": MISSION_ID,
+                                "portfolio_axis_identity": axis[
+                                    "axis_identity"
+                                ],
+                                "study_id": "STU-9009",
+                            },
+                            authority_sequence=100,
+                            authority_event_id="7" * 64,
+                            authority_offset=1000,
+                        ),
+                        IndexRecord(
+                            kind="study-diagnosis",
+                            record_id=diagnosis_id,
+                            subject="Study:STU-9009",
+                            status="absent_information",
+                            fingerprint="6" * 64,
+                            payload={
+                                "allowed_actions": [
+                                    "new_mechanism",
+                                    "prune",
+                                    "rotate",
+                                ],
+                                "evidence_state": "absent_information",
+                                "mission_id": MISSION_ID,
+                                "portfolio_axis_id": axis["axis_id"],
+                                "study_id": "STU-9009",
+                            },
+                            authority_sequence=101,
+                            authority_event_id="5" * 64,
+                            authority_offset=1010,
+                        ),
+                    )
+                )
+
+                resolution = effective_axis_resolution(index, axis)
+                action_matrix = portfolio_axis_action_matrix(index, (axis,))
+                deferred_resolution = effective_axis_resolution(
+                    index,
+                    {**axis, "status": "deferred"},
+                )
+
+        self.assertIsNotNone(resolution.diagnosis_binding)
+        self.assertEqual(
+            resolution.diagnosis_binding.authority_record_id,
+            diagnosis_id,
+        )
+        self.assertFalse(
+            resolution.permits_generic_portfolio_action("deepen")
+        )
+        self.assertTrue(
+            resolution.permits_generic_portfolio_action("new_mechanism")
+        )
+        self.assertEqual(
+            resolution.generic_portfolio_actions,
+            ("new_mechanism", "prune", "rotate"),
+        )
+        self.assertEqual(
+            deferred_resolution.generic_portfolio_actions,
+            ("prune",),
+        )
+        self.assertEqual(
+            action_matrix,
+            {axis["axis_id"]: ("new_mechanism", "prune", "rotate")},
+        )
+        self.assertEqual(
+            resolution.to_projection_payload()["schema"],
+            "effective_portfolio_axis.v5",
+        )
+
+    def test_writer_rejects_generic_action_excluded_by_latest_diagnosis(
+        self,
+    ) -> None:
+        target = PortfolioAxis(
+            axis_id="axis-diagnosed-target",
+            causal_question="Does the diagnosed feature retain information?",
+            mechanism_family="diagnosed-feature-family",
+            primary_research_layer=ResearchLayer.FEATURE,
+            system_architecture_family="architecture-family:diagnosed-feature",
+            changed_domains=(ResearchLayer.FEATURE,),
+            controlled_domains=(ResearchLayer.MODEL,),
+            why_now="the latest diagnosis governs generic allocation",
+            stop_or_reopen_condition="rotate after absent information",
+        )
+        peer = PortfolioAxis(
+            axis_id="axis-diagnosed-peer",
+            causal_question="Does an independent model family retain information?",
+            mechanism_family="independent-model-family",
+            primary_research_layer=ResearchLayer.MODEL,
+            system_architecture_family="architecture-family:independent-model",
+            changed_domains=(ResearchLayer.MODEL,),
+            controlled_domains=(ResearchLayer.FEATURE,),
+            why_now="retain one independent forest branch",
+            stop_or_reopen_condition="prune only after registered evidence",
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id=MISSION_ID,
+            axes=(target, peer),
+            opportunity_cost_basis="compare repetition with an independent branch",
+        )
+        diagnosis_id = "diagnosis:" + "d" * 64
+        rejected = PortfolioDecision(
+            decision_id="DEC-REJECT-STALE-DIAGNOSIS-ACTION",
+            chosen_option_id="repeat-old-axis",
+            options=(
+                DecisionOption(
+                    option_id="repeat-old-axis",
+                    action=PortfolioAction.DEEPEN,
+                    target_id=target.axis_id,
+                    expected_information_value="low unchanged repetition",
+                    opportunity_cost="consume one avoidable Batch",
+                ),
+                DecisionOption(
+                    option_id="rotate-independent-axis",
+                    action=PortfolioAction.ROTATE,
+                    target_id=peer.axis_id,
+                    expected_information_value="high independent information",
+                    opportunity_cost="leave the diagnosed axis closed",
+                    omission_reason="the stale plan incorrectly chose repetition",
+                ),
+            ),
+            rationale="exercise the generic Writer diagnosis gate",
+            commitment_batches=1,
+        )
+
+        with TemporaryDirectory() as temporary:
+            writer = StateWriter(
+                Path(temporary) / "writer",
+                clock=lambda: "2026-07-15T00:00:00Z",
+                engineering_fixture=True,
+                foundation_root=Path(__file__).resolve().parents[2],
+            )
+            writer.initialize_ready()
+            writer.open_mission(
+                mission_id=MISSION_ID,
+                goal={
+                    "objective": "exercise generic diagnosis action authority",
+                    "scope": ["isolated", "engineering_fixture"],
+                    "terminal_contract": "no_scientific_terminal",
+                },
+                operation_id="diagnosis-gate-open-mission",
+            )
+            writer.open_initiative(
+                initiative_id="INI-DIAGNOSIS-GATE",
+                objective={
+                    "objective": "reject one stale action before design work",
+                    "bounds": {"trial_delta": 0, "wall_seconds": 30},
+                    "done_conditions": ["stale action rejected"],
+                },
+                operation_id="diagnosis-gate-open-initiative",
+            )
+            writer.record_portfolio_snapshot(
+                snapshot=snapshot,
+                operation_id="diagnosis-gate-snapshot",
+            )
+
+            def seed_study(current, _index):
+                assert current is not None
+                return writer._body(current), [
+                    IndexRecord(
+                        kind="study-open",
+                        record_id="STU-DIAGNOSIS-GATE",
+                        subject=f"Mission:{MISSION_ID}",
+                        status="open",
+                        fingerprint="e" * 64,
+                        payload={
+                            "controlled_chassis": None,
+                            "mission_id": MISSION_ID,
+                            "portfolio_axis_identity": target.identity,
+                            "study_id": "STU-DIAGNOSIS-GATE",
+                        },
+                    )
+                ], {}
+
+            writer._commit(
+                event_kind="diagnosis_gate_study_seeded",
+                operation_id="diagnosis-gate-seed-study",
+                subject=f"Study:STU-DIAGNOSIS-GATE",
+                payload={"scientific_trial_delta": 0},
+                prepare=seed_study,
+            )
+
+            def seed_diagnosis(current, _index):
+                assert current is not None
+                return writer._body(current), [
+                    IndexRecord(
+                        kind="study-diagnosis",
+                        record_id=diagnosis_id,
+                        subject="Study:STU-DIAGNOSIS-GATE",
+                        status="absent_information",
+                        fingerprint="d" * 64,
+                        payload={
+                            "allowed_actions": [
+                                "new_mechanism",
+                                "prune",
+                                "rotate",
+                            ],
+                            "evidence_state": "absent_information",
+                            "mission_id": MISSION_ID,
+                            "portfolio_axis_id": target.axis_id,
+                            "study_id": "STU-DIAGNOSIS-GATE",
+                        },
+                    )
+                ], {}
+
+            writer._commit(
+                event_kind="diagnosis_gate_diagnosis_seeded",
+                operation_id="diagnosis-gate-seed-diagnosis",
+                subject="Study:STU-DIAGNOSIS-GATE",
+                payload={"scientific_trial_delta": 0},
+                prepare=seed_diagnosis,
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "excluded by the latest effective Study diagnosis",
+            ):
+                writer.record_portfolio_decision(
+                    decision=rejected,
+                    operation_id="diagnosis-gate-reject-stale-action",
+                )
+
     @staticmethod
     def _typed_source_executable(
         source_id: str,

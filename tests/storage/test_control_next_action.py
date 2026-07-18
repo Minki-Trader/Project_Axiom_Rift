@@ -734,6 +734,29 @@ class ControlNextActionTests(unittest.TestCase):
                 with self.assertRaises(ControlNextActionError):
                     validate_control_next_action(action, scientific)
 
+    def test_post_holdout_authority_is_preserved_only_as_a_digest(self) -> None:
+        fixtures = _fixtures()
+        for kind in (
+            "open_initiative",
+            "portfolio_decision",
+            "record_axis_reopen_authority",
+            "record_portfolio_snapshot",
+            "execute_portfolio_decision",
+            "review_architecture",
+        ):
+            with self.subTest(kind=kind, mutation="accepted"):
+                action, scientific = fixtures[kind]
+                action = deepcopy(action)
+                action["post_holdout_development_id"] = D1
+                if kind == "open_initiative":
+                    action["pending_replay_obligation_ids"] = [REPLAY_0]
+                    action["required_replay_priority"] = "p1"
+                validate_control_next_action(action, scientific)
+            with self.subTest(kind=kind, mutation="invalid_digest"):
+                action["post_holdout_development_id"] = "not-a-digest"
+                with self.assertRaises(ControlNextActionError):
+                    validate_control_next_action(action, scientific)
+
     def test_set_semantic_lists_reject_unsorted_and_duplicate_values(self) -> None:
         cases = (
             (

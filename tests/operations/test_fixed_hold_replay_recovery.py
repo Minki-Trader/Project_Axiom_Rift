@@ -13,9 +13,11 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     ReplayInitiativeLifecycle,
 )
 from axiom_rift.operations.replay_workflow_recovery import (
+    ReplayOperationNamespaceError,
     diagnosis_architecture_review_trigger,
     replay_resolution_operation_present,
     require_borrowed_replay_admission,
+    replay_operation_namespace_study_id,
     terminal_replay_reconstruction_allowed,
 )
 from axiom_rift.operations.replay_projection import with_scheduler_constraints
@@ -70,6 +72,38 @@ def _operation(suffix: str, event_kind: str, sequence: int, result: dict):
 
 
 class FixedHoldReplayRecoveryTests(unittest.TestCase):
+    def test_operation_namespace_is_owned_by_its_opened_study(self) -> None:
+        operation = _operation(
+            "open-study",
+            "study_opened",
+            101,
+            {"study_id": "STU-8001"},
+        )
+        study = SimpleNamespace(
+            authority_event_id=operation.authority_event_id,
+            authority_sequence=operation.authority_sequence,
+            payload={"study_id": "STU-8001"},
+            record_id="STU-8001",
+            subject="Study:STU-8001",
+        )
+        records = {
+            ("operation", PREFIX + "open-study"): operation,
+            ("study-open", "STU-8001"): study,
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+
+        self.assertEqual(
+            replay_operation_namespace_study_id(index, PREFIX),
+            "STU-8001",
+        )
+        with self.assertRaisesRegex(
+            ReplayOperationNamespaceError,
+            "already bound to Study:STU-8001",
+        ):
+            diagnosis_architecture_review_trigger(index, _spec())
+
     def test_scientific_change_return_is_an_exact_terminal_handoff(self) -> None:
         spec = _spec(
             lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE

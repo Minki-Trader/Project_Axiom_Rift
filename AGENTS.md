@@ -79,6 +79,15 @@ route, bounded evidence or typed proposal, then the single state writer.
 - Keep discovery candidate-ineligible, apply multiplicity only to the exact
   preregistered concurrent family, and preserve claim-level partial,
   contradicted, unresolved, invalid, and diagnostic states.
+- At a generic Portfolio boundary, plan from the authenticated effective-axis
+  action matrix and latest effective diagnosis; snapshot `selectable` status is
+  not unrestricted action permission. Exact typed ArchitectureReview and
+  replay constraints retain only their bounded authority.
+- Preserve exact post-Holdout development authority from registration through
+  Initiative, Decision, structural snapshot, and Study. Cite it in quant-team
+  review and bind the Study baseline to its exact material, data, and split.
+- A replay operation prefix becomes one-shot when `open-study` binds its Study.
+  Resume that owner or use a distinct prefix for a genuine successor protocol.
 - Treat current broker history as reconstruction, not point-in-time authority.
   An audit-invalidated source head remains latched until its typed resolution.
 - Do not bypass Mission research intake, Study diagnosis, or a triggered

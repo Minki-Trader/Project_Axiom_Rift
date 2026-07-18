@@ -15,6 +15,9 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     run_study_close_stage,
 )
 from axiom_rift.operations.permits import PermitAuthority, PermitKeyStore
+from axiom_rift.operations.replay_workflow_recovery import (
+    replay_operation_namespace_study_id,
+)
 from axiom_rift.operations.validation import EvidenceValidatorRegistry
 from axiom_rift.operations.writer import StateWriter
 from axiom_rift.research.fixed_hold_family_job import FixedHoldFamilyJobPacket
@@ -106,6 +109,47 @@ def _completed_study_handoff(
     }
 
 
+def _operation_namespace_handoff(
+    writer: StateWriter,
+    *,
+    operation_prefix: str,
+    requested_study_id: str | None,
+) -> dict[str, Any] | None:
+    """Expose an old one-shot runner instead of rebuilding it as new work."""
+
+    if requested_study_id is None:
+        return None
+    with writer.open_stable_index() as (control, index):
+        owner_study_id = replay_operation_namespace_study_id(
+            index,
+            operation_prefix,
+        )
+        if owner_study_id is None or owner_study_id == requested_study_id:
+            return None
+        owner_kpi = index.get("study-kpi", owner_study_id)
+        next_action = control.get("next_action")
+        if not isinstance(next_action, Mapping):
+            raise RuntimeError(
+                "replay operation namespace handoff lost its next action"
+            )
+    return {
+        "mode": (
+            "completed_operation_namespace_handoff"
+            if owner_kpi is not None
+            else "in_progress_operation_namespace_handoff"
+        ),
+        "next_action": dict(next_action),
+        "operation_prefix": operation_prefix,
+        "owner_study_id": owner_study_id,
+        "requested_study_id": requested_study_id,
+        "schema": "fixed_hold_replay_operation_namespace_handoff.v1",
+        "state_revision": control.get("revision"),
+        "study_outcome": (
+            None if owner_kpi is None else owner_kpi.payload.get("outcome")
+        ),
+    }
+
+
 def parse_fixed_hold_replay_arguments(
     argv: Sequence[str] | None = None,
 ) -> argparse.Namespace:
@@ -132,6 +176,7 @@ def run_fixed_hold_replay_command(
     design_builder: DesignBuilder,
     job_runner: JobRunner,
     job_implementation_materializer: ImplementationMaterializer,
+    operation_prefix: str,
     study_id: str | None = None,
     argv: Sequence[str] | None = None,
 ) -> dict[str, Any]:
@@ -188,6 +233,22 @@ def run_fixed_hold_replay_command(
             "diagnosis_completed_handoff",
         }:
             raise RuntimeError("closed replay Study has no pending diagnosis")
+    namespace_handoff = (
+        None
+        if handoff is not None
+        else _operation_namespace_handoff(
+            writer,
+            operation_prefix=operation_prefix,
+            requested_study_id=study_id,
+        )
+    )
+    if namespace_handoff is not None:
+        if arguments.stage is None:
+            return namespace_handoff
+        raise RuntimeError(
+            "replay operation namespace belongs to Study:"
+            + str(namespace_handoff["owner_study_id"])
+        )
     design = design_builder(writer)
     if arguments.stage is None:
         return dict(read_only_summary(writer, design))

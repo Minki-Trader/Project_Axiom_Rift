@@ -49,6 +49,10 @@ class ReplayBoundaryWriter(Protocol):
     journal: ReplayBoundaryJournal
 
 
+class ReplayOperationNamespaceError(RuntimeError):
+    """A durable replay operation namespace belongs to another run."""
+
+
 _PORTFOLIO_DECISION_CONTEXT_FIELDS = frozenset(
     {
         "architecture_review_id",
@@ -138,11 +142,70 @@ def _successful_operation(
     return record
 
 
+def replay_operation_namespace_study_id(
+    index: LocalIndexView,
+    operation_prefix: str,
+) -> str | None:
+    """Return the Study durably bound by one replay operation namespace.
+
+    ``open-study`` is the first transition whose result carries the natural
+    Study identity.  Once present, later callers may resume only that Study;
+    a successor protocol must use a distinct operation namespace.
+    """
+
+    if (
+        type(operation_prefix) is not str
+        or not operation_prefix
+        or not operation_prefix.isascii()
+    ):
+        raise ReplayOperationNamespaceError(
+            "replay operation namespace is invalid"
+        )
+    operation = index.get("operation", operation_prefix + "open-study")
+    if operation is None:
+        return None
+    result = operation.payload.get("result")
+    study_id = None if not isinstance(result, Mapping) else result.get("study_id")
+    study = (
+        None
+        if type(study_id) is not str
+        else index.get("study-open", study_id)
+    )
+    if (
+        operation.status != "success"
+        or operation.payload.get("event_kind") != "study_opened"
+        or operation.authority_sequence is None
+        or operation.authority_event_id is None
+        or type(study_id) is not str
+        or not study_id
+        or not study_id.isascii()
+        or study is None
+        or study.record_id != study_id
+        or study.subject != f"Study:{study_id}"
+        or study.authority_sequence != operation.authority_sequence
+        or study.authority_event_id != operation.authority_event_id
+    ):
+        raise ReplayOperationNamespaceError(
+            "replay operation namespace owner projection is malformed"
+        )
+    return study_id
+
+
 def diagnosis_architecture_review_trigger(
     index: LocalIndexView,
     spec: ReplayLifecycleSpec,
 ) -> str | None:
     """Return the exact review handoff created by this replay diagnosis."""
+
+    owner_study_id = replay_operation_namespace_study_id(
+        index,
+        spec.operation_prefix,
+    )
+    if owner_study_id is not None and owner_study_id != spec.study_id:
+        raise ReplayOperationNamespaceError(
+            "replay operation namespace is already bound to Study:"
+            + owner_study_id
+        )
 
     operation = index.get(
         "operation",
@@ -784,9 +847,11 @@ def replay_initiative_binding_phase(
 
 
 __all__ = [
+    "ReplayOperationNamespaceError",
     "diagnosis_architecture_review_trigger",
     "replay_initiative_binding_phase",
     "replay_resolution_operation_present",
     "require_borrowed_replay_admission",
+    "replay_operation_namespace_study_id",
     "terminal_replay_reconstruction_allowed",
 ]

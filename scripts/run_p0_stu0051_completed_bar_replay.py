@@ -140,6 +140,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             materialize_volatility_duration_replay_job_implementation
         ),
+        operation_prefix=mission_spec().operation_prefix,
         study_id=STUDY_ID,
         argv=argv,
     )

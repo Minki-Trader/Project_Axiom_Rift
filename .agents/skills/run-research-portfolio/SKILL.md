@@ -81,6 +81,25 @@ exact Study diagnosis, replay obligation, or architecture review when one
 constrains the action. A challenge or uncertainty needs an explicit resolution
 and claim boundary. This is a compact decision record, not seven role reports.
 
+At every generic Portfolio boundary, query the authenticated effective-axis
+action matrix before designing work. `selectable` means the axis is not blocked;
+it is not permission to repeat any action. Apply the latest effective diagnosis
+for that exact axis, and when it was corrected bind the original diagnosis,
+correction, and audit in the quant-team review. Do not spend design time on an
+action absent from the matrix. An exact typed ArchitectureReview continuation
+or replay constraint uses its own bounded authority and is not a free-form
+escape from, or silently vetoed by, the generic matrix.
+
+When the exact next action carries `post_holdout_development_id`, cite that
+durable authority in the quant-team review. Preserve it through any authorized
+structural Portfolio snapshot mutation, then bind the scientific Decision and
+Study to its exact material, data contract, split contract, and still-sealed
+successor Holdout. An older axis diagnosis cannot veto genuinely later
+registered material, but the material authority is not permission for an
+unrelated action or an unbound baseline. Preserve any exact replay scheduler
+constraints across registration and Initiative admission; later material does
+not erase a pending replay obligation.
+
 Before admitting replay work, classify its structural effect exactly once.
 `reuse_exact_axis` requires the same axis identity, semantic core, mechanism,
 and chassis and creates no Portfolio Decision or snapshot. `revise_protocol`
@@ -91,6 +110,12 @@ genuinely absent mechanism family and adds one axis. Never relabel a mechanism
 to evade the duplicate-family guard. An accepted but unstarted structural
 misclassification is withdrawn only by its evidence-bound additive Writer
 transition before the corrected classification is admitted.
+
+Treat a replay runner operation prefix as one-shot after its exact `open-study`
+operation binds a natural Study. A later request naming another Study receives
+only the recorded owner handoff and cannot execute a stage. Resume the bound
+Study, or give a genuine successor protocol a distinct operation prefix; never
+reuse a completed prefix and reinterpret an idempotent result as new work.
 
 Every axis declares one immutable primary `ResearchLayer`, one stable
 `system_architecture_family`, typed changed and controlled domains, `why_now`,

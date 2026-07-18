@@ -14,6 +14,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
             design_builder=lambda _writer: "design",
             job_runner=Mock(name="job_runner"),
             job_implementation_materializer=Mock(name="materializer"),
+            operation_prefix="fixed-hold-cli-test-",
             study_id=study_id,
             argv=argv,
         )
@@ -100,6 +101,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
                 design_builder=design_builder,
                 job_runner=Mock(name="job_runner"),
                 job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="fixed-hold-cli-test-",
                 study_id="STU-0114",
                 argv=[],
             )
@@ -107,6 +109,72 @@ class FixedHoldReplayCliTests(unittest.TestCase):
         self.assertEqual(result["mode"], "completed_study_handoff")
         self.assertEqual(result["next_action"], control["next_action"])
         self.assertEqual(result["state_revision"], 5452)
+
+    def test_foreign_operation_namespace_returns_read_only_owner_handoff(
+        self,
+    ) -> None:
+        operation = Mock(
+            authority_event_id="a" * 64,
+            authority_sequence=101,
+            payload={
+                "event_kind": "study_opened",
+                "result": {"study_id": "STU-0116"},
+            },
+            status="success",
+        )
+        study = Mock(
+            authority_event_id="a" * 64,
+            authority_sequence=101,
+            payload={"study_id": "STU-0116"},
+            record_id="STU-0116",
+            subject="Study:STU-0116",
+        )
+        kpi = Mock(payload={"outcome": "not_evaluable"})
+        records = {
+            ("operation", "owned-prefix-open-study"): operation,
+            ("study-open", "STU-0116"): study,
+            ("study-kpi", "STU-0116"): kpi,
+        }
+        index = Mock()
+        index.get.side_effect = lambda kind, record_id: records.get(
+            (kind, record_id)
+        )
+        control = {
+            "next_action": {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": "portfolio-1",
+            },
+            "revision": 5711,
+            "scientific": {"active_study": None},
+        }
+        stable = Mock()
+        stable.__enter__ = Mock(return_value=(control, index))
+        stable.__exit__ = Mock(return_value=False)
+        writer_instance = Mock()
+        writer_instance.open_stable_index.return_value = stable
+        design_builder = Mock(name="design_builder")
+        with (
+            patch.object(cli, "EvidenceValidatorRegistry"),
+            patch.object(cli, "StateWriter", return_value=writer_instance),
+            patch.object(cli, "require_stable_head"),
+        ):
+            result = cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="owned-prefix-",
+                study_id="STU-0122",
+                argv=[],
+            )
+        design_builder.assert_not_called()
+        self.assertEqual(
+            result["mode"],
+            "completed_operation_namespace_handoff",
+        )
+        self.assertEqual(result["owner_study_id"], "STU-0116")
+        self.assertEqual(result["requested_study_id"], "STU-0122")
+
 
     def test_closed_study_rejects_another_execution_stage_without_design(
         self,
@@ -128,6 +196,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
                 design_builder=design_builder,
                 job_runner=Mock(name="job_runner"),
                 job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="fixed-hold-cli-test-",
                 study_id="STU-0114",
                 argv=["--stage", "study-close"],
             )
@@ -159,6 +228,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
                 design_builder=design_builder,
                 job_runner=Mock(name="job_runner"),
                 job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="fixed-hold-cli-test-",
                 study_id="STU-0115",
                 argv=[
                     "--stage",
@@ -198,6 +268,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
                 design_builder=design_builder,
                 job_runner=Mock(name="job_runner"),
                 job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="fixed-hold-cli-test-",
                 study_id="STU-0116",
                 argv=[
                     "--stage",
@@ -235,6 +306,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
                 design_builder=design_builder,
                 job_runner=Mock(name="job_runner"),
                 job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="fixed-hold-cli-test-",
                 study_id="STU-0116",
                 argv=[
                     "--stage",
@@ -266,6 +338,7 @@ class FixedHoldReplayCliTests(unittest.TestCase):
                 design_builder=design_builder,
                 job_runner=Mock(name="job_runner"),
                 job_implementation_materializer=Mock(name="materializer"),
+                operation_prefix="fixed-hold-cli-test-",
                 study_id="STU-0115",
                 argv=[
                     "--stage",

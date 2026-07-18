@@ -305,7 +305,11 @@ def _validate_open_initiative(
         scientific,
         name="Initiative admission action",
         required={"kind", "mission_id"},
-        optional={"research_intake_id"},
+        optional={
+            "post_holdout_development_id",
+            "research_intake_id",
+            *_REPLAY_SCHEDULER_KEYS,
+        },
     )
     if "research_intake_id" in action:
         _prefixed(
@@ -313,6 +317,12 @@ def _validate_open_initiative(
             action["research_intake_id"],
             "research-intake:",
         )
+    if "post_holdout_development_id" in action:
+        _digest(
+            "post-holdout development authority",
+            action["post_holdout_development_id"],
+        )
+    _scheduler(action)
 
 
 def _validate_build_portfolio(
@@ -369,6 +379,7 @@ def _validate_portfolio_decision(
         "excluded_architecture_family",
         "excluded_research_layers",
         "pending_replay_obligation_ids",
+        "post_holdout_development_id",
         "required_replay_priority",
         "required_target_axis_ids",
         "study_diagnosis_id",
@@ -396,6 +407,11 @@ def _validate_portfolio_decision(
             "Study diagnosis identity",
             action["study_diagnosis_id"],
             "diagnosis:",
+        )
+    if "post_holdout_development_id" in action:
+        _digest(
+            "post-holdout development authority",
+            action["post_holdout_development_id"],
         )
     _validate_diagnosis_authority_context(action)
     review_fields = {
@@ -511,6 +527,7 @@ def _validate_record_portfolio_snapshot(
         "excluded_architecture_family",
         "excluded_research_layers",
         "pending_replay_obligation_ids",
+        "post_holdout_development_id",
         "protocol_revision_id",
         "replay_obligation_ids",
         "required_followup_layers",
@@ -550,6 +567,11 @@ def _validate_record_portfolio_snapshot(
         )
         if action["action"] != "preserve":
             _fail("axis reopen authority may only preserve its axis")
+    if "post_holdout_development_id" in action:
+        _digest(
+            "post-holdout development authority",
+            action["post_holdout_development_id"],
+        )
     constraint_children = {
         "excluded_architecture_family",
         "excluded_research_layers",
@@ -586,6 +608,7 @@ def _validate_record_axis_reopen_authority(
     del depth
     optional = {
         "pending_replay_obligation_ids",
+        "post_holdout_development_id",
         "replay_obligation_ids",
         "required_replay_priority",
     }
@@ -615,6 +638,11 @@ def _validate_record_axis_reopen_authority(
     )
     if action["action"] != "preserve":
         _fail("axis reopen authority may only preserve its axis")
+    if "post_holdout_development_id" in action:
+        _digest(
+            "post-holdout development authority",
+            action["post_holdout_development_id"],
+        )
     if type(scientific.get("active_initiative")) is not str:
         _fail("axis reopen authority requires an active Initiative")
     _canonical_list(
@@ -652,6 +680,7 @@ def _validate_execute_portfolio_decision(
             *architecture,
             *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
             "diagnosis_correction_audit_id",
+            "post_holdout_development_id",
             "study_diagnosis_id",
             "study_diagnosis_correction_id",
             "replacement_architecture_equivalence",
@@ -665,6 +694,11 @@ def _validate_execute_portfolio_decision(
     diagnosis_id = action.get("study_diagnosis_id")
     if diagnosis_id is not None:
         _prefixed("Study diagnosis", diagnosis_id, "diagnosis:")
+    if "post_holdout_development_id" in action:
+        _digest(
+            "post-holdout development authority",
+            action["post_holdout_development_id"],
+        )
     _validate_diagnosis_authority_context(action)
     architecture_review_id = action.get("architecture_review_id")
     if architecture_review_id is not None:
@@ -959,8 +993,18 @@ def _validate_review_architecture(
     action: Mapping[str, Any], scientific: Mapping[str, Any], depth: int
 ) -> None:
     del depth
-    _exact("architecture review action", action, {"kind", "trigger_record_id"})
+    _exact(
+        "architecture review action",
+        action,
+        {"kind", "trigger_record_id"},
+        {"post_holdout_development_id"},
+    )
     _digest("architecture review trigger", action["trigger_record_id"])
+    if "post_holdout_development_id" in action:
+        _digest(
+            "post-holdout development authority",
+            action["post_holdout_development_id"],
+        )
     if type(scientific.get("active_initiative")) is not str:
         _fail("architecture review requires an active Initiative")
 

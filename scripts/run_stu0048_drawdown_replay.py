@@ -37,6 +37,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         job_implementation_materializer=(
             materialize_drawdown_replay_job_implementation
         ),
+        operation_prefix="p1-stu0048-drawdown-replay-v2-",
         study_id=STUDY_ID,
         argv=argv,
     )

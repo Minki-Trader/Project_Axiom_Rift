@@ -479,6 +479,16 @@ def quant_team_review_for_current_action(
                 record_id=diagnosis_id,
             )
         )
+    post_holdout_development_id = next_action.get(
+        "post_holdout_development_id"
+    )
+    if isinstance(post_holdout_development_id, str):
+        bases.append(
+            DecisionBasisRecord(
+                kind="post-holdout-development",
+                record_id=post_holdout_development_id,
+            )
+        )
     architecture_review_id = next_action.get("architecture_review_id")
     if isinstance(architecture_review_id, str):
         bases.append(
@@ -10427,6 +10437,9 @@ class ScientificLifecycleTests(unittest.TestCase):
             {
                 "kind": "open_initiative",
                 "mission_id": "MIS-HOLDOUT-LIFECYCLE",
+                "post_holdout_development_id": registered.result[
+                    "post_holdout_development_id"
+                ],
             },
         )
         with LocalIndex(writer.index_path) as index:
@@ -10457,7 +10470,97 @@ class ScientificLifecycleTests(unittest.TestCase):
             assert portfolio_head is not None
             snapshot = index.get(portfolio_head.record_kind, portfolio_head.record_id)
         assert snapshot is not None
+        post_holdout_development_id = registered.result[
+            "post_holdout_development_id"
+        ]
+        existing_axes = tuple(
+            PortfolioAxis(
+                axis_id=f"holdout-axis-{letter}",
+                causal_question=f"Does holdout axis {letter} carry information?",
+                mechanism_family=f"holdout-family-{letter}",
+            )
+            for letter in ("a", "b", "c")
+        )
+        self.assertEqual(
+            [axis.identity for axis in existing_axes],
+            [axis["axis_identity"] for axis in snapshot.payload["axes"]],
+        )
+        proposed_axis = PortfolioAxis(
+            axis_id="holdout-axis-post",
+            causal_question="Does a post-holdout mechanism add new information?",
+            mechanism_family="post-holdout-distinct-family",
+        )
+        structural_options = (
+            DecisionOption(
+                option_id="add-post-holdout-axis",
+                action=PortfolioAction.NEW_MECHANISM,
+                target_id=existing_axes[0].axis_id,
+                expected_information_value="positive structural information",
+                opportunity_cost="one Portfolio mutation",
+            ),
+            DecisionOption(
+                option_id="retain-existing-peer",
+                action=PortfolioAction.CONTRAST,
+                target_id=existing_axes[1].axis_id,
+                expected_information_value="bounded peer information",
+                opportunity_cost="defer the new mechanism",
+                omission_reason="new material first warrants a distinct axis",
+            ),
+        )
+        structural_decision = PortfolioDecision(
+            decision_id="DEC-POST-HOLDOUT-NEW-MECHANISM",
+            chosen_option_id="add-post-holdout-axis",
+            options=structural_options,
+            rationale="add a distinct axis before consuming the later material",
+            commitment_batches=1,
+            proposed_axis=proposed_axis,
+            quant_team_review=quant_team_review_for_current_action(
+                writer,
+                options=structural_options,
+                chosen_option_id="add-post-holdout-axis",
+            ),
+        )
+        writer.record_portfolio_decision(
+            decision=structural_decision,
+            operation_id="failed-post-holdout-structural-decision",
+        )
+        self.assertEqual(
+            writer.read_control()["next_action"][  # type: ignore[index]
+                "post_holdout_development_id"
+            ],
+            post_holdout_development_id,
+        )
+        expanded_snapshot = PortfolioSnapshot(
+            mission_id="MIS-HOLDOUT-LIFECYCLE",
+            axes=(*existing_axes, proposed_axis),
+            opportunity_cost_basis=(
+                "retain the existing forest while adding one later-data mechanism"
+            ),
+            research_intake_id=snapshot.payload["research_intake_id"],
+            exhaustion_standard=snapshot.payload["exhaustion_standard"],
+        )
+        writer.record_portfolio_snapshot(
+            snapshot=expanded_snapshot,
+            operation_id="failed-post-holdout-structural-snapshot",
+        )
+        self.assertEqual(
+            writer.read_control()["next_action"][  # type: ignore[index]
+                "post_holdout_development_id"
+            ],
+            post_holdout_development_id,
+        )
+        with LocalIndex(writer.index_path) as index:
+            snapshot = index.get(
+                "portfolio-snapshot",
+                expanded_snapshot.identity,
+            )
+        assert snapshot is not None
         axes = snapshot.payload["axes"]
+        target_axis = next(
+            axis
+            for axis in axes
+            if axis["axis_id"] == proposed_axis.axis_id
+        )
         new_executable = scientific_executable_spec(
             "post-holdout",
             data_identity=material_identity,
@@ -10465,9 +10568,9 @@ class ScientificLifecycleTests(unittest.TestCase):
         )
         options = (
             DecisionOption(
-                option_id="develop-a",
+                option_id="develop-post-holdout-axis",
                 action=PortfolioAction.DEEPEN,
-                target_id=axes[0]["axis_id"],
+                target_id=target_axis["axis_id"],
                 expected_information_value="positive",
                 opportunity_cost="one bounded Batch",
             ),
@@ -10482,7 +10585,7 @@ class ScientificLifecycleTests(unittest.TestCase):
         )
         decision = PortfolioDecision(
             decision_id="DEC-POST-HOLDOUT-DEVELOPMENT",
-            chosen_option_id="develop-a",
+            chosen_option_id="develop-post-holdout-axis",
             options=options,
             rationale="reenter the existing broad Portfolio on genuinely later material",
             commitment_batches=1,
@@ -10490,27 +10593,44 @@ class ScientificLifecycleTests(unittest.TestCase):
             quant_team_review=quant_team_review_for_current_action(
                 writer,
                 options=options,
-                chosen_option_id="develop-a",
+                chosen_option_id="develop-post-holdout-axis",
             ),
         )
         writer.record_portfolio_decision(
             decision=decision,
             operation_id="failed-post-holdout-portfolio-decision",
         )
+        self.assertEqual(
+            writer.read_control()["next_action"][  # type: ignore[index]
+                "post_holdout_development_id"
+            ],
+            post_holdout_development_id,
+        )
+        with LocalIndex(writer.index_path) as index:
+            recorded_decision = index.get(
+                "portfolio-decision",
+                decision.identity,
+            )
+        assert recorded_decision is not None
+        self.assertEqual(
+            recorded_decision.payload["post_holdout_development_id"],
+            post_holdout_development_id,
+        )
         question = study_question("post-holdout development material")
         proposal = {"mechanism": "post-holdout structural reentry"}
         post_holdout_architecture = architecture_chassis("fixture-baseline")
         self.assertEqual(
             post_holdout_architecture.identity,
-            axes[0]["architecture_chassis_identity"],
+            target_axis["architecture_chassis_identity"],
         )
         controlled_chassis = ControlledStudyChassis(
             baseline_executable=decision.baseline_executable,
             changed_domains=tuple(
-                ResearchLayer(value) for value in axes[0]["changed_domains"]
+                ResearchLayer(value) for value in target_axis["changed_domains"]
             ),
             controlled_domains=tuple(
-                ResearchLayer(value) for value in axes[0]["controlled_domains"]
+                ResearchLayer(value)
+                for value in target_axis["controlled_domains"]
             ),
             architecture=post_holdout_architecture,
         )
@@ -10519,8 +10639,8 @@ class ScientificLifecycleTests(unittest.TestCase):
             material_identity=material_identity,
             semantic_proposal=proposal,
             controlled_chassis=controlled_chassis,
-            portfolio_axis_id=axes[0]["axis_id"],
-            portfolio_axis_identity=axes[0]["axis_identity"],
+            portfolio_axis_id=target_axis["axis_id"],
+            portfolio_axis_identity=target_axis["axis_identity"],
             portfolio_decision_id=decision.identity,
         )
         study_permit = writer.issue_permit(
@@ -10532,7 +10652,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             scope=(
                 "study",
                 f"decision:{decision.identity}",
-                f"axis:{axes[0]['axis_identity']}",
+                f"axis:{target_axis['axis_identity']}",
                 f"baseline:{decision.baseline_executable.identity}",
                 f"chassis:{decision.architecture_chassis.identity}",
                 f"snapshot:{snapshot.record_id}",
@@ -10550,9 +10670,19 @@ class ScientificLifecycleTests(unittest.TestCase):
             controlled_chassis=controlled_chassis,
             permit=study_permit,
             operation_id="failed-post-holdout-study-open",
-            portfolio_axis_id=axes[0]["axis_id"],
-            portfolio_axis_identity=axes[0]["axis_identity"],
+            portfolio_axis_id=target_axis["axis_id"],
+            portfolio_axis_identity=target_axis["axis_identity"],
             portfolio_decision_id=decision.identity,
+        )
+        with LocalIndex(writer.index_path) as index:
+            opened_study = index.get(
+                "study-open",
+                "STU-POST-HOLDOUT-DEVELOPMENT",
+            )
+        assert opened_study is not None
+        self.assertEqual(
+            opened_study.payload["post_holdout_development_id"],
+            post_holdout_development_id,
         )
         batch = batch_spec(
             batch_id="BAT-POST-HOLDOUT-DEVELOPMENT",

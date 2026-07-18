@@ -373,6 +373,9 @@ data:
   current_registered_development_material_only: true
   post_holdout_material_requires_typed_project_goal_registration: true
   post_holdout_material_binds_verified_content_time_split_and_successor: true
+  post_holdout_authority_is_revalidated_at_decision_snapshot_and_study: true
+  post_holdout_study_binds_exact_material_data_and_split: true
+  post_holdout_structural_axis_addition_preserves_reentry_authority: true
   dynamic_material_must_match_current_required_successor: true
   display_or_caller_digest_cannot_reset_multiplicity: true
 negative_memory:
@@ -683,6 +686,12 @@ project_goal_audit_v2_protocol:
       scientific_trial_holdout_candidate_or_terminal_credit: false
   effective_axis_projection:
     immutable_portfolio_snapshot_preserved: true
+    snapshot_status_alone_is_action_authority: false
+    latest_effective_study_diagnosis_bound_per_axis: true
+    generic_planning_exposes_exact_axis_action_matrix: true
+    generic_portfolio_action_must_be_diagnosis_allowed: true
+    corrected_diagnosis_review_binds_original_correction_and_audit: true
+    exact_architecture_review_or_replay_authority_is_scoped_not_generic: true
     recorded_satisfaction_reexecutes_current_scientific_protocol: false
     recorded_satisfaction_requires_exact_stream_lineage_and_writer_operation: true
     stored_pending_invalidation_rederives_current_audit_manifest: false

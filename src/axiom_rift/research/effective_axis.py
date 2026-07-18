@@ -35,6 +35,22 @@ class EffectiveAxisStatus(str, Enum):
 AXIS_REOPEN_AUTHORITY_SCHEMA = "axis_reopen_authority.v2"
 
 
+_PORTFOLIO_ACTIONS = frozenset(
+    {
+        "preserve",
+        "prune",
+        "deepen",
+        "contrast",
+        "rotate",
+        "new_mechanism",
+        "revise_protocol",
+        "complementary_sleeve",
+        "recombine",
+        "synthesize",
+    }
+)
+
+
 def _ascii(name: str, value: object) -> str:
     if type(value) is not str or not value or not value.isascii():
         raise EffectiveAxisError(f"{name} must be non-empty ASCII")
@@ -391,6 +407,112 @@ class SourceReplacementBinding:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class EffectiveDiagnosisAxisBinding:
+    """Latest effective Study diagnosis governing one existing axis.
+
+    Immutable snapshots can predate an additive diagnosis correction.  This
+    binding prevents a generic Portfolio boundary from treating the stale
+    snapshot status as permission for an action the effective diagnosis has
+    already excluded.
+    """
+
+    axis_id: str
+    axis_identity: str
+    study_id: str
+    original_diagnosis_id: str
+    authority_record_id: str
+    evidence_state: str
+    allowed_actions: tuple[str, ...]
+    original_authority_sequence: int
+    correction_id: str | None = None
+    correction_audit_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _ascii("diagnosis axis id", self.axis_id)
+        _identity("diagnosis axis identity", self.axis_identity, "axis:")
+        _ascii("diagnosis Study id", self.study_id)
+        _identity(
+            "original Study diagnosis",
+            self.original_diagnosis_id,
+            "diagnosis:",
+        )
+        _ascii("effective diagnosis evidence state", self.evidence_state)
+        if (
+            type(self.original_authority_sequence) is not int
+            or self.original_authority_sequence < 1
+        ):
+            raise EffectiveAxisError(
+                "effective diagnosis authority sequence is invalid"
+            )
+        actions = tuple(sorted(self.allowed_actions))
+        if (
+            not actions
+            or len(actions) != len(set(actions))
+            or any(action not in _PORTFOLIO_ACTIONS for action in actions)
+        ):
+            raise EffectiveAxisError(
+                "effective diagnosis Portfolio actions are malformed"
+            )
+        corrected = self.correction_id is not None
+        if corrected != (self.correction_audit_id is not None):
+            raise EffectiveAxisError(
+                "effective diagnosis correction and audit must be paired"
+            )
+        expected_authority = self.original_diagnosis_id
+        if corrected:
+            _identity(
+                "Study diagnosis correction",
+                self.correction_id,
+                "diagnosis-correction:",
+            )
+            _identity(
+                "Study diagnosis correction audit",
+                self.correction_audit_id,
+                "diagnosis-correction-audit:",
+            )
+            expected_authority = self.correction_id
+        if self.authority_record_id != expected_authority:
+            raise EffectiveAxisError(
+                "effective diagnosis authority record is inconsistent"
+            )
+        object.__setattr__(self, "allowed_actions", actions)
+
+    @property
+    def required_review_basis(self) -> tuple[tuple[str, str], ...]:
+        values = [
+            ("study-diagnosis", self.original_diagnosis_id),
+        ]
+        if self.correction_id is not None:
+            values.extend(
+                (
+                    ("study-diagnosis-correction", self.correction_id),
+                    (
+                        "study-diagnosis-correction-audit",
+                        self.correction_audit_id,
+                    ),
+                )
+            )
+        return tuple(values)
+
+    def permits(self, action: str) -> bool:
+        return action in self.allowed_actions
+
+    def to_projection_payload(self) -> dict[str, object]:
+        return {
+            "allowed_actions": list(self.allowed_actions),
+            "authority_record_id": self.authority_record_id,
+            "axis_id": self.axis_id,
+            "axis_identity": self.axis_identity,
+            "correction_audit_id": self.correction_audit_id,
+            "correction_id": self.correction_id,
+            "evidence_state": self.evidence_state,
+            "original_authority_sequence": self.original_authority_sequence,
+            "original_diagnosis_id": self.original_diagnosis_id,
+            "study_id": self.study_id,
+        }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ReplayAxisBinding:
     """Current replay state bound to the immutable original Executable axis."""
 
@@ -686,6 +808,7 @@ class EffectiveAxisResolution:
     evidence_scope_bindings: tuple[EvidenceScopeAxisBinding, ...]
     effective_status: EffectiveAxisStatus
     historical_cost_bindings: tuple[HistoricalCostAxisBinding, ...] = ()
+    diagnosis_binding: EffectiveDiagnosisAxisBinding | None = None
 
     def __post_init__(self) -> None:
         _ascii("axis id", self.axis_id)
@@ -798,6 +921,15 @@ class EffectiveAxisResolution:
             raise EffectiveAxisError(
                 "historical cost binding belongs to another axis"
             )
+        diagnosis_binding = self.diagnosis_binding
+        if diagnosis_binding is not None and (
+            not isinstance(diagnosis_binding, EffectiveDiagnosisAxisBinding)
+            or diagnosis_binding.axis_id != self.axis_id
+            or diagnosis_binding.axis_identity != self.axis_identity
+        ):
+            raise EffectiveAxisError(
+                "effective diagnosis binding belongs to another axis"
+            )
         expected = _project_effective_status(
             snapshot_status=self.snapshot_status,
             invalidations=invalidations,
@@ -833,6 +965,33 @@ class EffectiveAxisResolution:
             EffectiveAxisStatus.SELECTABLE,
             EffectiveAxisStatus.DEFERRED_REQUIRES_REOPEN,
         }
+
+    @property
+    def generic_portfolio_actions(self) -> tuple[str, ...]:
+        """Actions a planner may propose at an unconstrained boundary.
+
+        ``selectable`` describes current axis authority, not carte-blanche
+        permission to repeat an old experiment.  The action surface therefore
+        intersects status authority with the latest effective diagnosis before
+        design work begins.
+        """
+
+        if self.selectable:
+            actions = _PORTFOLIO_ACTIONS
+        elif self.requires_reopen:
+            actions = frozenset({"preserve", "prune"})
+        else:
+            actions = frozenset()
+        if self.diagnosis_binding is not None:
+            actions = actions.intersection(
+                self.diagnosis_binding.allowed_actions
+            )
+        return tuple(sorted(actions))
+
+    def permits_generic_portfolio_action(self, action: str) -> bool:
+        """Return whether generic planning may propose one exact action."""
+
+        return action in self.generic_portfolio_actions
 
     @property
     def requires_reopen(self) -> bool:
@@ -894,7 +1053,15 @@ class EffectiveAxisResolution:
                 item.to_projection_payload()
                 for item in self.historical_cost_bindings
             ],
-            "schema": "effective_portfolio_axis.v4",
+            "diagnosis_binding": (
+                None
+                if self.diagnosis_binding is None
+                else self.diagnosis_binding.to_projection_payload()
+            ),
+            "generic_portfolio_actions": list(
+                self.generic_portfolio_actions
+            ),
+            "schema": "effective_portfolio_axis.v5",
             "snapshot_status": self.snapshot_status,
             "source_contract_ids": list(self.source_contract_ids),
             "decision_option_eligible": self.decision_option_eligible,
@@ -980,6 +1147,7 @@ def resolve_effective_axis(
     replay_bindings: tuple[ReplayAxisBinding, ...] = (),
     evidence_scope_bindings: tuple[EvidenceScopeAxisBinding, ...] = (),
     historical_cost_bindings: tuple[HistoricalCostAxisBinding, ...] = (),
+    diagnosis_binding: EffectiveDiagnosisAxisBinding | None = None,
 ) -> EffectiveAxisResolution:
     """Resolve current selectability without mutating the historical snapshot."""
 
@@ -1002,6 +1170,7 @@ def resolve_effective_axis(
         evidence_scope_bindings=evidence_scope_bindings,
         effective_status=status,
         historical_cost_bindings=historical_cost_bindings,
+        diagnosis_binding=diagnosis_binding,
     )
 
 
@@ -1010,6 +1179,7 @@ __all__ = [
     "AxisReopenAuthority",
     "AxisReopenEvidence",
     "EffectiveAxisError",
+    "EffectiveDiagnosisAxisBinding",
     "EffectiveAxisResolution",
     "EffectiveAxisStatus",
     "EvidenceScopeAxisBinding",

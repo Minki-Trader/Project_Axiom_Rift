@@ -75,7 +75,10 @@ def test_diagnosis_compatibility_is_proved_before_first_mutation() -> None:
             "system_architecture_family": "architecture-family:source",
         }
     )
-    index = SimpleNamespace(get=lambda kind, record_id: diagnosis)
+    index = SimpleNamespace(
+        event_head=lambda _stream: None,
+        get=lambda kind, record_id: diagnosis,
+    )
     control = {"next_action": {"study_diagnosis_id": diagnosis_id}}
     target = SimpleNamespace(
         axis_id="axis-target",
