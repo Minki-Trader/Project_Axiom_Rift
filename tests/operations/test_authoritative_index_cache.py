@@ -18,6 +18,7 @@ from axiom_rift.storage.index import (
     IndexIntegrityError,
     IndexRecord,
     LocalIndex,
+    LocalIndexError,
     _record_digest,
 )
 from axiom_rift.storage.state import WriterLock
@@ -115,9 +116,230 @@ class AuthoritativeIndexCacheTests(unittest.TestCase):
             owners,
             {
                 "_open_mutable_authoritative_index": ["_commit"],
-                "_open_mutable_recovery_index": ["recover"],
+                "_open_mutable_recovery_index": ["_recover_locked"],
             },
         )
+
+    def test_action_read_memo_reuses_rows_without_payload_aliasing(self) -> None:
+        original_get = LocalIndex.get
+        calls: dict[tuple[str, str], int] = {}
+
+        def counted_get(
+            index: LocalIndex,
+            kind: str,
+            record_id: str,
+        ) -> IndexRecord | None:
+            key = (kind, record_id)
+            calls[key] = calls.get(key, 0) + 1
+            return original_get(index, kind, record_id)
+
+        with patch.object(LocalIndex, "get", new=counted_get):
+            with LocalIndex.open_read_only(self.writer.index_path) as view:
+                with view.memoized_read_session() as session:
+                    first = session.get(
+                        "initiative-close",
+                        self.record_id,
+                    )
+                    assert first is not None
+                    assert isinstance(first.payload, dict)
+                    first.payload["caller_tamper"] = True
+                    second = session.get(
+                        "initiative-close",
+                        self.record_id,
+                    )
+                    assert second is not None
+                    self.assertNotIn("caller_tamper", second.payload)
+                    self.assertIsNone(session.get("trial", "absent"))
+                    self.assertIsNone(session.get("trial", "absent"))
+
+        self.assertEqual(
+            calls[("initiative-close", self.record_id)],
+            1,
+        )
+        self.assertEqual(calls[("trial", "absent")], 1)
+
+    def test_action_read_memo_reuses_event_head_only_within_session(self) -> None:
+        original_event_head = LocalIndex.event_head
+        calls = 0
+
+        def counted_event_head(
+            index: LocalIndex,
+            stream: str,
+        ):
+            nonlocal calls
+            calls += 1
+            return original_event_head(index, stream)
+
+        with patch.object(LocalIndex, "event_head", new=counted_event_head):
+            with LocalIndex.open_read_only(self.writer.index_path) as view:
+                with view.memoized_read_session() as session:
+                    first = session.event_head("control")
+                    second = session.event_head("control")
+                    self.assertEqual(first, second)
+                with view.memoized_read_session() as next_session:
+                    self.assertEqual(next_session.event_head("control"), first)
+
+        self.assertEqual(calls, 2)
+
+    def test_action_read_memo_does_not_survive_a_mutation_epoch(self) -> None:
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "memo.sqlite"
+            with LocalIndex(path) as index:
+                with index.memoized_read_session() as session:
+                    self.assertIsNone(session.get("fixture", "new"))
+                    self.assertIsNone(session.get("fixture", "new"))
+                record = IndexRecord(
+                    kind="fixture",
+                    record_id="new",
+                    subject="Fixture:new",
+                    status="current",
+                    fingerprint="fixture-new",
+                    payload={"value": 1},
+                )
+                index.put(record)
+                with index.memoized_read_session() as session:
+                    self.assertEqual(session.get("fixture", "new"), record)
+
+    def test_action_read_memo_rejects_mutation_inside_snapshot(self) -> None:
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "memo.sqlite"
+            record = IndexRecord(
+                kind="fixture",
+                record_id="new",
+                subject="Fixture:new",
+                status="current",
+                fingerprint="fixture-new",
+                payload={"value": 1},
+            )
+            with LocalIndex(path) as index:
+                with index.memoized_read_session() as session:
+                    self.assertIsNone(session.get("fixture", "new"))
+                    with self.assertRaisesRegex(
+                        LocalIndexError,
+                        "cannot mutate during a memoized read session",
+                    ):
+                        index.put(record)
+                    self.assertIsNone(session.get("fixture", "new"))
+                self.assertTrue(index.put(record))
+
+    def test_action_read_memo_expires_and_exposes_no_writer(self) -> None:
+        with LocalIndex.open_read_only(self.writer.index_path) as view:
+            with view.memoized_read_session() as session:
+                self.assertFalse(hasattr(session, "put"))
+                expected = session.event_head("control")
+            with self.assertRaisesRegex(
+                LocalIndexError,
+                "memoized read session has expired",
+            ):
+                session.event_head("control")
+        self.assertIsNotNone(expected)
+
+    def test_nested_action_read_memo_shares_outer_lifetime(self) -> None:
+        original_get = LocalIndex.get
+        calls = 0
+
+        def counted_get(
+            index: LocalIndex,
+            kind: str,
+            record_id: str,
+        ) -> IndexRecord | None:
+            nonlocal calls
+            calls += 1
+            return original_get(index, kind, record_id)
+
+        with patch.object(LocalIndex, "get", new=counted_get):
+            with LocalIndex.open_read_only(self.writer.index_path) as view:
+                with view.memoized_read_session() as outer:
+                    self.assertIsNotNone(
+                        outer.get("initiative-close", self.record_id)
+                    )
+                    with self.assertRaisesRegex(RuntimeError, "nested fixture"):
+                        with outer.memoized_read_session() as inner:
+                            self.assertIs(inner, outer)
+                            self.assertIsNotNone(
+                                inner.get("initiative-close", self.record_id)
+                            )
+                            raise RuntimeError("nested fixture")
+                    self.assertIsNotNone(
+                        outer.get("initiative-close", self.record_id)
+                    )
+
+        self.assertEqual(calls, 1)
+
+    def test_action_read_memo_does_not_publish_a_failed_query(self) -> None:
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "memo.sqlite"
+            stored = IndexRecord(
+                kind="fixture",
+                record_id="one",
+                subject="Fixture:one",
+                status="current",
+                fingerprint="fixture-one",
+                payload={"value": 1},
+            )
+            conflicting = IndexRecord(
+                kind="fixture",
+                record_id="one",
+                subject="Fixture:one",
+                status="current",
+                fingerprint="fixture-one-conflict",
+                payload={"value": 2},
+            )
+            with LocalIndex(path) as index:
+                index.put(stored)
+                calls = 0
+
+                def conflict_query(
+                    _subject: str,
+                    _status: str,
+                ) -> tuple[IndexRecord, ...]:
+                    nonlocal calls
+                    calls += 1
+                    return (conflicting,)
+
+                with index.memoized_read_session() as session:
+                    self.assertEqual(session.get("fixture", "one"), stored)
+                    with patch.object(
+                        index,
+                        "records_by_subject_status",
+                        side_effect=conflict_query,
+                    ):
+                        for _ in range(2):
+                            with self.assertRaisesRegex(
+                                IndexIntegrityError,
+                                "memoized record differs",
+                            ):
+                                session.records_by_subject_status(
+                                    "Fixture:one",
+                                    "current",
+                                )
+
+        self.assertEqual(calls, 2)
+
+    def test_action_read_memo_does_not_cache_authority_failure(self) -> None:
+        attempts = 0
+
+        def validate(_record: IndexRecord) -> None:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise IndexIntegrityError("fixture authority failure")
+
+        with LocalIndex.open_read_only(
+            self.writer.index_path,
+            authority_validator=validate,
+        ) as view:
+            with view.memoized_read_session() as session:
+                with self.assertRaisesRegex(
+                    IndexIntegrityError,
+                    "fixture authority failure",
+                ):
+                    session.get("initiative-close", self.record_id)
+                self.assertIsNotNone(
+                    session.get("initiative-close", self.record_id)
+                )
+
+        self.assertEqual(attempts, 2)
 
     def test_duplicate_journal_member_remains_fail_closed(self) -> None:
         record = self._initiative_close()

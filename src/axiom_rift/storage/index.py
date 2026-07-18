@@ -26,6 +26,7 @@ from axiom_rift.storage.path_boundary import (
     ensure_link_free_directory_chain,
     require_link_free_directory_chain,
 )
+from axiom_rift.storage.read_memo import ActionReadMemo, MemoizedReadToken
 
 
 class LocalIndexError(RuntimeError):
@@ -1055,6 +1056,8 @@ class LocalIndex:
             raise TypeError("LocalIndex read-only mode must be boolean")
         self._read_only_existing = _read_only_existing
         self._read_snapshot_active = False
+        self._memoized_read_tokens: set[MemoizedReadToken] = set()
+        self._memoized_snapshot_active = False
         if str(path) == ":memory:":
             raise ValueError("LocalIndex requires a filesystem path")
         before: tuple[int, int, int, int] | None = None
@@ -1139,16 +1142,75 @@ class LocalIndex:
 
     def close(self) -> None:
         try:
-            if self._read_snapshot_active and self._connection.in_transaction:
+            for token in self._memoized_read_tokens:
+                token.expire()
+            self._memoized_read_tokens.clear()
+            if (
+                self._read_snapshot_active or self._memoized_snapshot_active
+            ) and self._connection.in_transaction:
                 self._connection.execute("ROLLBACK")
         finally:
             self._read_snapshot_active = False
+            self._memoized_snapshot_active = False
             self._connection.close()
 
     def read_only(self) -> "LocalIndexView":
         """Return a capability that exposes no projection mutation methods."""
 
         return LocalIndexView(self)
+
+    @contextmanager
+    def memoized_read_session(self) -> Iterator["LocalIndexView"]:
+        """Yield one action-scoped memo over a pinned projection snapshot."""
+
+        token = self._begin_memoized_read_session()
+        session = LocalIndexView(self, _memoized_token=token)
+        try:
+            yield session
+        finally:
+            session._clear_read_memo()
+            self._end_memoized_read_session(token)
+
+    def _begin_memoized_read_session(self) -> MemoizedReadToken:
+        """Pin the first action reader and register one expiring capability."""
+
+        if not self._memoized_read_tokens:
+            if self._connection.in_transaction:
+                if not self._read_snapshot_active:
+                    raise LocalIndexError(
+                        "memoized read session cannot enter another transaction"
+                    )
+            else:
+                self._connection.execute("BEGIN")
+                try:
+                    row = self._connection.execute(
+                        "SELECT projection_valid FROM projection_stats "
+                        "WHERE singleton = 1"
+                    ).fetchone()
+                    if row is None or row[0] != 1:
+                        raise IndexIntegrityError(
+                            "memoized local index projection is not valid"
+                        )
+                except BaseException:
+                    if self._connection.in_transaction:
+                        self._connection.execute("ROLLBACK")
+                    raise
+                self._memoized_snapshot_active = True
+        token = MemoizedReadToken()
+        self._memoized_read_tokens.add(token)
+        return token
+
+    def _end_memoized_read_session(self, token: MemoizedReadToken) -> None:
+        """Expire one reader and release its owned snapshot at the last exit."""
+
+        token.expire()
+        self._memoized_read_tokens.discard(token)
+        if not self._memoized_read_tokens and self._memoized_snapshot_active:
+            try:
+                if self._connection.in_transaction:
+                    self._connection.execute("ROLLBACK")
+            finally:
+                self._memoized_snapshot_active = False
 
     @classmethod
     def materialize_payload_lookup_indexes(
@@ -1600,6 +1662,10 @@ class LocalIndex:
     def _write_transaction(self) -> Iterator[None]:
         if self._read_only_existing:
             raise LocalIndexError("read-only local index cannot mutate projection")
+        if self._memoized_read_tokens:
+            raise LocalIndexError(
+                "local index cannot mutate during a memoized read session"
+            )
         if self._connection.in_transaction:
             raise LocalIndexError("nested LocalIndex write transaction")
         self._connection.execute("BEGIN IMMEDIATE")
@@ -2954,61 +3020,150 @@ class LocalIndex:
 class LocalIndexView:
     """Read-only capability over one open, optionally authenticated index."""
 
-    __slots__ = ("__index", "__owns_index")
+    __slots__ = (
+        "__index",
+        "__read_memo",
+        "__owns_index",
+    )
 
-    def __init__(self, index: LocalIndex, *, _owns_index: bool = False) -> None:
+    def __init__(
+        self,
+        index: LocalIndex,
+        *,
+        _owns_index: bool = False,
+        _memoized_token: MemoizedReadToken | None = None,
+    ) -> None:
         if not isinstance(index, LocalIndex):
             raise TypeError("LocalIndexView requires LocalIndex")
         if type(_owns_index) is not bool:
             raise TypeError("LocalIndexView ownership must be boolean")
+        if _memoized_token is not None and not isinstance(
+            _memoized_token, MemoizedReadToken
+        ):
+            raise TypeError("LocalIndexView memoized token is invalid")
         self.__index = index
         self.__owns_index = _owns_index
+        self.__read_memo = (
+            None
+            if _memoized_token is None
+            else ActionReadMemo(
+                _memoized_token,
+                integrity_error=IndexIntegrityError,
+            )
+        )
 
     def __enter__(self) -> "LocalIndexView":
         return self
 
     def __exit__(self, *_exc_info: object) -> None:
-        if self.__owns_index:
-            self.__index.close()
+        try:
+            self._clear_read_memo()
+        finally:
+            if self.__owns_index:
+                self.__index.close()
+
+    def _clear_read_memo(self) -> None:
+        """Discard every action-scoped read result without touching storage."""
+
+        if self.__read_memo is not None:
+            self.__read_memo.clear()
+
+    def _require_active(self) -> None:
+        memo = self.__read_memo
+        if memo is not None and not memo.token.active:
+            raise LocalIndexError("memoized read session has expired")
+
+    def _index(self) -> LocalIndex:
+        self._require_active()
+        return self.__index
+
+    @contextmanager
+    def memoized_read_session(self) -> Iterator["LocalIndexView"]:
+        """Yield a defensive action-scoped memo over this exact view.
+
+        A stable owned view already pins one SQLite snapshot.  A non-owning
+        view can also use this boundary, but the caller must leave it before
+        the underlying mutable index advances.  Nested users share the outer
+        session rather than creating a stale second cache.
+        """
+
+        self._require_active()
+        if self.__read_memo is not None:
+            yield self
+            return
+        token = self.__index._begin_memoized_read_session()
+        session = LocalIndexView(self.__index, _memoized_token=token)
+        try:
+            yield session
+        finally:
+            session._clear_read_memo()
+            self.__index._end_memoized_read_session(token)
+
+    def _memoized_records(
+        self,
+        key: tuple[object, ...],
+        loader: Callable[[], tuple[IndexRecord, ...]],
+    ) -> tuple[IndexRecord, ...]:
+        self._require_active()
+        if self.__read_memo is None:
+            return loader()
+        return self.__read_memo.query(key, loader)
 
     @property
     def path(self) -> Path:
         """Expose only the stable backing location needed by read projections."""
 
-        return self.__index.path
+        return self._index().path
 
     def get(self, kind: str, record_id: str) -> IndexRecord | None:
-        return self.__index.get(kind, record_id)
+        typed_kind = _require_text("kind", kind)
+        typed_record_id = _require_text("record_id", record_id)
+        key = (typed_kind, typed_record_id)
+        self._require_active()
+        if self.__read_memo is None:
+            return self.__index.get(typed_kind, typed_record_id)
+        return self.__read_memo.get(
+            key,
+            lambda: self.__index.get(typed_kind, typed_record_id),
+        )
 
     def records_by_subject_status(
         self,
         subject: str,
         status: str,
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_subject_status(subject, status)
+        typed_subject = _require_text("subject", subject)
+        typed_status = _require_text("status", status)
+        return self._memoized_records(
+            ("subject-status", typed_subject, typed_status),
+            lambda: self.__index.records_by_subject_status(
+                typed_subject,
+                typed_status,
+            ),
+        )
 
     def records_by_fingerprint(
         self,
         fingerprint: str,
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_fingerprint(fingerprint)
+        return self._index().records_by_fingerprint(fingerprint)
 
     def records_by_kind(self, kind: str) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_kind(kind)
+        return self._index().records_by_kind(kind)
 
     def records_by_kind_prefix(
         self,
         kind: str,
         record_id_prefix: str,
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_kind_prefix(kind, record_id_prefix)
+        return self._index().records_by_kind_prefix(kind, record_id_prefix)
 
     def records_by_kind_prefix_access_shape(
         self,
         kind: str,
         record_id_prefix: str,
     ) -> tuple[str, ...]:
-        return self.__index.records_by_kind_prefix_access_shape(
+        return self._index().records_by_kind_prefix_access_shape(
             kind,
             record_id_prefix,
         )
@@ -3019,11 +3174,7 @@ class LocalIndexView:
         lookup_name: str,
         value: str,
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_payload_text(
-            kind,
-            lookup_name,
-            value,
-        )
+        return self._index().records_by_payload_text(kind, lookup_name, value)
 
     def records_by_payload_text_access_shape(
         self,
@@ -3031,7 +3182,7 @@ class LocalIndexView:
         lookup_name: str,
         value: str,
     ) -> tuple[str, ...]:
-        return self.__index.records_by_payload_text_access_shape(
+        return self._index().records_by_payload_text_access_shape(
             kind,
             lookup_name,
             value,
@@ -3043,10 +3194,16 @@ class LocalIndexView:
         lookup_name: str,
         values: Iterable[str],
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_payload_text_values(
-            kind,
-            lookup_name,
-            values,
+        typed_kind = _require_text("kind", kind)
+        typed_lookup = _require_text("payload lookup name", lookup_name)
+        typed_values = _payload_lookup_values(values)
+        return self._memoized_records(
+            ("payload-text-values", typed_kind, typed_lookup, typed_values),
+            lambda: self.__index.records_by_payload_text_values(
+                typed_kind,
+                typed_lookup,
+                typed_values,
+            ),
         )
 
     def records_by_payload_text_values_access_shape(
@@ -3055,7 +3212,7 @@ class LocalIndexView:
         lookup_name: str,
         values: Iterable[str],
     ) -> tuple[str, ...]:
-        return self.__index.records_by_payload_text_values_access_shape(
+        return self._index().records_by_payload_text_values_access_shape(
             kind,
             lookup_name,
             values,
@@ -3066,7 +3223,7 @@ class LocalIndexView:
         surface_kind: str,
         surface_identity: str,
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.component_manifests_by_surface(
+        return self._index().component_manifests_by_surface(
             surface_kind,
             surface_identity,
         )
@@ -3076,7 +3233,7 @@ class LocalIndexView:
         surface_kind: str,
         surface_identities: Iterable[str],
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.component_manifests_by_surfaces(
+        return self._index().component_manifests_by_surfaces(
             surface_kind,
             surface_identities,
         )
@@ -3086,7 +3243,7 @@ class LocalIndexView:
         surface_kind: str,
         surface_identities: Iterable[str],
     ) -> tuple[str, ...]:
-        return self.__index.component_manifests_by_surfaces_access_shape(
+        return self._index().component_manifests_by_surfaces_access_shape(
             surface_kind,
             surface_identities,
         )
@@ -3095,7 +3252,7 @@ class LocalIndexView:
         self,
         component_id: str,
     ) -> tuple[tuple[str, str], ...]:
-        return self.__index.component_surface_bindings_for_component(
+        return self._index().component_surface_bindings_for_component(
             component_id
         )
 
@@ -3103,31 +3260,31 @@ class LocalIndexView:
         self,
         component_id: str,
     ) -> tuple[str, ...]:
-        return self.__index.component_surface_bindings_for_component_access_shape(
+        return self._index().component_surface_bindings_for_component_access_shape(
             component_id
         )
 
     def component_surface_guard(self) -> tuple[int, int, str, bool]:
-        return self.__index.component_surface_guard()
+        return self._index().component_surface_guard()
 
     def has_controlled_chassis_study(self) -> bool:
-        return self.__index.has_controlled_chassis_study()
+        return self._index().has_controlled_chassis_study()
 
     def has_controlled_chassis_study_access_shape(self) -> tuple[str, ...]:
-        return self.__index.has_controlled_chassis_study_access_shape()
+        return self._index().has_controlled_chassis_study_access_shape()
 
     def controlled_chassis_study_guard(self) -> tuple[int, bool]:
-        return self.__index.controlled_chassis_study_guard()
+        return self._index().controlled_chassis_study_guard()
 
     def count_by_kind(self, kind: str) -> int:
-        return self.__index.count_by_kind(kind)
+        return self._index().count_by_kind(kind)
 
     def count_by_kind_before_authority_sequence(
         self,
         kind: str,
         authority_sequence: int,
     ) -> int:
-        return self.__index.count_by_kind_before_authority_sequence(
+        return self._index().count_by_kind_before_authority_sequence(
             kind,
             authority_sequence,
         )
@@ -3137,7 +3294,7 @@ class LocalIndexView:
         kind: str,
         authority_sequence: int,
     ) -> tuple[str, ...]:
-        return self.__index.count_by_kind_before_authority_sequence_access_shape(
+        return self._index().count_by_kind_before_authority_sequence_access_shape(
             kind,
             authority_sequence,
         )
@@ -3147,9 +3304,15 @@ class LocalIndexView:
         kind: str,
         authority_sequence: int,
     ) -> tuple[IndexRecord, ...]:
-        return self.__index.records_by_kind_at_authority_sequence(
-            kind,
-            authority_sequence,
+        typed_kind = _require_text("kind", kind)
+        if type(authority_sequence) is not int or authority_sequence < 1:
+            raise ValueError("authority_sequence must be a positive integer")
+        return self._memoized_records(
+            ("kind-authority-sequence", typed_kind, authority_sequence),
+            lambda: self.__index.records_by_kind_at_authority_sequence(
+                typed_kind,
+                authority_sequence,
+            ),
         )
 
     def records_by_kind_at_authority_sequence_access_shape(
@@ -3157,22 +3320,39 @@ class LocalIndexView:
         kind: str,
         authority_sequence: int,
     ) -> tuple[str, ...]:
-        return self.__index.records_by_kind_at_authority_sequence_access_shape(
+        return self._index().records_by_kind_at_authority_sequence_access_shape(
             kind,
             authority_sequence,
         )
 
     def event_head(self, stream: str) -> EventHead | None:
-        return self.__index.event_head(stream)
+        typed_stream = _require_text("stream", stream)
+        self._require_active()
+        if self.__read_memo is None:
+            return self.__index.event_head(typed_stream)
+        return self.__read_memo.event_head(
+            typed_stream,
+            lambda: self.__index.event_head(typed_stream),
+        )
 
     def event_record(self, stream: str, sequence: int) -> IndexRecord | None:
-        return self.__index.event_record(stream, sequence)
+        typed_stream = _require_text("stream", stream)
+        if type(sequence) is not int or sequence < 0:
+            raise ValueError("event sequence must be a non-negative integer")
+        key = (typed_stream, sequence)
+        self._require_active()
+        if self.__read_memo is None:
+            return self.__index.event_record(typed_stream, sequence)
+        return self.__read_memo.event_record(
+            key,
+            lambda: self.__index.event_record(typed_stream, sequence),
+        )
 
     def record_count(self) -> int:
-        return self.__index.record_count()
+        return self._index().record_count()
 
     def projection_guard(self) -> tuple[str, bool]:
-        return self.__index.projection_guard()
+        return self._index().projection_guard()
 
     def projected_digest(
         self,
@@ -3180,7 +3360,7 @@ class LocalIndexView:
     ) -> str:
         """Project an append digest without exposing projection mutation."""
 
-        return self.__index.projected_digest(records)
+        return self._index().projected_digest(records)
 
     def full_maintenance_exactly_matches(
         self,
@@ -3188,4 +3368,4 @@ class LocalIndexView:
     ) -> bool:
         """Audit the full projection only at an explicit maintenance boundary."""
 
-        return self.__index.exactly_matches(records)
+        return self._index().exactly_matches(records)

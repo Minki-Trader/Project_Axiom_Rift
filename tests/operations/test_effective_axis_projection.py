@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from collections import Counter
+from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -1013,15 +1014,52 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                     hasattr(view, "_axiom_effective_axis_authority_cache")
                 )
 
-                one = CountingView(view)
-                effective_axis_resolutions(one, axes[:1])
-                many = CountingView(view)
-                effective_axis_resolutions(many, axes)
-                self.assertEqual(one.calls, many.calls)
-                self.assertNotIn("record_count", many.calls)
-                self.assertNotIn("records_by_kind", many.calls)
+                with self.assertRaisesRegex(
+                    TypeError,
+                    "requires LocalIndex or LocalIndexView",
+                ):
+                    effective_axis_resolutions(CountingView(view), axes)
+
+                tracked = (
+                    "get",
+                    "records_by_subject_status",
+                    "records_by_payload_text_values",
+                    "records_by_kind_at_authority_sequence",
+                    "event_head",
+                    "event_record",
+                )
+
+                def counted_projection(
+                    selected: tuple[dict[str, object], ...],
+                ) -> Counter[str]:
+                    calls: Counter[str] = Counter()
+                    with ExitStack() as stack:
+                        for name in tracked:
+                            original = getattr(LocalIndex, name)
+
+                            def counted(
+                                owner: LocalIndex,
+                                *args: object,
+                                _name: str = name,
+                                _original: object = original,
+                                **kwargs: object,
+                            ):
+                                calls[_name] += 1
+                                return _original(owner, *args, **kwargs)
+
+                            stack.enter_context(
+                                patch.object(LocalIndex, name, new=counted)
+                            )
+                        effective_axis_resolutions(view, selected)
+                    return calls
+
+                one = counted_projection(axes[:1])
+                many = counted_projection(axes)
+                self.assertEqual(one, many)
+                self.assertNotIn("record_count", many)
+                self.assertNotIn("records_by_kind", many)
                 self.assertGreater(
-                    many.calls["records_by_payload_text_values"],
+                    many["records_by_payload_text_values"],
                     0,
                 )
 

@@ -1758,7 +1758,35 @@ def effective_axis_resolutions(
     *,
     prospective_source_ids_by_axis: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[EffectiveAxisResolution, ...]:
-    """Resolve an axis inventory with one explicit local projection memo.
+    """Resolve an axis inventory in one defensive action-scoped read session.
+
+    Both a read-only planning snapshot and a Writer prepare transaction use
+    this same boundary.  Repeated keyed joins are authenticated once within
+    the call, returned payloads are defensively copied, and the memo is
+    discarded before the caller can append or advance the projection.
+    """
+
+    if not isinstance(index, (LocalIndex, LocalIndexView)):
+        raise TypeError(
+            "effective axis projection requires LocalIndex or LocalIndexView"
+        )
+    with index.memoized_read_session() as read_index:
+        return _effective_axis_resolutions_in_session(
+            read_index,
+            axes,
+            prospective_source_ids_by_axis=(
+                prospective_source_ids_by_axis
+            ),
+        )
+
+
+def _effective_axis_resolutions_in_session(
+    index: LocalIndexView,
+    axes: Sequence[Mapping[str, Any]],
+    *,
+    prospective_source_ids_by_axis: Mapping[str, Sequence[str]] | None,
+) -> tuple[EffectiveAxisResolution, ...]:
+    """Resolve an inventory while one exact read memo remains live.
 
     The memo lives only for this call.  It is never attached to the index or
     retained globally, so replacing a stable-head index cannot expose stale
