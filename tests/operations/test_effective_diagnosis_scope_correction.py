@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -84,7 +85,7 @@ def test_replay_derives_exact_diagnosis_semantics_before_mutation() -> None:
     assert derivations[0].lineno < mutations[0].lineno
 
 
-def test_audited_origin_checkpoint_matches_remote_tracking_head() -> None:
+def test_audited_origin_checkpoint_is_immutable_ancestor() -> None:
     tree = _tree()
     assignment = next(
         node
@@ -97,15 +98,34 @@ def test_audited_origin_checkpoint_matches_remote_tracking_head() -> None:
         )
     )
     expected = ast.literal_eval(assignment.value)
-    observed = subprocess.run(
-        ("git", "rev-parse", "origin/main"),
+    ancestry = subprocess.run(
+        ("git", "merge-base", "--is-ancestor", expected, "HEAD"),
         cwd=ROOT,
-        check=True,
+        check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         encoding="ascii",
         timeout=30,
-    ).stdout.strip()
+    )
+    control = json.loads(
+        subprocess.run(
+            ("git", "show", f"{expected}:state/control.json"),
+            cwd=ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="ascii",
+            timeout=30,
+        ).stdout
+    )
 
-    assert expected == observed
+    assert ancestry.returncode == 0
+    assert control["revision"] == 5708
+    assert control["heads"]["journal"] == {
+        "event_id": (
+            "f95050a5dca1ba2a956a20dfc1a0495f0fda612be35ccb513021ce8e525b7769"
+        ),
+        "sequence": 5708,
+    }
