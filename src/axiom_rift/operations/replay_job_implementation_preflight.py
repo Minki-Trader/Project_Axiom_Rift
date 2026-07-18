@@ -886,6 +886,7 @@ def _normalized_validation_plan_surface(
     from axiom_rift.research.evidence_proofs import (
         ATOMIC_TRACE_PROOF_KIND,
         CALCULATION_PROOF_KIND,
+        COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
         FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
     )
     from axiom_rift.research.validation_v2 import (
@@ -921,11 +922,6 @@ def _normalized_validation_plan_surface(
         references_by_executable=references_by_executable,
     )
     protocol_id = definition["protocol_id"]
-    trace_proof_kind = (
-        FIXED_HOLD_FAMILY_TRACE_PROOF_KIND
-        if _is_fixed_hold_trace_protocol(protocol_id)
-        else ATOMIC_TRACE_PROOF_KIND
-    )
     requirements = plan.get("proof_requirements")
     if not isinstance(requirements, list):
         raise ReplayJobImplementationPreflightError(
@@ -944,13 +940,25 @@ def _normalized_validation_plan_surface(
                 "replay validation proof output is invalid"
             )
         names_by_kind.setdefault(proof_kind, set()).add(output_name)
-    if set(names_by_kind) != {
-        CALCULATION_PROOF_KIND,
-        trace_proof_kind,
-    } or any(len(values) != 1 for values in names_by_kind.values()):
+    observed_trace_kinds = set(names_by_kind) - {CALCULATION_PROOF_KIND}
+    allowed_trace_kinds = (
+        {FIXED_HOLD_FAMILY_TRACE_PROOF_KIND}
+        if _is_fixed_hold_trace_protocol(protocol_id)
+        else {
+            ATOMIC_TRACE_PROOF_KIND,
+            COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+        }
+    )
+    if (
+        CALCULATION_PROOF_KIND not in names_by_kind
+        or len(observed_trace_kinds) != 1
+        or not observed_trace_kinds.issubset(allowed_trace_kinds)
+        or any(len(values) != 1 for values in names_by_kind.values())
+    ):
         raise ReplayJobImplementationPreflightError(
             "replay validation proof outputs are ambiguous"
         )
+    trace_proof_kind = next(iter(observed_trace_kinds))
     output_names = {
         "calculation": next(iter(names_by_kind[CALCULATION_PROOF_KIND])),
         "trace": next(iter(names_by_kind[trace_proof_kind])),
@@ -991,6 +999,10 @@ def _normalized_validation_plan_surface(
             mission_id=request.mission_id,
             executable_id=executable.identity,
             output_names=output_names,
+            shared_trace=(
+                trace_proof_kind
+                == COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND
+            ),
         )
         mismatch_message = (
             "replay validation plan differs from the cost-aware execution protocol"

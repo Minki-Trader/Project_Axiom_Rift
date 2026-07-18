@@ -350,8 +350,13 @@ def execute_cost_aware_execution_pair_job(
             scoped_plan=scoped_plan,
             execution=execution,
             neutral_trace=neutral,
+            shared_trace_sha256=cache.sha256,
         )
     )
+    if outputs.get(scoped_plan.output_names["trace"]) != cache.sha256:
+        raise ValueError(
+            "cost-aware subject proof is not bound to the shared family trace"
+        )
     if scoped_plan.produces_family_cache:
         if producer_manifest is None:
             raise RuntimeError("cost-aware producer manifest is absent")

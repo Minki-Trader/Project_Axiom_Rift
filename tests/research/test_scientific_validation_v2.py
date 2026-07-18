@@ -29,6 +29,9 @@ from axiom_rift.research.cost_aware_execution_protocol import (
     build_cost_aware_execution_validation_plan,
     cost_aware_execution_protocol_definition,
 )
+from axiom_rift.research.cost_aware_execution_shared_contract import (
+    COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+)
 from axiom_rift.research.historical_family_stu0070 import (
     STU0070_HISTORICAL_FAMILY,
 )
@@ -555,8 +558,12 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 "analog_state_scoped_job.py",
                 "analog_state_trace.py",
                 "completed_period_atomic_trace.py",
+                "cost_aware_execution_family_inference.py",
                 "cost_aware_execution_protocol.py",
+                "cost_aware_execution_shared_contract.py",
+                "cost_aware_execution_shared_trace.py",
                 "cost_aware_execution_trace.py",
+                "cost_aware_execution_trace_snapshot.py",
                 "fixed_hold_family_trace.py",
                 "fixed_hold_historical_projection.py",
                 "historical_family_binding.py",
@@ -589,7 +596,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
             dependency_paths,
         )
 
-    def test_cost_aware_plan_is_subject_bound_and_uses_generic_proofs(
+    def test_cost_aware_plan_is_subject_bound_and_uses_shared_pair_proof(
         self,
     ) -> None:
         control_id = "executable:" + "1" * 64
@@ -614,7 +621,10 @@ class ScientificValidationV2Tests(unittest.TestCase):
         )
         self.assertEqual(
             {item["proof_kind"] for item in plan["proof_requirements"]},
-            {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND},
+            {
+                COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+                CALCULATION_PROOF_KIND,
+            },
         )
         e01 = next(
             item

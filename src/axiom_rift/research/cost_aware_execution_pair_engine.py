@@ -39,7 +39,10 @@ from axiom_rift.research.cost_aware_execution_protocol import (
     CostAwareExecutionProtocolDefinition,
 )
 from axiom_rift.research.cost_aware_execution_trace import (
-    compute_cost_aware_execution_pair_trace,
+    compute_cost_aware_execution_pair_trace_snapshot,
+)
+from axiom_rift.research.cost_aware_execution_trace_snapshot import (
+    CostAwareExecutionPairTraceSnapshot,
 )
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.discovery import (
@@ -819,7 +822,7 @@ def _definition_context_boundary(
 class CostAwareExecutionPairTraceProduction:
     """One neutral trace plus its non-authoritative producer provenance."""
 
-    trace: dict[str, object]
+    trace: CostAwareExecutionPairTraceSnapshot
     producer_manifest: dict[str, object]
 
 
@@ -829,7 +832,7 @@ def _producer_manifest(
     historical_context: HistoricalSearchContext,
     original_family_end_global_exposure_count: int,
     inputs: _PairTraceInputs,
-    trace: Mapping[str, object],
+    trace: Mapping[str, object] | CostAwareExecutionPairTraceSnapshot,
 ) -> dict[str, object]:
     identities = cost_aware_execution_pair_producer_implementation_identities()
     identities = {
@@ -893,7 +896,11 @@ def _producer_manifest(
                 COST_AWARE_EXECUTION_PAIR_SPREAD_REFERENCE_MIN_OBSERVATIONS
             ),
         },
-        "trace_sha256": _canonical_sha256(dict(trace)),
+        "trace_sha256": (
+            trace.sha256
+            if isinstance(trace, CostAwareExecutionPairTraceSnapshot)
+            else _canonical_sha256(dict(trace))
+        ),
         "window_input_count": len(inputs.windows),
         "window_input_sha256": _canonical_sha256(list(inputs.windows)),
     }
@@ -918,7 +925,7 @@ def produce_cost_aware_execution_pair_trace(
     folds = _fold_payloads(data)
     _validate_fold_payloads(data.frame, folds)
     inputs = _build_trace_inputs(data.frame, folds)
-    trace = compute_cost_aware_execution_pair_trace(
+    trace = compute_cost_aware_execution_pair_trace_snapshot(
         definition=definition,
         dataset_sha256=DATASET_SHA256,
         split_artifact_sha256=ROLLING_SPLIT_SHA256,

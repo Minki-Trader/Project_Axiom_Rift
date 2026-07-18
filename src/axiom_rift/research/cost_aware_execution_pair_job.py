@@ -25,6 +25,10 @@ from axiom_rift.research.cost_aware_execution_pair import (
 from axiom_rift.research.cost_aware_execution_pair_engine import (
     COST_AWARE_EXECUTION_PAIR_PRODUCER_MANIFEST_SCHEMA,
 )
+from axiom_rift.research.cost_aware_execution_family_inference import (
+    build_cost_aware_execution_family_inference_snapshot,
+    cost_aware_execution_family_inference_implementation_sha256,
+)
 from axiom_rift.research.cost_aware_execution_protocol import (
     COST_AWARE_EXECUTION_REPLAY_CLAIMS,
     COST_AWARE_EXECUTION_REPLAY_CRITERIA,
@@ -34,12 +38,20 @@ from axiom_rift.research.cost_aware_execution_protocol import (
     cost_aware_execution_multiplicity_registrations,
 )
 from axiom_rift.research.cost_aware_execution_trace import (
-    bind_cost_aware_execution_subject_trace,
-    build_cost_aware_execution_pair_calculation,
     extract_cost_aware_execution_pair_trace,
-    validate_cost_aware_execution_pair_trace,
+    validate_cost_aware_execution_pair_trace_snapshot,
     validate_cost_aware_execution_subject_trace,
-    validate_cost_aware_execution_trace_calculation,
+)
+from axiom_rift.research.cost_aware_execution_shared_trace import (
+    build_cost_aware_execution_shared_trace_calculation,
+    cost_aware_execution_shared_trace_implementation_sha256,
+)
+from axiom_rift.research.cost_aware_execution_shared_contract import (
+    cost_aware_execution_shared_contract_implementation_sha256,
+)
+from axiom_rift.research.cost_aware_execution_trace_snapshot import (
+    CostAwareExecutionPairTraceSnapshot,
+    cost_aware_execution_trace_snapshot_implementation_sha256,
 )
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
@@ -76,6 +88,7 @@ COST_AWARE_EXECUTION_CACHE_PROVENANCE_SCHEMA = (
 )
 EVIDENCE_DEPTH = "discovery"
 _THIS_FILE = Path(__file__).resolve()
+_CACHE_PROVENANCE_MAX_BYTES = 1_000_000
 _PRODUCER_EXECUTION_FIELDS = {
     "identity",
     "job_hash",
@@ -149,6 +162,18 @@ def cost_aware_execution_pair_job_implementation_sha256() -> str:
     return sha256(
         _THIS_FILE.read_bytes()
         + bytes.fromhex(reproducible_cache_implementation_sha256())
+        + bytes.fromhex(
+            cost_aware_execution_shared_contract_implementation_sha256()
+        )
+        + bytes.fromhex(
+            cost_aware_execution_shared_trace_implementation_sha256()
+        )
+        + bytes.fromhex(
+            cost_aware_execution_family_inference_implementation_sha256()
+        )
+        + bytes.fromhex(
+            cost_aware_execution_trace_snapshot_implementation_sha256()
+        )
     ).hexdigest()
 
 
@@ -396,7 +421,7 @@ class CostAwareExecutionPairCache:
     content: bytes
     produced: bool
     sha256: str
-    _trace: dict[str, object] | None = field(
+    _trace_snapshot: CostAwareExecutionPairTraceSnapshot | None = field(
         default=None,
         repr=False,
         compare=False,
@@ -413,42 +438,44 @@ class CostAwareExecutionPairCache:
     def trace(
         self,
         definition: CostAwareExecutionProtocolDefinition,
-    ) -> dict[str, object]:
-        value: object = self._trace
-        if value is None:
-            value = parse_canonical(self.content)
-        if not isinstance(value, Mapping) or canonical_bytes(value) != self.content:
-            raise ValueError("cost-aware cache bytes are not canonical")
-        return validate_cost_aware_execution_pair_trace(
-            value,
-            definition=definition,
-        )
+    ) -> CostAwareExecutionPairTraceSnapshot:
+        snapshot = self._trace_snapshot
+        if snapshot is None:
+            snapshot = validate_cost_aware_execution_pair_trace_snapshot(
+                self.content,
+                definition=definition,
+            )
+        else:
+            snapshot.require(definition=definition)
+        if snapshot.content != self.content or snapshot.sha256 != self.sha256:
+            raise ValueError("cost-aware cache snapshot differs from its bytes")
+        return snapshot
 
 
 def cost_aware_execution_pair_cache(
     *,
     scoped_plan: CostAwareExecutionPairJobPlan,
-    neutral_trace: Mapping[str, Any],
+    neutral_trace: bytes | Mapping[str, Any] | CostAwareExecutionPairTraceSnapshot,
     produced: bool,
 ) -> CostAwareExecutionPairCache:
-    trace = validate_cost_aware_execution_pair_trace(
+    trace = validate_cost_aware_execution_pair_trace_snapshot(
         neutral_trace,
         definition=scoped_plan.definition,
     )
+    registered = trace.registered_inputs(definition=scoped_plan.definition)
     if (
-        trace.get("dataset_sha256") != DATASET_SHA256
-        or trace.get("split_artifact_sha256") != ROLLING_SPLIT_SHA256
-        or trace.get("material_identity") != OBSERVED_MATERIAL_ID
-        or trace.get("historical_context")
+        registered.get("dataset_sha256") != DATASET_SHA256
+        or registered.get("split_artifact_sha256") != ROLLING_SPLIT_SHA256
+        or registered.get("material_identity") != OBSERVED_MATERIAL_ID
+        or registered.get("historical_context")
         != scoped_plan.historical_context.manifest()
     ):
         raise ValueError("cost-aware cache differs from its registered inputs")
-    content = canonical_bytes(trace)
     return CostAwareExecutionPairCache(
-        content=content,
+        content=trace.content,
         produced=produced,
-        sha256=sha256(content).hexdigest(),
-        _trace=trace,
+        sha256=trace.sha256,
+        _trace_snapshot=trace,
     )
 
 
@@ -557,7 +584,10 @@ def validate_cost_aware_execution_pair_cache_provenance(
 ) -> dict[str, object]:
     if not isinstance(value, Mapping) or set(value) != _PROVENANCE_FIELDS:
         raise ValueError("cost-aware cache provenance schema is invalid")
-    normalized = parse_canonical(canonical_bytes(value))
+    content = canonical_bytes(value)
+    if len(content) > _CACHE_PROVENANCE_MAX_BYTES:
+        raise ValueError("cost-aware cache provenance exceeds its fixed bound")
+    normalized = parse_canonical(content)
     if not isinstance(normalized, dict):
         raise ValueError("cost-aware cache provenance is not an object")
     if (
@@ -635,10 +665,15 @@ def verify_cost_aware_execution_pair_cache_producer(
     for input_hash in dict.fromkeys(inputs):
         try:
             content = writer.evidence.read_verified(input_hash)
-            value = parse_canonical(content)
         except (FileNotFoundError, OSError, RuntimeError, TypeError, ValueError):
             continue
         opened[input_hash] = content
+        if len(content) > _CACHE_PROVENANCE_MAX_BYTES:
+            continue
+        try:
+            value = parse_canonical(content)
+        except (TypeError, ValueError):
+            continue
         parsed[input_hash] = value
         if (
             isinstance(value, dict)
@@ -673,31 +708,44 @@ def verify_cost_aware_execution_pair_cache_producer(
     producer_trace_value = parsed.get(producer_trace_hash)
     if cache_content is None or producer_trace_content is None:
         raise ValueError("cost-aware producer evidence input is unavailable")
-    cache_value = parsed.get(cache_hash)
-    if not isinstance(cache_value, Mapping) or canonical_bytes(cache_value) != cache_content:
-        raise ValueError("cost-aware neutral cache is not canonical")
     cache = cost_aware_execution_pair_cache(
         scoped_plan=scoped_plan,
-        neutral_trace=cache_value,
+        neutral_trace=cache_content,
         produced=False,
     )
     if cache.sha256 != cache_hash:
         raise ValueError("cost-aware cache hash differs from opened bytes")
     if (
-        not isinstance(producer_trace_value, Mapping)
-        or canonical_bytes(producer_trace_value) != producer_trace_content
+        producer_trace_hash == cache_hash
     ):
-        raise ValueError("cost-aware producer subject trace is not canonical")
-    producer_trace = validate_cost_aware_execution_subject_trace(
-        producer_trace_value,
-        definition=scoped_plan.definition,
-    )
-    neutral = extract_cost_aware_execution_pair_trace(
-        producer_trace,
-        definition=scoped_plan.definition,
-    )
-    if sha256(canonical_bytes(neutral)).hexdigest() != cache_hash:
-        raise ValueError("cost-aware producer trace differs from its neutral cache")
+        # Current Jobs expose the exact family trace as both cache and durable
+        # trace output.  Reuse the already validated snapshot; do not scan the
+        # same 84 MB mapping a second time.
+        cache.trace(scoped_plan.definition)
+    else:
+        # Historical Jobs emitted a full subject-bound copy.  Preserve that
+        # immutable evidence route while all new Jobs use the shared family.
+        if not isinstance(producer_trace_value, Mapping):
+            try:
+                producer_trace_value = parse_canonical(producer_trace_content)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "cost-aware producer subject trace is not canonical"
+                ) from exc
+        if not isinstance(producer_trace_value, Mapping):
+            raise ValueError("cost-aware producer subject trace is not an object")
+        producer_trace = validate_cost_aware_execution_subject_trace(
+            producer_trace_value,
+            definition=scoped_plan.definition,
+        )
+        neutral = extract_cost_aware_execution_pair_trace(
+            producer_trace,
+            definition=scoped_plan.definition,
+        )
+        if sha256(canonical_bytes(neutral)).hexdigest() != cache_hash:
+            raise ValueError(
+                "cost-aware producer trace differs from its neutral cache"
+            )
     producer_payload = provenance["producer_execution"]
     execution = RunningJobExecution.from_mapping(
         {
@@ -864,34 +912,36 @@ def materialize_cost_aware_execution_pair_evidence(
     writer: CostAwareExecutionJobAuthority,
     scoped_plan: CostAwareExecutionPairJobPlan,
     execution: RunningJobExecution,
-    neutral_trace: Mapping[str, Any],
+    neutral_trace: Mapping[str, Any] | CostAwareExecutionPairTraceSnapshot,
+    shared_trace_sha256: str,
 ) -> tuple[dict[str, str], str]:
-    pair = validate_cost_aware_execution_pair_trace(
+    """Materialize small subject proofs over one caller-verified family trace."""
+
+    pair = validate_cost_aware_execution_pair_trace_snapshot(
         neutral_trace,
         definition=scoped_plan.definition,
     )
     names = scoped_plan.output_names
-    subject_trace = bind_cost_aware_execution_subject_trace(
+    trace_hash = _digest(
+        "shared cost-aware cache trace hash",
+        shared_trace_sha256,
+    )
+    if trace_hash != pair.sha256:
+        raise ValueError("shared cost-aware trace differs from its family cache")
+    inference = build_cost_aware_execution_family_inference_snapshot(
         pair_trace=pair,
+        definition=scoped_plan.definition,
+    )
+    calculation = build_cost_aware_execution_shared_trace_calculation(
+        trace=pair,
         definition=scoped_plan.definition,
         mission_id=scoped_plan.mission_id,
         executable_id=scoped_plan.executable_id,
         job_id=execution.job_id,
         job_hash=execution.job_hash,
-    )
-    trace_hash = writer.evidence.finalize(
-        canonical_bytes(subject_trace)
-    ).sha256
-    calculation = build_cost_aware_execution_pair_calculation(
-        trace=subject_trace,
-        definition=scoped_plan.definition,
         trace_output_name=names["trace"],
         trace_hash=trace_hash,
-    )
-    validate_cost_aware_execution_trace_calculation(
-        trace=subject_trace,
-        calculation=calculation,
-        definition=scoped_plan.definition,
+        inference=inference,
     )
     calculation_hash = writer.evidence.finalize(
         canonical_bytes(calculation)

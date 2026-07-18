@@ -159,9 +159,11 @@ class _Artifact:
 class _Evidence:
     def __init__(self) -> None:
         self.values: dict[str, bytes] = {}
+        self.finalize_calls: list[str] = []
 
     def finalize(self, content: bytes) -> _Artifact:
         digest = sha256(content).hexdigest()
+        self.finalize_calls.append(digest)
         self.values[digest] = content
         return _Artifact(digest)
 
@@ -256,6 +258,7 @@ def test_neutral_cache_subject_evidence_and_consumer_provenance_roundtrip(
         scoped_plan=producer,
         execution=producer_execution,
         neutral_trace=trace,
+        shared_trace_sha256=cache_artifact.sha256,
     )
     assert state in {
         "not_evaluable",
@@ -266,6 +269,7 @@ def test_neutral_cache_subject_evidence_and_consumer_provenance_roundtrip(
         "confirmed",
     }
     producer_trace_hash = outputs[producer.output_names["trace"]]
+    assert producer_trace_hash == cache_artifact.sha256
     provenance = build_cost_aware_execution_pair_cache_provenance(
         scoped_plan=producer,
         execution=producer_execution,
@@ -302,8 +306,10 @@ def test_neutral_cache_subject_evidence_and_consumer_provenance_roundtrip(
             scoped_plan=consumer,
             execution=_execution("2"),
             neutral_trace=opened.trace(consumer.definition),
+            shared_trace_sha256=opened.sha256,
         )
     )
+    assert consumer_outputs[consumer.output_names["trace"]] == producer_trace_hash
     assert set(consumer_outputs) == set(consumer.expected_outputs())
     assert consumer_state in {
         "not_evaluable",
@@ -313,6 +319,16 @@ def test_neutral_cache_subject_evidence_and_consumer_provenance_roundtrip(
         "frontier",
         "confirmed",
     }
+    unique_materialized_bytes = sum(
+        len(content) for content in writer.evidence.values.values()
+    )
+    assert unique_materialized_bytes < 2 * len(cache.content)
+    assert (
+        outputs[producer.output_names["trace"]]
+        == consumer_outputs[consumer.output_names["trace"]]
+        == cache_artifact.sha256
+    )
+    assert writer.evidence.finalize_calls.count(cache_artifact.sha256) == 1
 
 
 def test_cache_rejects_registered_input_drift() -> None:

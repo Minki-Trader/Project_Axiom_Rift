@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.research.cost_aware_execution_shared_contract import (
+    COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+    COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+)
 from axiom_rift.research.audit_integrity_proof import (
     AUDIT_INTEGRITY_MODE,
     AUDIT_STATISTICAL_PROOF_KIND,
@@ -89,7 +93,11 @@ _PROOF_KINDS_BY_MODE = {
     },
 }
 _ATOMIC_TRACE_PROOF_KINDS = frozenset(
-    {ATOMIC_TRACE_PROOF_KIND, FIXED_HOLD_FAMILY_TRACE_PROOF_KIND}
+    {
+        ATOMIC_TRACE_PROOF_KIND,
+        COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+        FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
+    }
 )
 
 
@@ -201,13 +209,19 @@ def _trace_kinds(evidence_mode: str) -> dict[str, str]:
 def _trace_kind_alternatives(
     evidence_mode: str,
 ) -> tuple[dict[str, str], ...]:
-    """Return legacy subject-bound and shared fixed-hold proof pairs."""
+    """Return subject-bound and registered shared-family proof pairs."""
 
     return (
         _trace_kinds(evidence_mode),
         {
             FIXED_HOLD_FAMILY_TRACE_PROOF_KIND: (
                 FIXED_HOLD_FAMILY_TRACE_SCHEMA
+            ),
+            CALCULATION_PROOF_KIND: SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
+        },
+        {
+            COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND: (
+                COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA
             ),
             CALCULATION_PROOF_KIND: SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
         },
@@ -655,6 +669,18 @@ def validate_proof_artifacts(
                 validated_modes = validate_fixed_hold_shared_trace_pair(
                     **arguments
                 )
+            elif trace_kinds == {
+                COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND
+            }:
+                from axiom_rift.research.cost_aware_execution_shared_trace import (
+                    validate_cost_aware_execution_shared_trace_pair,
+                )
+
+                validated_modes = (
+                    validate_cost_aware_execution_shared_trace_pair(
+                        **arguments
+                    )
+                )
             else:
                 validated_modes = validate_trace_calculation_pair(
                     **arguments
@@ -722,6 +748,8 @@ __all__ = [
     "AUDIT_SUPPORT_PROOF_KIND",
     "ATOMIC_TRACE_PROOF_KIND",
     "CALCULATION_PROOF_KIND",
+    "COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND",
+    "COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA",
     "COST_EXECUTION_PROOF_KIND",
     "FIXED_HOLD_FAMILY_TRACE_PROOF_KIND",
     "FIXED_HOLD_FAMILY_TRACE_SCHEMA",

@@ -37,8 +37,8 @@ from axiom_rift.research.cost_aware_execution_protocol import (
     cost_aware_execution_protocol_definition,
 )
 from axiom_rift.research.evidence_proofs import (
-    ATOMIC_TRACE_PROOF_KIND,
     CALCULATION_PROOF_KIND,
+    COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
 )
 from axiom_rift.research.historical_family_stu0070 import (
     STU0070_HISTORICAL_FAMILY,
@@ -308,7 +308,10 @@ def test_cost_aware_surface_is_closed_and_context_invariant() -> None:
         } == expected_inference_closure
         assert {
             item["proof_kind"] for item in plan["proof_requirements"]
-        } == {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND}
+        } == {
+            COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+            CALCULATION_PROOF_KIND,
+        }
         assert {
             item["criterion_id"]: item["family_size"]
             for item in plan["adjudication_profile"]["multiplicity"]

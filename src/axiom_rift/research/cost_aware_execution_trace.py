@@ -35,6 +35,19 @@ from axiom_rift.research.cost_aware_execution_protocol import (
     cost_aware_execution_protocol_definition_from_manifest,
     cost_aware_execution_subject_inference_families,
 )
+from axiom_rift.research.cost_aware_execution_shared_contract import (
+    COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+)
+from axiom_rift.research.cost_aware_execution_family_inference import (
+    CostAwareExecutionFamilyInferenceSnapshot,
+    build_cost_aware_execution_family_inference_snapshot,
+)
+from axiom_rift.research.cost_aware_execution_trace_snapshot import (
+    CostAwareExecutionPairTraceSnapshot,
+    _cost_aware_pair_snapshot_value as _pair_snapshot_value,
+    _seal_cost_aware_execution_pair_trace_snapshot,
+    cost_aware_execution_trace_snapshot_implementation_sha256,
+)
 from axiom_rift.research.scientific_study import claim_metrics
 from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
@@ -50,9 +63,6 @@ from axiom_rift.research.selection_inference import (
 )
 
 
-COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA = (
-    "cost_aware_execution_pair_trace.v1"
-)
 COST_AWARE_EXECUTION_SOURCE_OBSERVATION_SCHEMA = (
     "cost_aware_execution_source_observation.v1"
 )
@@ -396,7 +406,12 @@ def _canonical_clone(name: str, value: object) -> dict[str, Any]:
 def cost_aware_execution_trace_implementation_sha256() -> str:
     """Return the exact source identity sealed by the Job executable."""
 
-    return sha256(Path(__file__).resolve().read_bytes()).hexdigest()
+    return sha256(
+        Path(__file__).resolve().read_bytes()
+        + bytes.fromhex(
+            cost_aware_execution_trace_snapshot_implementation_sha256()
+        )
+    ).hexdigest()
 
 
 def _observation_id(kind: str, value: Mapping[str, Any]) -> str:
@@ -1568,7 +1583,7 @@ def _validate_materialized_candidates(
     return tuple(normalized)
 
 
-def compute_cost_aware_execution_pair_trace(
+def compute_cost_aware_execution_pair_trace_snapshot(
     *,
     definition: CostAwareExecutionProtocolDefinition,
     dataset_sha256: str,
@@ -1578,8 +1593,8 @@ def compute_cost_aware_execution_pair_trace(
     source_observations: Sequence[Mapping[str, Any]],
     candidate_observations: Sequence[Mapping[str, Any]],
     historical_context: HistoricalSearchContext | Mapping[str, Any],
-) -> dict[str, object]:
-    """Build and immediately validate one Job-neutral two-policy trace."""
+) -> CostAwareExecutionPairTraceSnapshot:
+    """Build and fully scan one Job-neutral two-policy trace once."""
 
     if not isinstance(definition, CostAwareExecutionProtocolDefinition):
         raise ScientificTraceError("cost-aware trace definition is not typed")
@@ -1644,11 +1659,39 @@ def compute_cost_aware_execution_pair_trace(
         "trade_observations": [dict(item) for item in trades],
         "windows": [dict(item) for item in normalized_windows],
     }
-    return validate_cost_aware_execution_pair_trace(value, definition=definition)
+    return validate_cost_aware_execution_pair_trace_snapshot(
+        value,
+        definition=definition,
+    )
 
 
-def validate_cost_aware_execution_pair_trace(
-    trace: Mapping[str, Any],
+def compute_cost_aware_execution_pair_trace(
+    *,
+    definition: CostAwareExecutionProtocolDefinition,
+    dataset_sha256: str,
+    split_artifact_sha256: str,
+    material_identity: str,
+    windows: Sequence[Mapping[str, Any]],
+    source_observations: Sequence[Mapping[str, Any]],
+    candidate_observations: Sequence[Mapping[str, Any]],
+    historical_context: HistoricalSearchContext | Mapping[str, Any],
+) -> dict[str, object]:
+    """Compatibility projection of the validated neutral pair mapping."""
+
+    return compute_cost_aware_execution_pair_trace_snapshot(
+        definition=definition,
+        dataset_sha256=dataset_sha256,
+        split_artifact_sha256=split_artifact_sha256,
+        material_identity=material_identity,
+        windows=windows,
+        source_observations=source_observations,
+        candidate_observations=candidate_observations,
+        historical_context=historical_context,
+    ).to_dict()
+
+
+def _validated_cost_aware_execution_pair_trace_parts(
+    trace: bytes | Mapping[str, Any],
     *,
     definition: CostAwareExecutionProtocolDefinition,
 ) -> dict[str, object]:
@@ -1656,7 +1699,13 @@ def validate_cost_aware_execution_pair_trace(
 
     if not isinstance(definition, CostAwareExecutionProtocolDefinition):
         raise ScientificTraceError("cost-aware trace definition is not typed")
-    normalized = _canonical_clone("cost-aware pair trace", trace)
+    try:
+        content = trace if type(trace) is bytes else canonical_bytes(trace)
+        normalized = parse_canonical(content)
+    except (TypeError, ValueError) as exc:
+        raise ScientificTraceError("cost-aware pair trace is not canonical") from exc
+    if not isinstance(normalized, dict):
+        raise ScientificTraceError("cost-aware pair trace must be an object")
     if set(normalized) != _PAIR_TRACE_FIELDS:
         raise ScientificTraceError("cost-aware pair trace schema is invalid")
     if (
@@ -1743,16 +1792,65 @@ def validate_cost_aware_execution_pair_trace(
     )
     if normalized.get("invariance_comparisons") != list(expected_invariance):
         raise ScientificTraceError("cost-aware invariance proof drifted")
+    return {"content": content, "normalized": normalized}
+
+
+def validate_cost_aware_execution_pair_trace_snapshot(
+    trace: bytes | Mapping[str, Any] | CostAwareExecutionPairTraceSnapshot,
+    *,
+    definition: CostAwareExecutionProtocolDefinition,
+) -> CostAwareExecutionPairTraceSnapshot:
+    """Open one pair boundary and retain its canonical rows for safe reuse."""
+
+    if isinstance(trace, CostAwareExecutionPairTraceSnapshot):
+        return trace.require(definition=definition)
+    parts = _validated_cost_aware_execution_pair_trace_parts(
+        trace,
+        definition=definition,
+    )
+    content = parts["content"]
+    normalized = parts["normalized"]
+    if type(content) is not bytes or not isinstance(normalized, dict):
+        raise RuntimeError("validated cost-aware pair lost canonical content")
+    validator_identity = cost_aware_execution_trace_implementation_sha256()
+    return _seal_cost_aware_execution_pair_trace_snapshot(
+        content=content,
+        normalized=normalized,
+        definition_identity=definition.identity,
+        validator_identity=validator_identity,
+    )
+
+
+def validate_cost_aware_execution_pair_trace(
+    trace: bytes | Mapping[str, Any] | CostAwareExecutionPairTraceSnapshot,
+    *,
+    definition: CostAwareExecutionProtocolDefinition,
+) -> dict[str, object]:
+    """Compatibility projection of one fully validated neutral pair."""
+
+    if isinstance(trace, CostAwareExecutionPairTraceSnapshot):
+        return trace.require(definition=definition).to_dict()
+    parts = _validated_cost_aware_execution_pair_trace_parts(
+        trace,
+        definition=definition,
+    )
+    normalized = parts["normalized"]
+    if not isinstance(normalized, dict):
+        raise RuntimeError("validated cost-aware pair lost its mapping")
     return normalized
 
 
-def _pair_trace_sha256(trace: Mapping[str, Any]) -> str:
+def _pair_trace_sha256(
+    trace: Mapping[str, Any] | CostAwareExecutionPairTraceSnapshot,
+) -> str:
+    if isinstance(trace, CostAwareExecutionPairTraceSnapshot):
+        return trace.sha256
     return sha256(canonical_bytes(trace)).hexdigest()
 
 
 def bind_cost_aware_execution_subject_trace(
     *,
-    pair_trace: Mapping[str, Any],
+    pair_trace: Mapping[str, Any] | CostAwareExecutionPairTraceSnapshot,
     definition: CostAwareExecutionProtocolDefinition,
     mission_id: str,
     executable_id: str,
@@ -1761,16 +1859,17 @@ def bind_cost_aware_execution_subject_trace(
 ) -> dict[str, object]:
     """Bind reusable pair bytes to one exact member Job."""
 
-    pair = validate_cost_aware_execution_pair_trace(
+    pair_snapshot = validate_cost_aware_execution_pair_trace_snapshot(
         pair_trace, definition=definition
     )
+    pair = pair_snapshot.to_dict()
     subject = _executable_id("cost-aware subject executable_id", executable_id)
     if subject not in definition.prospective_executable_ids:
         raise ScientificTraceError("cost-aware subject is outside the exact pair")
     binding = {
         "definition_identity": definition.identity,
         "implementation_identities": pair["implementation_identities"],
-        "pair_trace_sha256": _pair_trace_sha256(pair),
+        "pair_trace_sha256": pair_snapshot.sha256,
         "schema": COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
     }
     copied = _PAIR_TRACE_FIELDS - {
@@ -1793,8 +1892,8 @@ def bind_cost_aware_execution_subject_trace(
         "schema": SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
         "subject_executable_id": subject,
     }
-    subject_trace, _ = _open_subject_trace(value, definition=definition)
-    return subject_trace
+    canonical_bytes(value)
+    return value
 
 
 def _open_subject_trace(
@@ -1944,6 +2043,14 @@ def _calculation_parameters(
         raise ScientificTraceError("cost-aware inference boundary drifted")
     canonical_bytes(value)
     return value
+
+
+def cost_aware_execution_calculation_parameters(
+    definition: CostAwareExecutionProtocolDefinition,
+) -> dict[str, object]:
+    """Return the exact data-only inference parameters for shared proofs."""
+
+    return _calculation_parameters(definition)
 
 
 def _selection_plan(
@@ -2180,16 +2287,14 @@ def _flat_subject_metrics(
     return flat, evaluable
 
 
-def _derive_metrics_and_statistics(
+def _cost_aware_family_inference_parts(
     *,
-    trace: Mapping[str, Any],
+    pair: Mapping[str, Any],
     definition: CostAwareExecutionProtocolDefinition,
     parameters: Mapping[str, Any],
-) -> tuple[dict[str, dict[str, int | None]], dict[str, object]]:
+) -> dict[str, object]:
     if dict(parameters) != _calculation_parameters(definition):
         raise ScientificTraceError("cost-aware calculation parameters drifted")
-    subject_trace, pair = _open_subject_trace(trace, definition=definition)
-    subject_id = str(subject_trace["subject_executable_id"])
     daily: dict[str, dict[str, int]] = {
         executable_id: {}
         for executable_id in definition.prospective_executable_ids
@@ -2210,7 +2315,7 @@ def _derive_metrics_and_statistics(
         ),
     )
     families = cost_aware_execution_subject_inference_families(
-        definition, subject_id
+        definition, definition.prospective_executable_ids[0]
     )
     family_by_criterion = {str(item["criterion_id"]): item for item in families}
     selection_family = family_by_criterion["E01-familywise-selection"]
@@ -2250,6 +2355,37 @@ def _derive_metrics_and_statistics(
         daily_pnl_by_hypothesis={contrast_id: contrast_daily},
         historical_context=historical_context,
     )
+    if (
+        control_result.plan.family_size != 1
+        or selection_result.plan.family_size != 2
+        or tuple(selection_result.plan.hypothesis_ids)
+        != tuple(sorted(definition.prospective_executable_ids))
+    ):
+        raise ScientificTraceError("cost-aware exact inference family drifted")
+    return {
+        "contrast_id": contrast_id,
+        "control_id": control_id,
+        "control_result": control_result,
+        "historical_context": historical_context,
+        "selection_result": selection_result,
+    }
+
+
+def _derive_subject_metrics_and_statistics(
+    *,
+    subject_id: str,
+    pair: Mapping[str, Any],
+    definition: CostAwareExecutionProtocolDefinition,
+    parameters: Mapping[str, Any],
+    family: Mapping[str, object],
+) -> tuple[dict[str, dict[str, int | None]], dict[str, object]]:
+    if subject_id not in definition.prospective_executable_ids:
+        raise ScientificTraceError("cost-aware subject is outside the exact pair")
+    selection_result = family["selection_result"]
+    control_result = family["control_result"]
+    historical_context = family["historical_context"]
+    contrast_id = str(family["contrast_id"])
+    control_id = str(family["control_id"])
     subject_selection = selection_result.hypothesis(subject_id)
     subject_control = control_result.hypothesis(contrast_id)
     flat, evaluable = _flat_subject_metrics(
@@ -2365,16 +2501,30 @@ def _derive_metrics_and_statistics(
             "subject_executable_id": subject_id,
         },
     }
-    if (
-        control_result.plan.family_size != 1
-        or selection_result.plan.family_size != 2
-        or tuple(selection_result.plan.hypothesis_ids)
-        != tuple(sorted(definition.prospective_executable_ids))
-    ):
-        raise ScientificTraceError("cost-aware exact inference family drifted")
     canonical_bytes(metrics)
     canonical_bytes(statistics)
     return metrics, statistics
+
+
+def _derive_metrics_and_statistics(
+    *,
+    trace: Mapping[str, Any],
+    definition: CostAwareExecutionProtocolDefinition,
+    parameters: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, int | None]], dict[str, object]]:
+    subject_trace, pair = _open_subject_trace(trace, definition=definition)
+    family = _cost_aware_family_inference_parts(
+        pair=pair,
+        definition=definition,
+        parameters=parameters,
+    )
+    return _derive_subject_metrics_and_statistics(
+        subject_id=str(subject_trace["subject_executable_id"]),
+        pair=pair,
+        definition=definition,
+        parameters=parameters,
+        family=family,
+    )
 
 
 def build_cost_aware_execution_pair_calculation(
@@ -2485,12 +2635,18 @@ __all__ = [
     "COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA",
     "COST_AWARE_EXECUTION_SOURCE_OBSERVATION_SCHEMA",
     "COST_AWARE_EXECUTION_TRADE_OBSERVATION_SCHEMA",
+    "CostAwareExecutionFamilyInferenceSnapshot",
+    "CostAwareExecutionPairTraceSnapshot",
     "bind_cost_aware_execution_subject_trace",
+    "build_cost_aware_execution_family_inference_snapshot",
     "build_cost_aware_execution_pair_calculation",
     "compute_cost_aware_execution_pair_trace",
+    "compute_cost_aware_execution_pair_trace_snapshot",
+    "cost_aware_execution_calculation_parameters",
     "cost_aware_execution_trace_implementation_sha256",
     "extract_cost_aware_execution_pair_trace",
     "validate_cost_aware_execution_pair_trace",
+    "validate_cost_aware_execution_pair_trace_snapshot",
     "validate_cost_aware_execution_subject_trace",
     "validate_cost_aware_execution_trace_calculation",
 ]

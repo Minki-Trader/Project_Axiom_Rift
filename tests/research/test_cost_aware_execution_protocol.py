@@ -36,6 +36,10 @@ from axiom_rift.research.cost_aware_execution_protocol import (
 from axiom_rift.research.historical_family_stu0070 import (
     STU0070_HISTORICAL_FAMILY,
 )
+from axiom_rift.research.cost_aware_execution_shared_contract import (
+    COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+    COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+)
 from axiom_rift.research.replay_family_job import ReplayFamilyDefinition
 from axiom_rift.research.scientific_trace import (
     ATOMIC_TRACE_PROOF_KIND,
@@ -408,17 +412,39 @@ def test_validation_plan_is_exactly_subject_bound(
     assert set(by_mode) == set(COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES)
     for pairs in by_mode.values():
         assert pairs == {
-            (
-                ATOMIC_TRACE_PROOF_KIND,
-                SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
-                output_names["trace"],
-            ),
+                (
+                    COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+                    COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+                    output_names["trace"],
+                ),
             (
                 CALCULATION_PROOF_KIND,
                 SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
                 output_names["calculation"],
             ),
         }
+
+
+def test_validation_plan_preserves_legacy_subject_trace_reader(
+    definition: CostAwareExecutionProtocolDefinition,
+) -> None:
+    plan = build_cost_aware_execution_validation_plan(
+        definition=definition,
+        mission_id="mission:cost-aware-legacy-reader",
+        executable_id=definition.prospective_target_executable_id,
+        output_names={
+            "calculation": "scientific/legacy/calculation-proof.json",
+            "trace": "scientific/legacy/evaluation-trace.json",
+        },
+        shared_trace=False,
+    )
+    assert {
+        (item["proof_kind"], item["artifact_schema"])
+        for item in plan["proof_requirements"]
+    } == {
+        (ATOMIC_TRACE_PROOF_KIND, SCIENTIFIC_EVALUATION_TRACE_SCHEMA),
+        (CALCULATION_PROOF_KIND, SCIENTIFIC_CALCULATION_PROOF_SCHEMA),
+    }
     assert _matching_paths(
         plan,
         COST_AWARE_EXECUTION_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT,

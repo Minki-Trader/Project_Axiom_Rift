@@ -26,6 +26,10 @@ from axiom_rift.research.historical_family_binding import (
     HistoricalFamilySpec,
     historical_family_from_manifest,
 )
+from axiom_rift.research.cost_aware_execution_shared_contract import (
+    COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+    COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+)
 from axiom_rift.research.scientific_study import (
     PLANNED_CLAIMS,
     discovery_criteria,
@@ -593,6 +597,8 @@ def cost_aware_execution_multiplicity_registrations(
 
 def _proof_requirements(
     output_names: Mapping[str, str],
+    *,
+    shared_trace: bool,
 ) -> tuple[dict[str, str], ...]:
     if not isinstance(output_names, Mapping):
         raise CostAwareExecutionProtocolError(
@@ -615,6 +621,16 @@ def _proof_requirements(
         raise CostAwareExecutionProtocolError(
             "trace and calculation proofs require distinct outputs"
         )
+    trace_proof_kind = (
+        COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND
+        if shared_trace
+        else ATOMIC_TRACE_PROOF_KIND
+    )
+    trace_schema = (
+        COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA
+        if shared_trace
+        else SCIENTIFIC_EVALUATION_TRACE_SCHEMA
+    )
     return tuple(
         sorted(
             (
@@ -627,8 +643,8 @@ def _proof_requirements(
                 for mode in COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES
                 for proof_kind, artifact_schema, output_name in (
                     (
-                        ATOMIC_TRACE_PROOF_KIND,
-                        SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
+                        trace_proof_kind,
+                        trace_schema,
                         trace_output,
                     ),
                     (
@@ -653,6 +669,7 @@ def build_cost_aware_execution_validation_plan(
     mission_id: str,
     executable_id: str,
     output_names: Mapping[str, str],
+    shared_trace: bool = True,
 ) -> dict[str, object]:
     """Build one subject-bound, discovery-only scientific-v2 plan."""
 
@@ -682,7 +699,10 @@ def build_cost_aware_execution_validation_plan(
         evidence_modes=COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES,
         criteria=COST_AWARE_EXECUTION_REPLAY_CRITERIA,
         adjudication_profile=profile,
-        proof_requirements=_proof_requirements(output_names),
+        proof_requirements=_proof_requirements(
+            output_names,
+            shared_trace=shared_trace,
+        ),
         candidate_eligible_on_pass=False,
         protocol_definition=definition.manifest(),
     )

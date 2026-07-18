@@ -449,6 +449,10 @@ def _require_cost_aware_execution_plan_authority(
         cost_aware_execution_multiplicity_registrations,
         cost_aware_execution_protocol_definition_from_manifest,
     )
+    from axiom_rift.research.cost_aware_execution_shared_contract import (
+        COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+        COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+    )
 
     try:
         definition = cost_aware_execution_protocol_definition_from_manifest(
@@ -469,13 +473,27 @@ def _require_cost_aware_execution_plan_authority(
         raise EvidenceValidationError(
             "cost-aware execution validation plan authority is invalid"
         ) from exc
-    expected_proofs = {
+    legacy_proofs = {
         (mode, proof_kind, artifact_schema)
         for mode in definition.evidence_modes
         for proof_kind, artifact_schema in trace_proof_kinds(
             protocol_id=definition.protocol_id,
             evidence_mode=mode,
         ).items()
+    }
+    shared_proofs = {
+        (mode, proof_kind, artifact_schema)
+        for mode in definition.evidence_modes
+        for proof_kind, artifact_schema in (
+            (
+                COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+                COST_AWARE_EXECUTION_PAIR_TRACE_SCHEMA,
+            ),
+            (
+                CALCULATION_PROOF_KIND,
+                SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
+            ),
+        )
     }
     actual_proofs = {
         (item.evidence_mode, item.proof_kind, item.artifact_schema)
@@ -491,10 +509,15 @@ def _require_cost_aware_execution_plan_authority(
         or value.get("evidence_modes") != list(definition.evidence_modes)
         or value.get("criteria") != [dict(item) for item in definition.criteria]
         or value.get("adjudication_profile") != expected_profile
-        or actual_proofs != expected_proofs
-        or len(proof_requirements) != len(expected_proofs)
-        or set(outputs_by_kind)
-        != {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND}
+        or actual_proofs not in (legacy_proofs, shared_proofs)
+        or len(proof_requirements) != len(actual_proofs)
+        or set(outputs_by_kind) not in (
+            {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND},
+            {
+                COST_AWARE_EXECUTION_PAIR_TRACE_PROOF_KIND,
+                CALCULATION_PROOF_KIND,
+            },
+        )
         or any(len(outputs) != 1 for outputs in outputs_by_kind.values())
     ):
         raise EvidenceValidationError(
@@ -1024,6 +1047,10 @@ _RESEARCH_VALIDATION_DEPENDENCY_NAMES = (
     "composite_consensus_discovery.py",
     "composite_router_discovery.py",
     "completed_period_atomic_trace.py",
+    "cost_aware_execution_family_inference.py",
+    "cost_aware_execution_shared_contract.py",
+    "cost_aware_execution_shared_trace.py",
+    "cost_aware_execution_trace_snapshot.py",
     "data.py",
     "discovery.py",
     "evidence_proofs.py",

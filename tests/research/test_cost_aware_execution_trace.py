@@ -10,15 +10,23 @@ from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.research import cost_aware_execution_trace as trace_module
 from axiom_rift.research.cost_aware_execution_protocol import (
     COST_AWARE_EXECUTION_REPLAY_CRITERIA,
+    COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES,
     cost_aware_execution_protocol_definition,
 )
 from axiom_rift.research.cost_aware_execution_trace import (
     bind_cost_aware_execution_subject_trace,
+    build_cost_aware_execution_family_inference_snapshot,
     build_cost_aware_execution_pair_calculation,
     compute_cost_aware_execution_pair_trace,
     validate_cost_aware_execution_pair_trace,
+    validate_cost_aware_execution_pair_trace_snapshot,
     validate_cost_aware_execution_subject_trace,
     validate_cost_aware_execution_trace_calculation,
+)
+from axiom_rift.research.cost_aware_execution_shared_trace import (
+    build_cost_aware_execution_shared_trace_calculation,
+    validate_cost_aware_execution_shared_trace_calculation,
+    validate_cost_aware_execution_shared_trace_pair,
 )
 from axiom_rift.research.scientific_trace import ScientificTraceError
 from axiom_rift.research.historical_family_stu0070 import (
@@ -550,3 +558,214 @@ def test_missing_support_zero_day_and_forged_hash_metric_stat_fail_closed(
             calculation=forged_stat,
             definition=definition,
         )
+
+
+def test_shared_snapshot_scans_and_inferrs_family_once(
+    base_bundle,
+    monkeypatch,
+) -> None:
+    definition = base_bundle["definition"]
+    snapshot = validate_cost_aware_execution_pair_trace_snapshot(
+        base_bundle["pair"],
+        definition=definition,
+    )
+    calls = 0
+    original = trace_module.infer_concurrent_selection_family
+
+    def counted(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        trace_module,
+        "infer_concurrent_selection_family",
+        counted,
+    )
+    inference = build_cost_aware_execution_family_inference_snapshot(
+        pair_trace=snapshot,
+        definition=definition,
+    )
+    assert calls == 2  # one exact selection family and one control contrast
+
+    calculations = []
+    for index, executable_id in enumerate(
+        definition.prospective_executable_ids,
+        start=1,
+    ):
+        calculation = build_cost_aware_execution_shared_trace_calculation(
+            trace=snapshot,
+            definition=definition,
+            mission_id="MIS-SHARED",
+            executable_id=executable_id,
+            job_id=f"JOB-SHARED-{index}",
+            job_hash=str(index) * 64,
+            trace_output_name="scientific/shared-pair-trace.json",
+            trace_hash=snapshot.sha256,
+            inference=inference,
+        )
+        assert validate_cost_aware_execution_shared_trace_calculation(
+            trace=snapshot,
+            calculation=calculation,
+            definition=definition,
+            inference=inference,
+        ) == calculation["metrics"]
+        calculations.append(calculation)
+    assert calls == 2
+    assert all(
+        calculation["trace"]["sha256"] == snapshot.sha256
+        for calculation in calculations
+    )
+    assert all(
+        len(canonical_bytes(calculation)) < len(snapshot.content)
+        for calculation in calculations
+    )
+
+
+def test_shared_snapshot_reuse_does_not_repeat_deep_pair_validation(
+    base_bundle,
+    monkeypatch,
+) -> None:
+    definition = base_bundle["definition"]
+    snapshot = validate_cost_aware_execution_pair_trace_snapshot(
+        base_bundle["pair"],
+        definition=definition,
+    )
+    inference = build_cost_aware_execution_family_inference_snapshot(
+        pair_trace=snapshot,
+        definition=definition,
+    )
+
+    def repeated_scan(*_args, **_kwargs):
+        raise AssertionError("deep pair validation repeated inside one boundary")
+
+    monkeypatch.setattr(
+        trace_module,
+        "_validated_cost_aware_execution_pair_trace_parts",
+        repeated_scan,
+    )
+    subject = definition.prospective_target_executable_id
+    calculation = build_cost_aware_execution_shared_trace_calculation(
+        trace=snapshot,
+        definition=definition,
+        mission_id="MIS-SHARED",
+        executable_id=subject,
+        job_id="JOB-SHARED-TARGET",
+        job_hash="e" * 64,
+        trace_output_name="scientific/shared-pair-trace.json",
+        trace_hash=snapshot.sha256,
+        inference=inference,
+    )
+    validate_cost_aware_execution_shared_trace_calculation(
+        trace=snapshot,
+        calculation=calculation,
+        definition=definition,
+        inference=inference,
+    )
+
+
+def test_shared_snapshot_opens_canonical_family_bytes_once(
+    base_bundle,
+    monkeypatch,
+) -> None:
+    calls = 0
+    original = trace_module.parse_canonical
+
+    def counted(document):
+        nonlocal calls
+        calls += 1
+        return original(document)
+
+    monkeypatch.setattr(trace_module, "parse_canonical", counted)
+    snapshot = validate_cost_aware_execution_pair_trace_snapshot(
+        canonical_bytes(base_bundle["pair"]),
+        definition=base_bundle["definition"],
+    )
+    assert snapshot.to_dict() == base_bundle["pair"]
+    assert calls == 1
+
+
+def test_shared_snapshot_payloads_are_recursively_immutable(base_bundle) -> None:
+    definition = base_bundle["definition"]
+    snapshot = validate_cost_aware_execution_pair_trace_snapshot(
+        base_bundle["pair"],
+        definition=definition,
+    )
+    normalized = getattr(
+        snapshot._payload,
+        "_SealedCostAwarePairPayload__normalized",
+    )
+    with pytest.raises(TypeError):
+        normalized["dataset_sha256"] = "0" * 64
+    with pytest.raises(TypeError):
+        normalized["historical_context"]["prior_global_exposure_count"] = 0
+    with pytest.raises(AttributeError):
+        snapshot._payload.replacement = {}
+
+    inference = build_cost_aware_execution_family_inference_snapshot(
+        pair_trace=snapshot,
+        definition=definition,
+    )
+    subjects = getattr(
+        inference._payload,
+        "_SealedCostAwareFamilyInferencePayload__subjects",
+    )
+    with pytest.raises(TypeError):
+        subjects[definition.prospective_target_executable_id] = {}
+    with pytest.raises(TypeError):
+        subjects[definition.prospective_target_executable_id]["metrics"][
+            "registered_control_contrast"
+        ]["execution_control_delta_micropoints"] = 1
+
+
+def test_independent_shared_validator_scans_and_inferrs_once(
+    base_bundle,
+    monkeypatch,
+) -> None:
+    definition = base_bundle["definition"]
+    snapshot = validate_cost_aware_execution_pair_trace_snapshot(
+        base_bundle["pair"],
+        definition=definition,
+    )
+    inference = build_cost_aware_execution_family_inference_snapshot(
+        pair_trace=snapshot,
+        definition=definition,
+    )
+    subject = definition.prospective_target_executable_id
+    calculation = build_cost_aware_execution_shared_trace_calculation(
+        trace=snapshot,
+        definition=definition,
+        mission_id="MIS-VALIDATOR",
+        executable_id=subject,
+        job_id="JOB-VALIDATOR",
+        job_hash="f" * 64,
+        trace_output_name="scientific/shared-pair-trace.json",
+        trace_hash=snapshot.sha256,
+        inference=inference,
+    )
+    calls = 0
+    original = trace_module.infer_concurrent_selection_family
+
+    def counted(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        trace_module,
+        "infer_concurrent_selection_family",
+        counted,
+    )
+    assert validate_cost_aware_execution_shared_trace_pair(
+        trace=base_bundle["pair"],
+        trace_output_name="scientific/shared-pair-trace.json",
+        trace_hash=snapshot.sha256,
+        calculation=calculation,
+        expected_evidence_modes=COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES,
+        expected_metric_bindings_by_mode={},
+        mission_id="MIS-VALIDATOR",
+        executable_id=subject,
+        job_id="JOB-VALIDATOR",
+        job_hash="f" * 64,
+    ) == COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES
+    assert calls == 2
