@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 import axiom_rift.operations.recorded_transition_authority as recorded_transition_authority_module
 import axiom_rift.operations.scientific_history as scientific_history_module
-import axiom_rift.operations.historical_family_authority_admission as historical_family_authority_admission_module
+import axiom_rift.operations.historical_family_authority_reader as historical_family_authority_reader_module
 from axiom_rift.operations import completion_validity_projection
 import axiom_rift.research.historical_family_binding as historical_family_binding_module
 import axiom_rift.research.replay_exposure as replay_exposure_module
@@ -47,7 +47,7 @@ from axiom_rift.operations.completion_validity_projection import (
     CompletionValidityProjectionError,
     current_completion_validity_invalidation,
 )
-from axiom_rift.operations.historical_family_authority_admission import (
+from axiom_rift.operations.historical_family_authority_reader import (
     HistoricalFamilyAuthorityAdmissionError,
     require_recorded_historical_family_authority,
 )
@@ -2104,7 +2104,7 @@ def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
                 Path(completion_validity_projection.__file__).resolve(),
                 Path(evidence_module.__file__).resolve(),
                 Path(
-                    historical_family_authority_admission_module.__file__
+                    historical_family_authority_reader_module.__file__
                 ).resolve(),
                 Path(historical_family_binding_module.__file__).resolve(),
                 Path(historical_scientific_validity.__file__).resolve(),

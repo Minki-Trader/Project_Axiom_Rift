@@ -89,6 +89,9 @@ _RUNNING_JOB_CONTEXT_PATH_EXPORTS = frozenset(
 )
 _RUNNING_JOB_CONTEXT_PATH_BUILDERS = MappingProxyType(
     {
+        "axiom_rift/research/cost_aware_execution_pair_runtime.py": frozenset(
+            {"cost_aware_execution_pair_runtime_dependency_paths"}
+        ),
         "axiom_rift/research/analog_state_scoped_job.py": frozenset(
             {"analog_scoped_job_dependency_paths"}
         ),
@@ -99,6 +102,9 @@ _RUNNING_JOB_CONTEXT_PATH_BUILDERS = MappingProxyType(
 )
 _RUNNING_JOB_CONTEXT_PATH_FORWARDERS = MappingProxyType(
     {
+        "axiom_rift.research.cost_aware_execution_pair_runtime": frozenset(
+            {"cost_aware_execution_pair_runtime_dependency_paths"}
+        ),
         "axiom_rift.research.analog_state_scoped_job": frozenset(
             {"analog_scoped_job_dependency_paths"}
         ),
@@ -868,6 +874,7 @@ def _reject_prospective_evidence_capability_escape(
                 and imported.intersection(
                     {
                         "analog_state_scoped_job",
+                        "cost_aware_execution_pair_runtime",
                         "fixed_hold_replay_runtime",
                     }
                 )

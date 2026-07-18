@@ -91,8 +91,14 @@ _FIXED_HOLD_ENGINE_SEMANTIC_FAMILY = (
 _FIXED_HOLD_REPLAY_PROTOCOL_ID = (
     "volatility_duration.concurrent_four_config.replay.v1"
 )
-_FIXED_HOLD_CONTEXT_OWNER_PROTOCOL = (
-    "portfolio.concurrent_fixed_hold_family_inference.v2"
+_COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID = (
+    "cost_aware_execution.paired_policy.fixed_hold_replay.v1"
+)
+_REPLAY_CONTEXT_OWNER_PROTOCOLS = frozenset(
+    {
+        "portfolio.concurrent_fixed_hold_family_inference.v2",
+        "portfolio.concurrent_cost_aware_execution_pair_inference.v1",
+    }
 )
 _FIXED_HOLD_PRODUCER_ROLE_SHAPES = frozenset(
     {
@@ -181,6 +187,14 @@ def _mapping(name: str, value: object) -> dict[str, Any]:
     return copied
 
 
+def _is_fixed_hold_trace_protocol(value: object) -> bool:
+    from axiom_rift.research.scientific_trace import (
+        FIXED_HOLD_TRACE_PROTOCOL_IDS,
+    )
+
+    return type(value) is str and value in FIXED_HOLD_TRACE_PROTOCOL_IDS
+
+
 def _strip_context_parameters(
     value: object,
     *,
@@ -236,11 +250,11 @@ def _normalized_component_scientific_spec(
         context_fields = set(parameter_fields).intersection(
             _CONTEXT_ONLY_PARAMETERS
         )
-        if context_fields and protocol != _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+        if context_fields and protocol not in _REPLAY_CONTEXT_OWNER_PROTOCOLS:
             raise ReplayJobImplementationPreflightError(
                 "replay exposure context is declared by an unrelated Component"
             )
-        if protocol == _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+        if protocol in _REPLAY_CONTEXT_OWNER_PROTOCOLS:
             if (
                 spec.get("historical_context_adjustment_authority")
                 != "context_only_never_adjustment_factor"
@@ -294,7 +308,7 @@ def _require_original_family_end_binding(
             )
         fields = [] if fields is None else fields
         context_fields = set(fields).intersection(_CONTEXT_ONLY_PARAMETERS)
-        if component["protocol"] == _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+        if component["protocol"] in _REPLAY_CONTEXT_OWNER_PROTOCOLS:
             owner_count += 1
             if (
                 component["spec"].get(
@@ -364,6 +378,48 @@ def _require_original_family_end_binding(
             "replay original family exposure boundary drifted"
         )
     return declares_parameter
+
+
+def _require_cost_aware_execution_context_binding(
+    manifest: Mapping[str, Any],
+    *,
+    expected_original_family_end: int,
+    name: str,
+) -> None:
+    value = _mapping(name, manifest)
+    parameters = _mapping(f"{name} parameters", value.get("parameters"))
+    prior = parameters.get(_CONTEXT_ONLY_PARAMETER)
+    original_end = parameters.get(_ORIGINAL_FAMILY_CONTEXT_PARAMETER)
+    if (
+        type(expected_original_family_end) is not int
+        or expected_original_family_end < 0
+        or type(prior) is not int
+        or prior < expected_original_family_end
+        or type(original_end) is not int
+        or original_end != expected_original_family_end
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "cost-aware execution exposure context drifted"
+        )
+
+    def contains_context(candidate: object) -> bool:
+        if isinstance(candidate, Mapping):
+            return any(
+                key in _CONTEXT_ONLY_PARAMETERS or contains_context(item)
+                for key, item in candidate.items()
+            )
+        if isinstance(candidate, list):
+            return any(contains_context(item) for item in candidate)
+        return False
+
+    if any(
+        contains_context(item)
+        for key, item in parameters.items()
+        if key not in _CONTEXT_ONLY_PARAMETERS
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "cost-aware execution exposure context is nested"
+        )
 
 
 def _require_controlled_chassis_original_family_end_binding(
@@ -683,62 +739,140 @@ def _normalized_protocol_definition(
     executable_ids: tuple[str, ...],
     references_by_executable: Mapping[str, str],
 ) -> dict[str, Any]:
-    from axiom_rift.research.fixed_hold_family_trace import (
-        ScientificTraceError,
-        fixed_hold_protocol_definition_from_manifest,
-    )
-
-    try:
-        definition = fixed_hold_protocol_definition_from_manifest(value)
-    except (ScientificTraceError, TypeError, ValueError) as exc:
+    if not isinstance(value, Mapping):
         raise ReplayJobImplementationPreflightError(
-            "fixed-hold protocol definition is invalid"
-        ) from exc
-    if definition.prospective_executable_ids != executable_ids:
-        raise ReplayJobImplementationPreflightError(
-            "fixed-hold definition differs from the preflight family"
+            "replay protocol definition is invalid"
         )
+    protocol_id = value.get("protocol_id")
     ordered_references = tuple(
         references_by_executable[executable_id]
         for executable_id in executable_ids
     )
-    historical_references = tuple(
-        member.historical_reference_executable_id
-        for member in definition.family.members
-    )
-    if ordered_references != historical_references:
-        raise ReplayJobImplementationPreflightError(
-            "fixed-hold definition historical family order drifted"
+    if _is_fixed_hold_trace_protocol(protocol_id):
+        from axiom_rift.research.fixed_hold_family_trace import (
+            ScientificTraceError,
+            fixed_hold_protocol_definition_from_manifest,
         )
-    manifest = definition.manifest()
-    return {
-        "allowed_regimes": manifest["allowed_regimes"],
-        "clock_contract": manifest["clock_contract"],
-        "cost_contract": manifest["cost_contract"],
-        "dataset_sha256": manifest["dataset_sha256"],
-        "fold_ids": manifest["fold_ids"],
-        "historical_context_id": manifest["historical_context_id"],
-        "historical_evaluation_artifacts": manifest[
-            "historical_evaluation_artifacts"
-        ],
-        "historical_family": manifest["historical_family"],
-        "inference": manifest["inference"],
-        "invariance_keys": manifest["invariance_keys"],
-        "material_identity": manifest["material_identity"],
-        "original_family_end_global_exposure_count": manifest[
+
+        try:
+            definition = fixed_hold_protocol_definition_from_manifest(value)
+        except (ScientificTraceError, TypeError, ValueError) as exc:
+            raise ReplayJobImplementationPreflightError(
+                "fixed-hold protocol definition is invalid"
+            ) from exc
+        if definition.prospective_executable_ids != executable_ids:
+            raise ReplayJobImplementationPreflightError(
+                "fixed-hold definition differs from the preflight family"
+            )
+        historical_references = tuple(
+            member.historical_reference_executable_id
+            for member in definition.family.members
+        )
+        if ordered_references != historical_references:
+            raise ReplayJobImplementationPreflightError(
+                "fixed-hold definition historical family order drifted"
+            )
+        manifest = definition.manifest()
+        return {
+            "allowed_regimes": manifest["allowed_regimes"],
+            "clock_contract": manifest["clock_contract"],
+            "cost_contract": manifest["cost_contract"],
+            "dataset_sha256": manifest["dataset_sha256"],
+            "fold_ids": manifest["fold_ids"],
+            "historical_context_id": manifest["historical_context_id"],
+            "historical_evaluation_artifacts": manifest[
+                "historical_evaluation_artifacts"
+            ],
+            "historical_family": manifest["historical_family"],
+            "inference": manifest["inference"],
+            "invariance_keys": manifest["invariance_keys"],
+            "material_identity": manifest["material_identity"],
+            "original_family_end_global_exposure_count": manifest[
+                "original_family_end_global_exposure_count"
+            ],
+            "producer_implementation_roles": sorted(
+                manifest["producer_implementation_identities"]
+            ),
+            "prospective_historical_references": list(ordered_references),
+            "protocol_id": manifest["protocol_id"],
+            "schema": "fixed_hold_protocol_scientific_surface.v1",
+            "semantic_transition_policy": manifest[
+                "semantic_transition_policy"
+            ],
+            "split_artifact_sha256": manifest["split_artifact_sha256"],
+        }
+    if protocol_id == _COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID:
+        from axiom_rift.research.cost_aware_execution_protocol import (
+            CostAwareExecutionProtocolError,
+            cost_aware_execution_protocol_definition_from_manifest,
+        )
+
+        try:
+            definition = (
+                cost_aware_execution_protocol_definition_from_manifest(value)
+            )
+        except (CostAwareExecutionProtocolError, TypeError, ValueError) as exc:
+            raise ReplayJobImplementationPreflightError(
+                "cost-aware execution protocol definition is invalid"
+            ) from exc
+        if definition.prospective_executable_ids != executable_ids:
+            raise ReplayJobImplementationPreflightError(
+                "cost-aware execution definition differs from the preflight pair"
+            )
+        historical_references = tuple(
+            member.historical_executable_id
+            for member in definition.member_bindings
+        )
+        if ordered_references != historical_references:
+            raise ReplayJobImplementationPreflightError(
+                "cost-aware execution historical pair order drifted"
+            )
+        manifest = definition.manifest()
+        inference = dict(manifest["inference"])
+        inference.pop("primary_control_contrast_family_id")
+        inference.pop("selection_family_id")
+        members = []
+        for member in manifest["members"]:
+            members.append(
+                {
+                    "configuration_id": member["configuration_id"],
+                    "execution_policy": member["execution_policy"],
+                    "historical_executable_id": member[
+                        "historical_executable_id"
+                    ],
+                    "historical_ordinal": member["historical_ordinal"],
+                    "role": member["role"],
+                    "schema": member["schema"],
+                }
+            )
+        primary_control = manifest["primary_control"]
+        original_family_end = inference[
             "original_family_end_global_exposure_count"
-        ],
-        "producer_implementation_roles": sorted(
-            manifest["producer_implementation_identities"]
-        ),
-        "prospective_historical_references": list(ordered_references),
-        "protocol_id": manifest["protocol_id"],
-        "schema": "fixed_hold_protocol_scientific_surface.v1",
-        "semantic_transition_policy": manifest[
-            "semantic_transition_policy"
-        ],
-        "split_artifact_sha256": manifest["split_artifact_sha256"],
-    }
+        ]
+        return {
+            "criteria": manifest["criteria"],
+            "evidence_modes": manifest["evidence_modes"],
+            "historical_family": manifest["historical_family"],
+            "inference": inference,
+            "members": members,
+            "original_family_end_global_exposure_count": original_family_end,
+            "planned_claims": manifest["planned_claims"],
+            "primary_control": {
+                "control_historical_executable_id": primary_control[
+                    "control_historical_executable_id"
+                ],
+                "schema": primary_control["schema"],
+                "target_historical_executable_id": primary_control[
+                    "target_historical_executable_id"
+                ],
+            },
+            "prospective_historical_references": list(ordered_references),
+            "protocol_id": manifest["protocol_id"],
+            "schema": "cost_aware_execution_protocol_scientific_surface.v1",
+        }
+    raise ReplayJobImplementationPreflightError(
+        "replay protocol definition is outside the closed protocol registry"
+    )
 
 
 def _normalized_validation_plan_surface(
@@ -750,11 +884,9 @@ def _normalized_validation_plan_surface(
     artifact_reader: Callable[[str], bytes],
 ) -> dict[str, Any]:
     from axiom_rift.research.evidence_proofs import (
+        ATOMIC_TRACE_PROOF_KIND,
         CALCULATION_PROOF_KIND,
         FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
-    )
-    from axiom_rift.research.fixed_hold_family_job import (
-        build_fixed_hold_validation_plan,
     )
     from axiom_rift.research.validation_v2 import (
         SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
@@ -783,6 +915,17 @@ def _normalized_validation_plan_surface(
         raise ReplayJobImplementationPreflightError(
             "replay validation plan subject drifted"
         )
+    definition = _normalized_protocol_definition(
+        plan.get("protocol_definition"),
+        executable_ids=request.executable_ids,
+        references_by_executable=references_by_executable,
+    )
+    protocol_id = definition["protocol_id"]
+    trace_proof_kind = (
+        FIXED_HOLD_FAMILY_TRACE_PROOF_KIND
+        if _is_fixed_hold_trace_protocol(protocol_id)
+        else ATOMIC_TRACE_PROOF_KIND
+    )
     requirements = plan.get("proof_requirements")
     if not isinstance(requirements, list):
         raise ReplayJobImplementationPreflightError(
@@ -803,37 +946,57 @@ def _normalized_validation_plan_surface(
         names_by_kind.setdefault(proof_kind, set()).add(output_name)
     if set(names_by_kind) != {
         CALCULATION_PROOF_KIND,
-        FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
+        trace_proof_kind,
     } or any(len(values) != 1 for values in names_by_kind.values()):
         raise ReplayJobImplementationPreflightError(
             "replay validation proof outputs are ambiguous"
         )
     output_names = {
         "calculation": next(iter(names_by_kind[CALCULATION_PROOF_KIND])),
-        "trace": next(iter(names_by_kind[FIXED_HOLD_FAMILY_TRACE_PROOF_KIND])),
+        "trace": next(iter(names_by_kind[trace_proof_kind])),
     }
-    definition = _normalized_protocol_definition(
-        plan.get("protocol_definition"),
-        executable_ids=request.executable_ids,
-        references_by_executable=references_by_executable,
-    )
-    from axiom_rift.research.fixed_hold_family_trace import (
-        fixed_hold_protocol_definition_from_manifest,
-    )
+    if _is_fixed_hold_trace_protocol(protocol_id):
+        from axiom_rift.research.fixed_hold_family_job import (
+            build_fixed_hold_validation_plan,
+        )
+        from axiom_rift.research.fixed_hold_family_trace import (
+            fixed_hold_protocol_definition_from_manifest,
+        )
 
-    typed_definition = fixed_hold_protocol_definition_from_manifest(
-        plan["protocol_definition"]
-    )
-    expected_plan = build_fixed_hold_validation_plan(
-        definition=typed_definition,
-        mission_id=request.mission_id,
-        executable_id=executable.identity,
-        output_names=output_names,
-    )
-    if expected_plan != plan:
-        raise ReplayJobImplementationPreflightError(
+        typed_definition = fixed_hold_protocol_definition_from_manifest(
+            plan["protocol_definition"]
+        )
+        expected_plan = build_fixed_hold_validation_plan(
+            definition=typed_definition,
+            mission_id=request.mission_id,
+            executable_id=executable.identity,
+            output_names=output_names,
+        )
+        mismatch_message = (
             "replay validation plan differs from the fixed-hold protocol"
         )
+    else:
+        from axiom_rift.research.cost_aware_execution_protocol import (
+            build_cost_aware_execution_validation_plan,
+            cost_aware_execution_protocol_definition_from_manifest,
+        )
+
+        typed_definition = (
+            cost_aware_execution_protocol_definition_from_manifest(
+                plan["protocol_definition"]
+            )
+        )
+        expected_plan = build_cost_aware_execution_validation_plan(
+            definition=typed_definition,
+            mission_id=request.mission_id,
+            executable_id=executable.identity,
+            output_names=output_names,
+        )
+        mismatch_message = (
+            "replay validation plan differs from the cost-aware execution protocol"
+        )
+    if expected_plan != plan:
+        raise ReplayJobImplementationPreflightError(mismatch_message)
     expected_binding = {
         "evidence_depth": plan["evidence_depth"],
         "evidence_modes": plan["evidence_modes"],
@@ -870,6 +1033,22 @@ def _normalized_validation_plan_surface(
     profile = plan["adjudication_profile"]
     multiplicity = profile["multiplicity"]
     normalized_multiplicity = []
+    cost_contrast_id = None
+    cost_contrast_reference = None
+    if protocol_id == _COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID:
+        cost_contrast_id = typed_definition.primary_control_contrast_id
+        cost_contrast_reference = "historical-contrast:" + canonical_digest(
+            domain="cost-aware-execution-historical-primary-control-contrast",
+            payload={
+                "control_historical_executable_id": definition[
+                    "primary_control"
+                ]["control_historical_executable_id"],
+                "protocol_id": protocol_id,
+                "target_historical_executable_id": definition[
+                    "primary_control"
+                ]["target_historical_executable_id"],
+            },
+        )
 
     def normalize_member_id(value: object) -> str:
         if type(value) is not str:
@@ -879,6 +1058,9 @@ def _normalized_validation_plan_surface(
         direct = references_by_executable.get(value)
         if direct is not None:
             return direct
+        if value == cost_contrast_id:
+            assert isinstance(cost_contrast_reference, str)
+            return cost_contrast_reference
         for role in ("feature", "opposite"):
             prefix = f"paired-control:{role}:"
             executable_id = value.removeprefix(prefix)
@@ -1153,21 +1335,42 @@ def derive_replay_job_scientific_surface(
         raise ReplayJobImplementationPreflightError(
             "replay family mixes protocol definitions"
         )
+    scientific_protocol_id = next(iter(protocol_ids))
     strict_context_owner = (
-        next(iter(protocol_ids)) == _FIXED_HOLD_REPLAY_PROTOCOL_ID
+        scientific_protocol_id == _FIXED_HOLD_REPLAY_PROTOCOL_ID
     )
     for executable in request.executables:
+        executable_payload = executable.to_identity_payload()
         _require_original_family_end_binding(
-            executable.to_identity_payload(),
+            executable_payload,
             expected=original_family_end,
             name="replay member Executable",
             strict_owner=strict_context_owner,
         )
+        if scientific_protocol_id == _COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID:
+            _require_cost_aware_execution_context_binding(
+                executable_payload,
+                expected_original_family_end=original_family_end,
+                name="cost-aware execution member Executable",
+            )
     _require_controlled_chassis_original_family_end_binding(
         study.get("controlled_chassis"),
         expected=original_family_end,
         strict_owner=strict_context_owner,
     )
+    if scientific_protocol_id == _COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID:
+        controlled_chassis = _mapping(
+            "cost-aware execution controlled chassis",
+            study.get("controlled_chassis"),
+        )
+        _require_cost_aware_execution_context_binding(
+            _mapping(
+                "cost-aware execution controlled chassis baseline",
+                controlled_chassis.get("baseline_executable"),
+            ),
+            expected_original_family_end=original_family_end,
+            name="cost-aware execution controlled chassis baseline",
+        )
     by_reference = {
         surface["historical_reference_executable_id"]: surface
         for surface in executable_surfaces
@@ -1374,6 +1577,186 @@ def _validated_executable_scientific_surface(value: object) -> dict[str, Any]:
     return executable
 
 
+def _validated_protocol_scientific_surface(value: object) -> dict[str, Any]:
+    protocol = _mapping("replay scientific protocol definition", value)
+    protocol_id = protocol.get("protocol_id")
+    if _is_fixed_hold_trace_protocol(protocol_id):
+        return _exact_surface_keys(
+            "replay scientific protocol definition",
+            protocol,
+            {
+                "allowed_regimes",
+                "clock_contract",
+                "cost_contract",
+                "dataset_sha256",
+                "fold_ids",
+                "historical_context_id",
+                "historical_evaluation_artifacts",
+                "historical_family",
+                "inference",
+                "invariance_keys",
+                "material_identity",
+                "original_family_end_global_exposure_count",
+                "producer_implementation_roles",
+                "prospective_historical_references",
+                "protocol_id",
+                "schema",
+                "semantic_transition_policy",
+                "split_artifact_sha256",
+            },
+        )
+    if protocol_id != _COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID:
+        raise ReplayJobImplementationPreflightError(
+            "replay scientific protocol is outside the closed protocol registry"
+    )
+    from axiom_rift.research.cost_aware_execution_protocol import (
+        COST_AWARE_EXECUTION_ALPHA_PPM,
+        COST_AWARE_EXECUTION_BASE_SEED,
+        COST_AWARE_EXECUTION_BLOCK_LENGTHS,
+        COST_AWARE_EXECUTION_BOOTSTRAP_SAMPLES,
+        COST_AWARE_EXECUTION_CONTROL_HISTORICAL_EXECUTABLE_ID,
+        COST_AWARE_EXECUTION_HISTORICAL_CONTEXT_ADJUSTMENT_AUTHORITY,
+        COST_AWARE_EXECUTION_HISTORICAL_FAMILY_ID,
+        COST_AWARE_EXECUTION_INFERENCE_BOUNDARY_SCHEMA,
+        COST_AWARE_EXECUTION_MEMBER_BINDING_SCHEMA,
+        COST_AWARE_EXECUTION_MULTIPLICITY_METHOD,
+        COST_AWARE_EXECUTION_MONTE_CARLO_CONFIDENCE_PPM,
+        COST_AWARE_EXECUTION_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT,
+        COST_AWARE_EXECUTION_PRIMARY_CONTROL_SCHEMA,
+        COST_AWARE_EXECUTION_REPLAY_CLAIMS,
+        COST_AWARE_EXECUTION_REPLAY_CRITERIA,
+        COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES,
+        COST_AWARE_EXECUTION_TARGET_HISTORICAL_EXECUTABLE_ID,
+    )
+    from axiom_rift.research.historical_family_binding import (
+        HistoricalFamilyBindingError,
+        historical_family_from_manifest,
+    )
+
+    protocol = _exact_surface_keys(
+        "replay scientific protocol definition",
+        protocol,
+        {
+            "criteria",
+            "evidence_modes",
+            "historical_family",
+            "inference",
+            "members",
+            "original_family_end_global_exposure_count",
+            "planned_claims",
+            "primary_control",
+            "prospective_historical_references",
+            "protocol_id",
+            "schema",
+        },
+    )
+    try:
+        historical_family = historical_family_from_manifest(
+            protocol.get("historical_family")
+        )
+    except HistoricalFamilyBindingError as exc:
+        raise ReplayJobImplementationPreflightError(
+            "cost-aware execution historical family is invalid"
+        ) from exc
+    if historical_family.identity != COST_AWARE_EXECUTION_HISTORICAL_FAMILY_ID:
+        raise ReplayJobImplementationPreflightError(
+            "cost-aware execution historical family identity drifted"
+        )
+    inference = _exact_surface_keys(
+        "cost-aware execution inference surface",
+        protocol.get("inference"),
+        {
+            "alpha_ppm",
+            "base_seed",
+            "block_lengths",
+            "bootstrap_samples",
+            "historical_context_adjustment_authority",
+            "method",
+            "monte_carlo_confidence_ppm",
+            "original_family_end_global_exposure_count",
+            "primary_control_contrast_family_size",
+            "schema",
+            "selection_family_size",
+        },
+    )
+    expected_inference = {
+        "alpha_ppm": COST_AWARE_EXECUTION_ALPHA_PPM,
+        "base_seed": COST_AWARE_EXECUTION_BASE_SEED,
+        "block_lengths": list(COST_AWARE_EXECUTION_BLOCK_LENGTHS),
+        "bootstrap_samples": COST_AWARE_EXECUTION_BOOTSTRAP_SAMPLES,
+        "historical_context_adjustment_authority": (
+            COST_AWARE_EXECUTION_HISTORICAL_CONTEXT_ADJUSTMENT_AUTHORITY
+        ),
+        "method": COST_AWARE_EXECUTION_MULTIPLICITY_METHOD,
+        "monte_carlo_confidence_ppm": (
+            COST_AWARE_EXECUTION_MONTE_CARLO_CONFIDENCE_PPM
+        ),
+        "original_family_end_global_exposure_count": (
+            COST_AWARE_EXECUTION_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+        ),
+        "primary_control_contrast_family_size": 1,
+        "schema": COST_AWARE_EXECUTION_INFERENCE_BOUNDARY_SCHEMA,
+        "selection_family_size": 2,
+    }
+    expected_members = []
+    roles = {
+        COST_AWARE_EXECUTION_CONTROL_HISTORICAL_EXECUTABLE_ID: "control",
+        COST_AWARE_EXECUTION_TARGET_HISTORICAL_EXECUTABLE_ID: "target",
+    }
+    for historical_member in historical_family.members:
+        expected_members.append(
+            {
+                "configuration_id": historical_member.configuration_id,
+                "execution_policy": historical_member.parameter_values()[
+                    "execution_policy"
+                ],
+                "historical_executable_id": (
+                    historical_member.historical_reference_executable_id
+                ),
+                "historical_ordinal": historical_member.ordinal,
+                "role": roles[
+                    historical_member.historical_reference_executable_id
+                ],
+                "schema": COST_AWARE_EXECUTION_MEMBER_BINDING_SCHEMA,
+            }
+        )
+    expected_primary_control = {
+        "control_historical_executable_id": (
+            COST_AWARE_EXECUTION_CONTROL_HISTORICAL_EXECUTABLE_ID
+        ),
+        "schema": COST_AWARE_EXECUTION_PRIMARY_CONTROL_SCHEMA,
+        "target_historical_executable_id": (
+            COST_AWARE_EXECUTION_TARGET_HISTORICAL_EXECUTABLE_ID
+        ),
+    }
+    if (
+        protocol.get("schema")
+        != "cost_aware_execution_protocol_scientific_surface.v1"
+        or inference != expected_inference
+        or protocol.get("members") != expected_members
+        or protocol.get("historical_family")
+        != historical_family.manifest()
+        or protocol.get("primary_control") != expected_primary_control
+        or protocol.get("prospective_historical_references")
+        != [
+            COST_AWARE_EXECUTION_CONTROL_HISTORICAL_EXECUTABLE_ID,
+            COST_AWARE_EXECUTION_TARGET_HISTORICAL_EXECUTABLE_ID,
+        ]
+        or protocol.get("original_family_end_global_exposure_count")
+        != COST_AWARE_EXECUTION_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+        or protocol.get("criteria")
+        != [dict(item) for item in COST_AWARE_EXECUTION_REPLAY_CRITERIA]
+        or protocol.get("evidence_modes")
+        != list(COST_AWARE_EXECUTION_REPLAY_EVIDENCE_MODES)
+        or protocol.get("planned_claims")
+        != list(COST_AWARE_EXECUTION_REPLAY_CLAIMS)
+    ):
+        raise ReplayJobImplementationPreflightError(
+            "cost-aware execution protocol scientific surface drifted"
+        )
+    return protocol
+
+
 def validated_replay_job_scientific_surface(
     surface: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -1492,6 +1875,7 @@ def validated_replay_job_scientific_surface(
             "replay scientific member family is empty"
         )
     references: list[str] = []
+    protocol_definitions: list[bytes] = []
     for raw_member in members:
         member = _exact_surface_keys(
             "replay scientific member",
@@ -1526,29 +1910,8 @@ def validated_replay_job_scientific_surface(
                 "validator_id",
             },
         )
-        protocol = _exact_surface_keys(
-            "replay scientific protocol definition",
-            plan.get("protocol_definition"),
-            {
-                "allowed_regimes",
-                "clock_contract",
-                "cost_contract",
-                "dataset_sha256",
-                "fold_ids",
-                "historical_context_id",
-                "historical_evaluation_artifacts",
-                "historical_family",
-                "inference",
-                "invariance_keys",
-                "material_identity",
-                "original_family_end_global_exposure_count",
-                "producer_implementation_roles",
-                "prospective_historical_references",
-                "protocol_id",
-                "schema",
-                "semantic_transition_policy",
-                "split_artifact_sha256",
-            },
+        protocol = _validated_protocol_scientific_surface(
+            plan.get("protocol_definition")
         )
         if (
             plan.get("schema")
@@ -1564,9 +1927,11 @@ def validated_replay_job_scientific_surface(
             "replay scientific protocol definition identity",
             protocol.get("protocol_id"),
         )
+        protocol_definitions.append(canonical_bytes(protocol))
         references.append(reference)
     if (
         references != sorted(set(references))
+        or len(set(protocol_definitions)) != 1
         or concurrent.get("historical_references") != references
         or concurrent.get("family_size") != len(members)
         or batch.get("max_trials") != len(members)
@@ -1705,7 +2070,7 @@ def _require_scientific_surface_context_binding(
             )
         fields = [] if fields is None else fields
         context_fields = set(fields).intersection(_CONTEXT_ONLY_PARAMETERS)
-        if protocol == _FIXED_HOLD_CONTEXT_OWNER_PROTOCOL:
+        if protocol in _REPLAY_CONTEXT_OWNER_PROTOCOLS:
             owner_count += 1
             if (
                 spec.get("historical_context_adjustment_authority")
@@ -1808,17 +2173,19 @@ def replay_job_scientific_equivalence_surface(
 
     def normalize_plan(plan: dict[str, Any]) -> None:
         definition = plan["protocol_definition"]
-        raw_context_id = _ascii(
-            "replay protocol historical context",
-            definition.pop("historical_context_id"),
-        )
-        if raw_context_id not in {
-            family_authority_id,
-            replay_obligation_id,
-        }:
-            raise ReplayJobImplementationPreflightError(
-                "replay historical context subject is unrelated"
+        protocol_id = definition.get("protocol_id")
+        if _is_fixed_hold_trace_protocol(protocol_id):
+            raw_context_id = _ascii(
+                "replay protocol historical context",
+                definition.pop("historical_context_id"),
             )
+            if raw_context_id not in {
+                family_authority_id,
+                replay_obligation_id,
+            }:
+                raise ReplayJobImplementationPreflightError(
+                    "replay historical context subject is unrelated"
+                )
         historical_family = _mapping(
             "replay protocol historical family",
             definition.get("historical_family"),
@@ -1832,12 +2199,13 @@ def replay_job_scientific_equivalence_surface(
                 "replay historical context family identity drifted"
             )
         definition["historical_context_subject"] = context_subject
-        definition["producer_implementation_profile"] = (
-            _producer_role_scientific_profile(
-                definition.get("protocol_id"),
-                definition.pop("producer_implementation_roles"),
+        if _is_fixed_hold_trace_protocol(protocol_id):
+            definition["producer_implementation_profile"] = (
+                _producer_role_scientific_profile(
+                    protocol_id,
+                    definition.pop("producer_implementation_roles"),
+                )
             )
-        )
 
     for member in value["members"]:
         member["executable"] = (
@@ -2022,6 +2390,12 @@ def require_replacement_replay_baseline_semantics(
             protocol_ids == {_FIXED_HOLD_REPLAY_PROTOCOL_ID}
         ),
     )
+    if protocol_ids == {_COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID}:
+        _require_cost_aware_execution_context_binding(
+            baseline_executable_manifest,
+            expected_original_family_end=next(iter(original_family_ends)),
+            name="replacement cost-aware execution baseline Executable",
+        )
     _reference, replacement_baseline = _normalized_executable_surface(
         baseline_executable_manifest,
         require_historical_reference=False,
@@ -2096,6 +2470,19 @@ def require_replacement_replay_study_semantics(
             protocol_ids == {_FIXED_HOLD_REPLAY_PROTOCOL_ID}
         ),
     )
+    if protocol_ids == {_COST_AWARE_EXECUTION_REPLAY_PROTOCOL_ID}:
+        proposed_chassis = _mapping(
+            "replacement cost-aware execution controlled chassis",
+            proposed.get("controlled_chassis"),
+        )
+        _require_cost_aware_execution_context_binding(
+            _mapping(
+                "replacement cost-aware execution chassis baseline",
+                proposed_chassis.get("baseline_executable"),
+            ),
+            expected_original_family_end=next(iter(original_family_ends)),
+            name="replacement cost-aware execution chassis baseline",
+        )
     prospective_surface = _mapping(
         "replacement replay prospective scientific surface",
         surface,

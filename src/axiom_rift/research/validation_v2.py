@@ -43,8 +43,15 @@ from axiom_rift.research.evidence_proofs import (
     validate_proof_artifacts,
 )
 from axiom_rift.research.scientific_trace import (
-    FIXED_HOLD_TRACE_PROTOCOL_IDS,
+    ATOMIC_TRACE_PROOF_KIND,
+    CALCULATION_PROOF_KIND,
+    COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID,
     SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
+    ScientificTraceError,
+    normalized_trace_protocol_definition,
+    require_matching_trace_protocol_definitions,
+    scientific_trace_validation_dependency_paths,
+    trace_proof_kinds,
 )
 
 
@@ -429,6 +436,72 @@ def _expected_role(criterion: _Criterion, profile: _Profile) -> str:
     return "component"
 
 
+def _require_cost_aware_execution_plan_authority(
+    value: Mapping[str, Any],
+    *,
+    definition_manifest: Mapping[str, object],
+    proof_requirements: tuple[ProofRequirement, ...],
+) -> None:
+    """Bind every duplicated plan field to the exact paired protocol."""
+
+    from axiom_rift.research.cost_aware_execution_protocol import (
+        COST_AWARE_EXECUTION_ADJUDICATION_PROFILE_SCHEMA,
+        cost_aware_execution_multiplicity_registrations,
+        cost_aware_execution_protocol_definition_from_manifest,
+    )
+
+    try:
+        definition = cost_aware_execution_protocol_definition_from_manifest(
+            definition_manifest
+        )
+        expected_profile = {
+            "decisive_risk_criterion_ids": [],
+            "multiplicity": list(
+                cost_aware_execution_multiplicity_registrations(
+                    definition,
+                    value["executable_id"],
+                )
+            ),
+            "promotion_criterion_ids": [],
+            "schema": COST_AWARE_EXECUTION_ADJUDICATION_PROFILE_SCHEMA,
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EvidenceValidationError(
+            "cost-aware execution validation plan authority is invalid"
+        ) from exc
+    expected_proofs = {
+        (mode, proof_kind, artifact_schema)
+        for mode in definition.evidence_modes
+        for proof_kind, artifact_schema in trace_proof_kinds(
+            protocol_id=definition.protocol_id,
+            evidence_mode=mode,
+        ).items()
+    }
+    actual_proofs = {
+        (item.evidence_mode, item.proof_kind, item.artifact_schema)
+        for item in proof_requirements
+    }
+    outputs_by_kind: dict[str, set[str]] = {}
+    for item in proof_requirements:
+        outputs_by_kind.setdefault(item.proof_kind, set()).add(item.output_name)
+    if (
+        value.get("evidence_depth") != "discovery"
+        or value.get("candidate_eligible_on_pass") is not False
+        or value.get("planned_claims") != list(definition.planned_claims)
+        or value.get("evidence_modes") != list(definition.evidence_modes)
+        or value.get("criteria") != [dict(item) for item in definition.criteria]
+        or value.get("adjudication_profile") != expected_profile
+        or actual_proofs != expected_proofs
+        or len(proof_requirements) != len(expected_proofs)
+        or set(outputs_by_kind)
+        != {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND}
+        or any(len(outputs) != 1 for outputs in outputs_by_kind.values())
+    ):
+        raise EvidenceValidationError(
+            "cost-aware execution validation plan differs from its protocol"
+        )
+
+
 def _parse_plan(
     value: object,
 ) -> tuple[
@@ -444,23 +517,17 @@ def _parse_plan(
         or value.get("schema") != SCIENTIFIC_VALIDATION_PLAN_V2_SCHEMA
     ):
         raise EvidenceValidationError("scientific v2 validation plan schema is invalid")
+    definition_binding: tuple[str, dict[str, object]] | None = None
     if "protocol_definition" in value:
-        from axiom_rift.research.fixed_hold_family_trace import (
-            fixed_hold_protocol_definition_from_manifest,
-        )
-
         try:
-            definition = fixed_hold_protocol_definition_from_manifest(
-                value["protocol_definition"]
+            definition_binding = normalized_trace_protocol_definition(
+                value["protocol_definition"],
+                expected_executable_id=value.get("executable_id"),
             )
-        except ValueError as exc:
+        except ScientificTraceError as exc:
             raise EvidenceValidationError(
                 "scientific v2 protocol definition is invalid"
             ) from exc
-        if definition.protocol_id not in FIXED_HOLD_TRACE_PROTOCOL_IDS:
-            raise EvidenceValidationError(
-                "scientific v2 plan protocol definition is not fixed-hold"
-            )
     _ascii("plan mission_id", value["mission_id"])
     _ascii("plan executable_id", value["executable_id"])
     depth = value["evidence_depth"]
@@ -575,6 +642,15 @@ def _parse_plan(
     if candidate_policy and not profile.promotion_criterion_ids:
         raise EvidenceValidationError(
             "scientific v2 candidate policy requires promotion gates"
+        )
+    if (
+        definition_binding is not None
+        and definition_binding[0] == COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID
+    ):
+        _require_cost_aware_execution_plan_authority(
+            value,
+            definition_manifest=definition_binding[1],
+            proof_requirements=proof_requirements,
         )
     return value, criteria, profile, proof_requirements
 
@@ -978,6 +1054,7 @@ SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = tuple(
                 _RESEARCH_ROOT / name
                 for name in _RESEARCH_VALIDATION_DEPENDENCY_NAMES
             ),
+            *scientific_trace_validation_dependency_paths(),
         },
         key=lambda path: path.as_posix(),
     )
@@ -1201,34 +1278,23 @@ class ScientificAdjudicationValidatorV2:
                 or len(calculations_with_definition) != 1
             ):
                 raise EvidenceValidationError(
-                    "scientific v2 fixed-hold plan requires one bound calculation"
+                    "scientific v2 definition-bound plan requires one bound calculation"
                 )
-            from axiom_rift.research.fixed_hold_family_trace import (
-                fixed_hold_protocol_definition_from_manifest,
-            )
-
             try:
-                planned_definition = fixed_hold_protocol_definition_from_manifest(
-                    plan_definition
+                require_matching_trace_protocol_definitions(
+                    planned=plan_definition,
+                    calculated=calculations_with_definition[0][
+                        "protocol_definition"
+                    ],
+                    calculation_protocol_id=calculations_with_definition[0].get(
+                        "protocol_id"
+                    ),
+                    expected_executable_id=executable_id,
                 )
-                calculated_definition = (
-                    fixed_hold_protocol_definition_from_manifest(
-                        calculations_with_definition[0]["protocol_definition"]
-                    )
-                )
-            except ValueError as exc:
+            except ScientificTraceError as exc:
                 raise EvidenceValidationError(
                     "scientific v2 bound protocol definition is invalid"
                 ) from exc
-            if (
-                planned_definition.manifest()
-                != calculated_definition.manifest()
-                or calculations_with_definition[0].get("protocol_id")
-                != planned_definition.protocol_id
-            ):
-                raise EvidenceValidationError(
-                    "scientific v2 plan and calculation definitions differ"
-                )
         expected_bindings: dict[str, list[dict[str, object]]] = {
             mode: [] for mode in modes
         }

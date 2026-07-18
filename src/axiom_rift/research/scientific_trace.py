@@ -42,6 +42,9 @@ DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID = (
 VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID = (
     "volatility_duration.concurrent_four_config.replay.v1"
 )
+COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID = (
+    "cost_aware_execution.paired_policy.fixed_hold_replay.v1"
+)
 
 # Keep protocol dispatch and validator source identity on one closed registry.
 # The dispatcher imports these implementations lazily to avoid module cycles,
@@ -54,6 +57,7 @@ SCIENTIFIC_TRACE_PROTOCOL_IDS = frozenset(
         ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID,
         COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
         COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
+        COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID,
         DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
         GAP_REPLAY_TRACE_PROTOCOL_ID,
         DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID,
@@ -71,6 +75,9 @@ FIXED_HOLD_TRACE_PROTOCOL_IDS = frozenset(
         VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
     }
 )
+PROTOCOL_DEFINITION_TRACE_PROTOCOL_IDS = frozenset(
+    {*FIXED_HOLD_TRACE_PROTOCOL_IDS, COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID}
+)
 _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
     "analog_state_family.py",
     "analog_state_replay.py",
@@ -78,10 +85,13 @@ _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
     "analog_state_scoped_job.py",
     "analog_state_trace.py",
     "completed_period_atomic_trace.py",
+    "cost_aware_execution_protocol.py",
+    "cost_aware_execution_trace.py",
     "fixed_hold_family_trace.py",
     "fixed_hold_historical_projection.py",
     "historical_family_binding.py",
     "historical_semantic_transition.py",
+    "scientific_study.py",
 )
 
 
@@ -149,6 +159,109 @@ def _digest(name: str, value: object) -> str:
     return text
 
 
+def normalized_trace_protocol_definition(
+    value: object,
+    *,
+    expected_protocol_id: str | None = None,
+    expected_executable_id: str | None = None,
+) -> tuple[str, dict[str, object]]:
+    """Parse one definition through the closed repository-owned dispatcher."""
+
+    if not isinstance(value, Mapping):
+        raise ScientificTraceError(
+            "scientific trace protocol definition must be an object"
+        )
+    protocol_id = _ascii(
+        "scientific trace protocol definition id",
+        value.get("protocol_id"),
+    )
+    if expected_protocol_id is not None and protocol_id != _ascii(
+        "expected scientific trace protocol id",
+        expected_protocol_id,
+    ):
+        raise ScientificTraceError(
+            "scientific trace protocol definition differs from its binding"
+        )
+    if protocol_id in FIXED_HOLD_TRACE_PROTOCOL_IDS:
+        from axiom_rift.research.fixed_hold_family_trace import (
+            fixed_hold_protocol_definition_from_manifest,
+        )
+
+        definition = fixed_hold_protocol_definition_from_manifest(value)
+    elif protocol_id == COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID:
+        from axiom_rift.research.cost_aware_execution_protocol import (
+            COST_AWARE_EXECUTION_PROTOCOL_ID,
+            cost_aware_execution_protocol_definition_from_manifest,
+        )
+
+        if COST_AWARE_EXECUTION_PROTOCOL_ID != COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID:
+            raise RuntimeError("cost-aware execution protocol id drifted")
+        try:
+            definition = cost_aware_execution_protocol_definition_from_manifest(
+                value
+            )
+        except ValueError as exc:
+            raise ScientificTraceError(
+                "cost-aware execution protocol definition is invalid"
+            ) from exc
+    else:
+        raise ScientificTraceError(
+            "scientific trace protocol definition is not registered"
+        )
+    if definition.protocol_id != protocol_id:
+        raise ScientificTraceError(
+            "scientific trace protocol definition differs from its manifest"
+        )
+    if expected_executable_id is not None and _ascii(
+        "scientific trace protocol definition subject",
+        expected_executable_id,
+    ) not in definition.prospective_executable_ids:
+        raise ScientificTraceError(
+            "scientific trace protocol definition excludes its subject"
+        )
+    return protocol_id, definition.manifest()
+
+
+def require_matching_trace_protocol_definitions(
+    *,
+    planned: object,
+    calculated: object,
+    calculation_protocol_id: object,
+    expected_executable_id: str | None = None,
+) -> tuple[str, dict[str, object]]:
+    """Require exact plan, trace, or calculation definition agreement."""
+
+    planned_protocol_id, planned_manifest = (
+        normalized_trace_protocol_definition(
+            planned,
+        )
+    )
+    calculated_protocol_id, calculated_manifest = (
+        normalized_trace_protocol_definition(
+            calculated,
+        )
+    )
+    if (
+        planned_protocol_id != calculated_protocol_id
+        or planned_manifest != calculated_manifest
+        or _ascii(
+            "scientific calculation protocol id",
+            calculation_protocol_id,
+        )
+        != planned_protocol_id
+    ):
+        raise ScientificTraceError(
+            "scientific trace protocol definitions differ"
+        )
+    if expected_executable_id is not None:
+        normalized_trace_protocol_definition(
+            planned_manifest,
+            expected_protocol_id=planned_protocol_id,
+            expected_executable_id=expected_executable_id,
+        )
+    return planned_protocol_id, planned_manifest
+
+
 def trace_proof_kinds(
     *, protocol_id: str, evidence_mode: str
 ) -> dict[str, str]:
@@ -212,17 +325,26 @@ def validate_trace_calculation_pair(
 ) -> tuple[str, ...]:
     """Dispatch one atomic trace to its fixed pure recalculation protocol."""
 
-    is_fixed_hold = trace.get("protocol_id") in FIXED_HOLD_TRACE_PROTOCOL_IDS
-    expected_trace_fields = (
-        _TRACE_FIELDS | {"semantic_transition_evidence"}
-        if is_fixed_hold
-        else _TRACE_FIELDS
-    )
-    expected_calculation_fields = (
-        _CALCULATION_FIELDS | {"protocol_definition"}
-        if is_fixed_hold
-        else _CALCULATION_FIELDS
-    )
+    protocol_id = _ascii("trace protocol_id", trace.get("protocol_id"))
+    is_fixed_hold = protocol_id in FIXED_HOLD_TRACE_PROTOCOL_IDS
+    is_cost_aware = protocol_id == COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID
+    expected_trace_fields = _TRACE_FIELDS
+    if is_fixed_hold:
+        expected_trace_fields = expected_trace_fields | {
+            "semantic_transition_evidence"
+        }
+    elif is_cost_aware:
+        expected_trace_fields = expected_trace_fields | {
+            "candidate_observations",
+            "historical_context",
+            "protocol_definition",
+            "source_observations",
+        }
+    expected_calculation_fields = _CALCULATION_FIELDS
+    if protocol_id in PROTOCOL_DEFINITION_TRACE_PROTOCOL_IDS:
+        expected_calculation_fields = expected_calculation_fields | {
+            "protocol_definition"
+        }
     if (
         set(trace) != expected_trace_fields
         or trace.get("schema") != SCIENTIFIC_EVALUATION_TRACE_SCHEMA
@@ -230,7 +352,6 @@ def validate_trace_calculation_pair(
         or calculation.get("schema") != SCIENTIFIC_CALCULATION_PROOF_SCHEMA
     ):
         raise ScientificTraceError("scientific trace/calculation schema is invalid")
-    protocol_id = _ascii("trace protocol_id", trace.get("protocol_id"))
     if calculation.get("protocol_id") != protocol_id:
         raise ScientificTraceError("trace and calculation protocols differ")
     _common_identity(
@@ -305,6 +426,39 @@ def validate_trace_calculation_pair(
             definition=definition,
             validator=FIXED_HOLD_TRACE_VALIDATOR,
         )
+    elif protocol_id == COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID:
+        from axiom_rift.research.cost_aware_execution_protocol import (
+            cost_aware_execution_protocol_definition_from_manifest,
+        )
+        from axiom_rift.research.cost_aware_execution_trace import (
+            validate_cost_aware_execution_trace_calculation,
+        )
+
+        _definition_protocol_id, definition_manifest = (
+            require_matching_trace_protocol_definitions(
+                planned=trace.get("protocol_definition"),
+                calculated=calculation.get("protocol_definition"),
+                calculation_protocol_id=protocol_id,
+                expected_executable_id=executable_id,
+            )
+        )
+        try:
+            definition = (
+                cost_aware_execution_protocol_definition_from_manifest(
+                    definition_manifest
+                )
+            )
+            derived_metrics = validate_cost_aware_execution_trace_calculation(
+                trace=trace,
+                calculation=calculation,
+                definition=definition,
+            )
+        except ScientificTraceError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ScientificTraceError(
+                "cost-aware execution trace calculation is invalid"
+            ) from exc
     else:
         raise ScientificTraceError("scientific trace protocol is not registered")
 
@@ -331,14 +485,18 @@ __all__ = [
     "CALCULATION_PROOF_KIND",
     "COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID",
     "COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID",
+    "COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID",
     "DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID",
     "GAP_REPLAY_TRACE_PROTOCOL_ID",
     "DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID",
     "SCIENTIFIC_CALCULATION_PROOF_SCHEMA",
     "SCIENTIFIC_EVALUATION_TRACE_SCHEMA",
     "SCIENTIFIC_TRACE_PROTOCOL_IDS",
+    "PROTOCOL_DEFINITION_TRACE_PROTOCOL_IDS",
     "ScientificTraceError",
     "VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID",
+    "normalized_trace_protocol_definition",
+    "require_matching_trace_protocol_definitions",
     "scientific_trace_validation_dependency_paths",
     "trace_proof_kinds",
     "validate_trace_calculation_pair",

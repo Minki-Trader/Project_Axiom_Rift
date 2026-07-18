@@ -25,12 +25,20 @@ from axiom_rift.research.analog_state_trace import (
     build_analog_trace_calculation,
     expected_analog_family_inventory,
 )
+from axiom_rift.research.cost_aware_execution_protocol import (
+    build_cost_aware_execution_validation_plan,
+    cost_aware_execution_protocol_definition,
+)
+from axiom_rift.research.historical_family_stu0070 import (
+    STU0070_HISTORICAL_FAMILY,
+)
 from axiom_rift.research.validation import (
     SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
     ScientificDiscoveryValidator,
 )
 from axiom_rift.research.scientific_trace import (
     ANALOG_STATE_TRACE_PROTOCOL_ID,
+    COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID,
     SCIENTIFIC_TRACE_PROTOCOL_IDS,
     scientific_trace_validation_dependency_paths,
 )
@@ -536,7 +544,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
         dependency_paths = set(SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
         trace_paths = set(scientific_trace_validation_dependency_paths())
         self.assertTrue(trace_paths.issubset(dependency_paths))
-        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 9)
+        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 10)
         trace_names = {path.name for path in trace_paths}
         self.assertEqual(
             trace_names,
@@ -547,10 +555,13 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 "analog_state_scoped_job.py",
                 "analog_state_trace.py",
                 "completed_period_atomic_trace.py",
+                "cost_aware_execution_protocol.py",
+                "cost_aware_execution_trace.py",
                 "fixed_hold_family_trace.py",
                 "fixed_hold_historical_projection.py",
                 "historical_family_binding.py",
                 "historical_semantic_transition.py",
+                "scientific_study.py",
             },
         )
         self.assertTrue(
@@ -577,6 +588,124 @@ class ScientificValidationV2Tests(unittest.TestCase):
             / "p0_replay_inventory.json",
             dependency_paths,
         )
+
+    def test_cost_aware_plan_is_subject_bound_and_uses_generic_proofs(
+        self,
+    ) -> None:
+        control_id = "executable:" + "1" * 64
+        target_id = "executable:" + "2" * 64
+        definition = cost_aware_execution_protocol_definition(
+            historical_family=STU0070_HISTORICAL_FAMILY,
+            prospective_control_executable_id=control_id,
+            prospective_target_executable_id=target_id,
+        )
+        plan = build_cost_aware_execution_validation_plan(
+            definition=definition,
+            mission_id=MISSION_ID,
+            executable_id=target_id,
+            output_names={
+                "calculation": "proofs/cost-aware-calculation.json",
+                "trace": "proofs/cost-aware-trace.json",
+            },
+        )
+        self.assertEqual(
+            plan["protocol_definition"]["protocol_id"],
+            COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID,
+        )
+        self.assertEqual(
+            {item["proof_kind"] for item in plan["proof_requirements"]},
+            {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND},
+        )
+        e01 = next(
+            item
+            for item in plan["adjudication_profile"]["multiplicity"]
+            if item["criterion_id"] == "E01-familywise-selection"
+        )
+        self.assertEqual(e01["member_id"], target_id)
+
+        with self.assertRaisesRegex(
+            EvidenceValidationError,
+            "protocol definition is invalid",
+        ):
+            build_validation_plan_v2(
+                mission_id=plan["mission_id"],
+                executable_id="executable:" + "3" * 64,
+                evidence_depth=plan["evidence_depth"],
+                planned_claims=tuple(plan["planned_claims"]),
+                evidence_modes=tuple(plan["evidence_modes"]),
+                criteria=tuple(plan["criteria"]),
+                adjudication_profile=plan["adjudication_profile"],
+                proof_requirements=tuple(plan["proof_requirements"]),
+                candidate_eligible_on_pass=plan[
+                    "candidate_eligible_on_pass"
+                ],
+                protocol_definition=plan["protocol_definition"],
+            )
+
+    def test_cost_aware_plan_cannot_override_definition_authority(self) -> None:
+        control_id = "executable:" + "1" * 64
+        target_id = "executable:" + "2" * 64
+        definition = cost_aware_execution_protocol_definition(
+            historical_family=STU0070_HISTORICAL_FAMILY,
+            prospective_control_executable_id=control_id,
+            prospective_target_executable_id=target_id,
+        )
+        plan = build_cost_aware_execution_validation_plan(
+            definition=definition,
+            mission_id=MISSION_ID,
+            executable_id=target_id,
+            output_names={
+                "calculation": "proofs/cost-aware-calculation.json",
+                "trace": "proofs/cost-aware-trace.json",
+            },
+        )
+
+        def rebuild(value: dict[str, object]) -> None:
+            build_validation_plan_v2(
+                mission_id=value["mission_id"],
+                executable_id=value["executable_id"],
+                evidence_depth=value["evidence_depth"],
+                planned_claims=tuple(value["planned_claims"]),
+                evidence_modes=tuple(value["evidence_modes"]),
+                criteria=tuple(value["criteria"]),
+                adjudication_profile=value["adjudication_profile"],
+                proof_requirements=tuple(value["proof_requirements"]),
+                candidate_eligible_on_pass=value[
+                    "candidate_eligible_on_pass"
+                ],
+                protocol_definition=value["protocol_definition"],
+            )
+
+        mutations: list[tuple[str, dict[str, object]]] = []
+
+        wrong_member = deepcopy(plan)
+        next(
+            item
+            for item in wrong_member["adjudication_profile"]["multiplicity"]
+            if item["criterion_id"] == "E01-familywise-selection"
+        )["member_id"] = control_id
+        mutations.append(("wrong E01 subject", wrong_member))
+
+        wrong_mode = deepcopy(plan)
+        wrong_mode["criteria"][0]["evidence_mode"] = "causal_contrast"
+        mutations.append(("criterion mode drift", wrong_mode))
+
+        confirmation = deepcopy(plan)
+        confirmation["evidence_depth"] = "confirmation"
+        mutations.append(("confirmation drift", confirmation))
+
+        promotion = deepcopy(plan)
+        promotion["adjudication_profile"]["promotion_criterion_ids"] = [
+            "A01-minimum-trades"
+        ]
+        mutations.append(("promotion drift", promotion))
+
+        for name, changed in mutations:
+            with self.subTest(name=name), self.assertRaisesRegex(
+                EvidenceValidationError,
+                "differs from its protocol",
+            ):
+                rebuild(changed)
 
     def test_registered_atomic_trace_passes_the_full_validator(self) -> None:
         with TemporaryDirectory() as root:

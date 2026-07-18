@@ -97,7 +97,8 @@ def require_bound_fixed_hold_family_authorities(
             or record.status != "accepted"
             or record.subject
             != f"ReplayObligation:{authority.replay_obligation_id}"
-            or authority.family.original_study_id != spec.original_study_id
+            or authority.family.original_study_id
+            != spec.effective_family_origin_study_id
             or historical_family_core_identity(authority.family)
             != primary_core
             or authority.reconstruction_source_path
