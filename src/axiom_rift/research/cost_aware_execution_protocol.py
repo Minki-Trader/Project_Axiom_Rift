@@ -1,4 +1,4 @@
-"""Immutable paired-policy protocol for the STU-0070 execution replay.
+"""Immutable paired-policy protocol for a historical execution replay.
 
 The historical family contains exactly two policies: an unconditional next-open
 control and a causal spread-abstention target.  This module binds those members
@@ -250,12 +250,12 @@ def _member_bindings(
             ]
         except KeyError as exc:
             raise RuntimeError(
-                "STU-0070 contains an unregistered execution-policy member"
+                "historical family contains an unregistered policy member"
             ) from exc
         parameters = member.parameter_values()
         policy = parameters.get("execution_policy")
         if type(policy) is not str or not policy.isascii():
-            raise RuntimeError("STU-0070 execution policy is invalid")
+            raise RuntimeError("historical execution policy is invalid")
         bindings.append(
             CostAwareExecutionMemberBinding(
                 role=role,
@@ -275,7 +275,7 @@ def _member_bindings(
         or {item.execution_policy for item in result}
         != {"unconditional_next_open", "causal_spread_abstention"}
     ):
-        raise RuntimeError("STU-0070 paired-policy family drifted")
+        raise RuntimeError("historical paired-policy family drifted")
     return result
 
 
@@ -342,7 +342,7 @@ def _multiplicity_registration(
 
 @dataclass(frozen=True, slots=True)
 class CostAwareExecutionProtocolDefinition:
-    """One corrected prospective pair bound to the exact STU-0070 family."""
+    """One corrected prospective pair bound to an exact historical family."""
 
     historical_family: HistoricalFamilySpec
     prospective_control_executable_id: str
@@ -359,7 +359,7 @@ class CostAwareExecutionProtocolDefinition:
             != COST_AWARE_EXECUTION_HISTORICAL_FAMILY_ID
         ):
             raise CostAwareExecutionProtocolError(
-                "protocol requires the exact Writer-bound STU-0070 family"
+                "protocol requires the exact Writer-bound historical family"
             )
         control = _executable_id(
             "prospective_control_executable_id",

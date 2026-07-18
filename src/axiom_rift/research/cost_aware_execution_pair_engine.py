@@ -1,4 +1,4 @@
-"""Observed-development producer for the corrected STU-0070 pair trace.
+"""Observed-development producer for a corrected historical pair trace.
 
 The producer reconstructs the registered event-label signal independently of
 the retired cost-aware discovery runner.  It emits one common pre-policy

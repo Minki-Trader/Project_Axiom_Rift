@@ -1,4 +1,4 @@
-"""Job envelope for the corrected STU-0070 paired execution replay.
+"""Job envelope for a corrected historical paired execution replay.
 
 The first historical member produces one neutral, immutable pair trace.  Both
 subject Jobs bind that same trace to their own capability and independently

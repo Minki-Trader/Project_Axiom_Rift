@@ -1,4 +1,4 @@
-"""Writer-gated runtime for the corrected STU-0070 paired replay."""
+"""Writer-gated runtime for a corrected historical paired replay."""
 
 from __future__ import annotations
 

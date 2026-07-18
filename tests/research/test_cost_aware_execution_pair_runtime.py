@@ -10,6 +10,9 @@ from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.operations.running_job_context import (
     RunningJobFixedHoldReplayContext,
 )
+from axiom_rift.operations.job_implementation_authority import (
+    hardcoded_control_ids,
+)
 from axiom_rift.research.cost_aware_execution_pair import (
     COST_AWARE_EXECUTION_PAIR_CONTEXT_PARAMETER,
     cost_aware_execution_pair_protocol_definition,
@@ -17,6 +20,7 @@ from axiom_rift.research.cost_aware_execution_pair import (
 from axiom_rift.research.cost_aware_execution_pair_runtime import (
     CALLABLE_IDENTITY,
     cost_aware_execution_pair_job_implementation_sha256,
+    cost_aware_execution_pair_runtime_dependency_paths,
     materialize_cost_aware_execution_pair_job_implementation,
     registered_cost_aware_execution_pair_context,
 )
@@ -140,6 +144,11 @@ def test_runtime_implementation_closure_is_current_and_complete() -> None:
     assert authority["callable_module_path"].endswith(
         "cost_aware_execution_pair_runtime.py"
     )
+
+
+def test_runtime_closure_has_no_hardcoded_mission_or_study_identity() -> None:
+    for path in cost_aware_execution_pair_runtime_dependency_paths():
+        assert hardcoded_control_ids(path.read_bytes()) == (), path
 
 
 @pytest.mark.parametrize("ordinal", [0, 1])

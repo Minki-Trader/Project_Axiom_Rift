@@ -1,7 +1,7 @@
 """Prospective two-policy cost-aware execution replay composition.
 
-The historical STU-0070 module is reconstruction data, not an executable
-runner.  This module accepts its Writer-bound family as typed input and builds
+The historical source module is reconstruction data, not an executable runner.
+This module accepts its Writer-bound family as typed input and builds
 new Executables whose engine identity binds the corrected atomic trace,
 protocol, and exact concurrent-family inference.  Historical search exposure
 is retained only as context; it is never an adjustment factor.
@@ -259,7 +259,6 @@ def cost_aware_execution_pair_configurations(
     }
     if (
         historical_family.family_size != 2
-        or historical_family.original_study_id != "STU-0070"
         or tuple(value.ordinal for value in values) != (1, 2)
         or tuple(value.execution_policy for value in values) != _POLICIES
         or historical_family.target_historical_executable_id
@@ -268,7 +267,7 @@ def cost_aware_execution_pair_configurations(
         or actual_control_pairs != expected_control_pairs
     ):
         raise CostAwareExecutionPairError(
-            "Writer-bound family is not the exact STU-0070 policy pair"
+            "Writer-bound family is not the exact registered policy pair"
         )
     return values
 
@@ -431,7 +430,7 @@ def cost_aware_execution_pair_components(
         semantic_dependencies=(risk.identity,),
     )
     synthesis = ComponentSpec(
-        display_name="registered STU-0070 paired-policy replay member",
+        display_name="registered historical paired-policy replay member",
         protocol="synthesis.historical_cost_aware_execution_pair_member.v1",
         implementation=_local("cost_aware_execution_pair_executable"),
         spec={
