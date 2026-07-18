@@ -161,6 +161,12 @@ from axiom_rift.storage.index import IndexRecord, LocalIndexView
 
 STUDY_CLOSE_STAGE = "study-close"
 DIAGNOSE_STAGE = "diagnose"
+FIXED_HOLD_REPLAY_RESOLUTION_EVENT_KINDS = (
+    "historical_replay_obligations_deferred",
+    "historical_replay_obligations_disposed",
+    "historical_replay_obligations_resolved",
+    "historical_replay_obligations_returned_for_scientific_change",
+)
 
 
 def _ascii(name: str, value: object) -> str:
@@ -3718,6 +3724,70 @@ def repair_fixed_hold_replay_batch_budget(
     )
 
 
+def fixed_hold_replay_post_study_steps(
+    design: FixedHoldReplayDesign,
+    *,
+    resolution_event_kind: str,
+    architecture_review_triggered: bool,
+) -> tuple[OperationStep, ...]:
+    """Return the state-independent diagnosis and ownership contract."""
+
+    if resolution_event_kind not in FIXED_HOLD_REPLAY_RESOLUTION_EVENT_KINDS:
+        raise RuntimeError("fixed-hold replay resolution event is untyped")
+    if type(architecture_review_triggered) is not bool:
+        raise RuntimeError(
+            "fixed-hold replay architecture-review state is malformed"
+        )
+    prefix = design.spec.operation_prefix
+    steps = [
+        OperationStep(
+            prefix + "dispose-batch",
+            "batch_disposed",
+            STUDY_CLOSE_STAGE,
+        ),
+        OperationStep(
+            prefix + "close-study",
+            "study_closed",
+            STUDY_CLOSE_STAGE,
+        ),
+        OperationStep(
+            prefix + "diagnose-study",
+            "study_diagnosis_recorded",
+            DIAGNOSE_STAGE,
+        ),
+        OperationStep(
+            prefix + "resolve-replay",
+            resolution_event_kind,
+            DIAGNOSE_STAGE,
+        ),
+    ]
+    if (
+        not architecture_review_triggered
+        and design.spec.initiative_lifecycle
+        is ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+    ):
+        steps.extend(
+            (
+                OperationStep(
+                    prefix + "disposition-decision",
+                    "portfolio_decision_recorded",
+                    DIAGNOSE_STAGE,
+                ),
+                OperationStep(
+                    prefix + "disposition-snapshot",
+                    "portfolio_snapshot_recorded",
+                    DIAGNOSE_STAGE,
+                ),
+                OperationStep(
+                    prefix + "close-initiative",
+                    "initiative_closed",
+                    DIAGNOSE_STAGE,
+                ),
+            )
+        )
+    return tuple(steps)
+
+
 def operation_steps(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -4204,53 +4274,25 @@ def operation_steps(
                         STUDY_CLOSE_STAGE,
                     )
                 )
+    resolution_event_kind = (
+        "historical_replay_obligations_returned_for_scientific_change"
+        if scientific_change_return
+        else "historical_replay_obligations_resolved"
+        if all_selected_recomputed
+        else "historical_replay_obligations_disposed"
+        if some_selected_recomputed
+        else "historical_replay_obligations_deferred"
+    )
     steps.extend(
-        (
-            OperationStep(prefix + "dispose-batch", "batch_disposed", STUDY_CLOSE_STAGE),
-            OperationStep(prefix + "close-study", "study_closed", STUDY_CLOSE_STAGE),
-            OperationStep(prefix + "diagnose-study", "study_diagnosis_recorded", DIAGNOSE_STAGE),
-            OperationStep(
-                prefix + "resolve-replay",
-                (
-                    (
-                        "historical_replay_obligations_"
-                        "returned_for_scientific_change"
-                    )
-                    if scientific_change_return
-                    else "historical_replay_obligations_resolved"
-                    if all_selected_recomputed
-                    else "historical_replay_obligations_disposed"
-                    if some_selected_recomputed
-                    else "historical_replay_obligations_deferred"
-                ),
-                DIAGNOSE_STAGE,
+        fixed_hold_replay_post_study_steps(
+            design,
+            resolution_event_kind=resolution_event_kind,
+            architecture_review_triggered=(
+                _diagnosis_architecture_review_trigger(_index, design.spec)
+                is not None
             ),
         )
     )
-    if (
-        _diagnosis_architecture_review_trigger(_index, design.spec) is None
-        and design.spec.initiative_lifecycle
-        is ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
-    ):
-        steps.extend(
-            (
-                OperationStep(
-                    prefix + "disposition-decision",
-                    "portfolio_decision_recorded",
-                    DIAGNOSE_STAGE,
-                ),
-                OperationStep(
-                    prefix + "disposition-snapshot",
-                    "portfolio_snapshot_recorded",
-                    DIAGNOSE_STAGE,
-                ),
-                OperationStep(
-                    prefix + "close-initiative",
-                    "initiative_closed",
-                    DIAGNOSE_STAGE,
-                ),
-            )
-        )
     return tuple(steps)
 
 
@@ -6731,6 +6773,7 @@ def read_only_summary(
 
 __all__ = [
     "DIAGNOSE_STAGE",
+    "FIXED_HOLD_REPLAY_RESOLUTION_EVENT_KINDS",
     "FIXED_HOLD_REPLAY_BUDGET_POLICY_ID",
     "STUDY_CLOSE_STAGE",
     "FixedHoldReplayDesign",
@@ -6746,6 +6789,7 @@ __all__ = [
     "activate_current_scientific_protocol",
     "fixed_hold_replay_batch_budget",
     "fixed_hold_replay_job_budget",
+    "fixed_hold_replay_post_study_steps",
     "fixed_hold_replay_repair_operation_ids",
     "fixed_hold_replay_study_input_hash",
     "inspect_replay_prefix",

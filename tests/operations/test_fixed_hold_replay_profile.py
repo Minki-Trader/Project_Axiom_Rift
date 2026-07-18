@@ -62,7 +62,26 @@ class FixedHoldReplayProfileTests(unittest.TestCase):
         "fixed_hold_replay_study_input_hash",
         return_value="a" * 64,
     )
-    @patch("axiom_rift.operations.fixed_hold_replay_profile.operation_steps")
+    def test_borrowed_profile_validation_is_state_independent(
+        self,
+        _study_hash: Mock,
+    ) -> None:
+        design = _design()
+
+        self.assertIs(
+            require_borrowed_production_profile(Mock(), design),
+            design,
+        )
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_profile."
+        "fixed_hold_replay_study_input_hash",
+        return_value="a" * 64,
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_profile."
+        "fixed_hold_replay_post_study_steps"
+    )
     def test_borrowed_profile_requires_resolution_without_ownership_steps(
         self,
         planned: Mock,
@@ -113,7 +132,10 @@ class FixedHoldReplayProfileTests(unittest.TestCase):
         "fixed_hold_replay_study_input_hash",
         return_value="a" * 64,
     )
-    @patch("axiom_rift.operations.fixed_hold_replay_profile.operation_steps")
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_profile."
+        "fixed_hold_replay_post_study_steps"
+    )
     def test_profile_fails_closed_on_lifecycle_lineage_or_hash_drift(
         self,
         planned: Mock,

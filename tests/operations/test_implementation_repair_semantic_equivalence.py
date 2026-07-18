@@ -20,6 +20,8 @@ from axiom_rift.operations.fixed_hold_repair_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA,
     FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID,
+    FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY,
+    FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
     FixedHoldAuthorityCorrectionEquivalenceValidator,
@@ -51,6 +53,9 @@ from axiom_rift.operations.validation import (
 )
 from axiom_rift.operations.writer import StateWriter, TransitionError
 from axiom_rift.research.analog_fixed_hold_replay_job import RUNTIME_ADAPTER
+from axiom_rift.research.cost_aware_execution_pair_runtime import (
+    cost_aware_execution_pair_runtime_dependency_paths,
+)
 from axiom_rift.research.volatility_duration_fixed_hold_job import (
     RUNTIME_ADAPTER as VOLATILITY_RUNTIME_ADAPTER,
 )
@@ -1358,7 +1363,7 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
                 evidence_hashes=(unrelated.sha256,),
             )
 
-    def test_fixed_hold_correction_profiles_preserve_prior_and_direct_origin_pairs(
+    def test_fixed_hold_correction_profiles_preserve_all_registered_pairs(
         self,
     ) -> None:
         prior = _correction_profile(
@@ -1377,7 +1382,42 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
                 FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
             ),
         )
-        self.assertNotEqual(prior, direct)
+        cross_study = _correction_profile(
+            new_implementation_identity=(
+                FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY
+            ),
+            old_implementation_identity=(
+                FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY
+            ),
+        )
+        self.assertEqual(len({id(prior), id(direct), id(cross_study)}), 3)
+        source_root = Path(__file__).resolve().parents[2] / "src"
+        self.assertEqual(
+            cross_study["source_paths"],
+            tuple(
+                sorted(
+                    path.resolve().relative_to(source_root).as_posix()
+                    for path in (
+                        cost_aware_execution_pair_runtime_dependency_paths()
+                    )
+                )
+            ),
+        )
+        self.assertEqual(
+            cross_study["required_changed_paths"],
+            ("axiom_rift/operations/running_job_context.py",),
+        )
+        self.assertEqual(
+            cross_study["allowed_changed_symbols"],
+            {
+                "axiom_rift/operations/running_job_context.py": frozenset(
+                    {
+                        "class:RunningJobExecutionContext."
+                        "project_bound_fixed_hold_replay_context",
+                    }
+                )
+            },
+        )
         manifest = fixed_hold_authority_correction_verification_manifest(
             new_implementation_identity=(
                 FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY

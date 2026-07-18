@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from axiom_rift.operations.fixed_hold_replay_workflow import (
+    FIXED_HOLD_REPLAY_RESOLUTION_EVENT_KINDS,
     FixedHoldReplayDesign,
     ReplayAxisAdmission,
     ReplayInitiativeLifecycle,
+    fixed_hold_replay_post_study_steps,
     fixed_hold_replay_study_input_hash,
-    operation_steps,
 )
 from axiom_rift.operations.writer import StateWriter
 from axiom_rift.research.portfolio import PortfolioAction
@@ -30,7 +31,7 @@ def require_borrowed_production_profile(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> FixedHoldReplayDesign:
-    """Prove lifecycle, lineage, hashes, and the executable operation plan."""
+    """Prove lifecycle, lineage, hashes, and terminal ownership contract."""
 
     if (
         design.spec.initiative_lifecycle
@@ -90,9 +91,20 @@ def require_borrowed_production_profile(
             raise RuntimeError("exact-axis replay admission is malformed")
     else:
         raise RuntimeError("production replay axis admission is untyped")
-    steps = operation_steps(writer, design)
-    if (
-        any(step.event_kind in _FORBIDDEN_BORROWED_EVENTS for step in steps)
+    terminal_contracts = tuple(
+        fixed_hold_replay_post_study_steps(
+            design,
+            resolution_event_kind=event_kind,
+            architecture_review_triggered=architecture_review_triggered,
+        )
+        for event_kind in FIXED_HOLD_REPLAY_RESOLUTION_EVENT_KINDS
+        for architecture_review_triggered in (False, True)
+    )
+    if any(
+        any(
+            step.event_kind in _FORBIDDEN_BORROWED_EVENTS
+            for step in steps
+        )
         or any(
             step.operation_id
             == design.spec.operation_prefix + suffix
@@ -100,12 +112,16 @@ def require_borrowed_production_profile(
             for suffix in _FORBIDDEN_BORROWED_SUFFIXES
         )
         or sum(
-            step.operation_id == design.spec.operation_prefix + "resolve-replay"
+            step.operation_id
+            == design.spec.operation_prefix + "resolve-replay"
             for step in steps
         )
         != 1
+        for steps in terminal_contracts
     ):
-        raise RuntimeError("borrowed production replay operation plan owns Initiative state")
+        raise RuntimeError(
+            "borrowed production replay operation plan owns Initiative state"
+        )
     return design
 
 

@@ -448,6 +448,12 @@ FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY = (
 FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY = (
     "18b8145685a60593e64045a0225ba315b318a534ef18d8b21658960b42247bdd"
 )
+FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY = (
+    "62bdde524c5c339ac88a553f2d3867f444a5d7a88ded69e6bbfe0d8332b9d4de"
+)
+FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY = (
+    "7ec3f8d40bbc7fa064956fda17f59a7cf202e200dd1412e6772c0a83027f1d5c"
+)
 FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA = (
     "fixed_hold_authority_correction_verification.v1"
 )
@@ -676,6 +682,44 @@ _SCIENTIFIC_CHANGE_RETURN_ALLOWED_CHANGED_SYMBOLS = {
         }
     ),
 }
+_COST_AWARE_CROSS_STUDY_ORIGIN_JOB_SOURCE_PATHS = tuple(
+    sorted(
+        set(_FIXED_HOLD_JOB_SOURCE_PATHS).difference(
+            {
+                "axiom_rift/research/completed_period_atomic_trace.py",
+                "axiom_rift/research/fixed_hold_family_job.py",
+                "axiom_rift/research/fixed_hold_family_trace.py",
+                "axiom_rift/research/fixed_hold_historical_projection.py",
+                "axiom_rift/research/fixed_hold_replay_runtime.py",
+                "axiom_rift/research/fixed_hold_shared_trace.py",
+                "axiom_rift/research/fixed_hold_trace_engine.py",
+                "axiom_rift/research/historical_semantic_transition.py",
+                "axiom_rift/research/volatility_duration_fixed_hold.py",
+                "axiom_rift/research/volatility_duration_fixed_hold_job.py",
+            }
+        )
+        | {
+            "axiom_rift/operations/historical_family_authority_reader.py",
+            "axiom_rift/research/cost_aware_execution_pair.py",
+            "axiom_rift/research/cost_aware_execution_pair_engine.py",
+            "axiom_rift/research/cost_aware_execution_pair_job.py",
+            "axiom_rift/research/cost_aware_execution_pair_runtime.py",
+            "axiom_rift/research/cost_aware_execution_protocol.py",
+            "axiom_rift/research/cost_aware_execution_trace.py",
+            "axiom_rift/research/event_label_discovery.py",
+            "axiom_rift/research/replay_member_assignment.py",
+            "axiom_rift/research/scientific_study.py",
+        }
+    )
+)
+_COST_AWARE_CROSS_STUDY_ORIGIN_ALLOWED_CHANGED_SYMBOLS = {
+    "axiom_rift/operations/running_job_context.py": frozenset(
+        {
+            "class:RunningJobExecutionContext."
+            "project_bound_fixed_hold_replay_context",
+        }
+    ),
+}
 _CORRECTION_PROFILES = {
     FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY: {
         "allowed_changed_symbols": _ALLOWED_CHANGED_SYMBOLS,
@@ -702,6 +746,16 @@ _CORRECTION_PROFILES = {
         ),
         "required_changed_paths": _DIRECT_ORIGIN_REQUIRED_CHANGED_PATHS,
         "source_paths": _SCIENTIFIC_CHANGE_RETURN_JOB_SOURCE_PATHS,
+    },
+    FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY: {
+        "allowed_changed_symbols": (
+            _COST_AWARE_CROSS_STUDY_ORIGIN_ALLOWED_CHANGED_SYMBOLS
+        ),
+        "old_implementation_identity": (
+            FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY
+        ),
+        "required_changed_paths": _DIRECT_ORIGIN_REQUIRED_CHANGED_PATHS,
+        "source_paths": _COST_AWARE_CROSS_STUDY_ORIGIN_JOB_SOURCE_PATHS,
     },
 }
 
@@ -1466,7 +1520,11 @@ def _run_correction_conformance() -> tuple[str, ...]:
 
 FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_DEPENDENCIES = tuple(
     sorted(
-        {_SOURCE_ROOT / path for path in _FIXED_HOLD_JOB_SOURCE_PATHS}
+        {
+            _SOURCE_ROOT / path
+            for profile in _CORRECTION_PROFILES.values()
+            for path in profile["source_paths"]
+        }
         | {
             _SOURCE_ROOT / "axiom_rift/core/canonical.py",
             _SOURCE_ROOT / "axiom_rift/core/identity.py",
@@ -1985,6 +2043,8 @@ __all__ = [
     "FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA",
     "FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_DEPENDENCIES",
     "FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID",
+    "FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY",
+    "FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_OLD_IMPLEMENTATION_IDENTITY",
     "FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY",
     "FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY",
     "FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY",
