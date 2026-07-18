@@ -82,6 +82,9 @@ research_direction:
   study_diagnosis:
     required_after_every_real_study_close: true
     exact_close_batch_kpi_and_validator_basis_bound: true
+    effective_completion_scope_precedes_adjudication: true
+    audit_only_or_validity_invalidated_confirmation_debt: false
+    non_scientific_claim_inventory_is_diagnostic_only: true
     evidence_states:
       - absent_information
       - target_mismatch

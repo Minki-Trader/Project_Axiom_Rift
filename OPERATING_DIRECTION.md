@@ -965,7 +965,10 @@ runtime_eligible; semantic change requires a new source contract.
   provenance only. Its effective evidence scope is `audit_integrity`; it creates
   no causal, temporal, regime, stress, cost, economic, exhaustion, candidate, or
   terminal credit. Additive scope overlays remove mistaken historical credit
-  without rewriting the original event.
+  without rewriting the original event. Study diagnosis reads that effective
+  completion scope before adjudication. Audit-only or scientific-validity-
+  invalidated completions preserve their exact diagnostic claims but cannot
+  create scientific confirmation debt.
 - [MUST] OD-AUD-021 Scientific evidence preserves an exact plan, atomic support,
   statistical proof, execution trace, and result. The trace binds protocol,
   data, split, Executable, decision, entry and exit times, fold and regime,

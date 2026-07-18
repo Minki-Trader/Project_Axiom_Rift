@@ -12324,16 +12324,20 @@ class StateWriter:
     ) -> Any | None:
         """Independently derive a standard primary-question diagnosis."""
 
-        from axiom_rift.research.scientific_diagnosis import (
-            ScientificDiagnosisError,
-            diagnose_scientific_adjudications,
+        from axiom_rift.operations.effective_scientific_diagnosis import (
+            EffectiveScientificDiagnosisError,
+            diagnose_effective_scientific_adjudications,
+        )
+        from axiom_rift.operations.evidence_scope_projection import (
+            EvidenceScopeProjectionError,
+            effective_completion_evidence_scope,
         )
 
         completions = StateWriter._study_primary_scientific_completions(
             index,
             study_id=study_id,
         )
-        adjudications: list[Mapping[str, Any]] = []
+        scoped_adjudications: list[tuple[Mapping[str, Any], Any]] = []
         for completion in completions:
             scientific = completion.payload.get("scientific")
             adjudication = (
@@ -12342,12 +12346,23 @@ class StateWriter:
                 else scientific.get("adjudication")
             )
             if isinstance(adjudication, Mapping):
-                adjudications.append(adjudication)
-        if not adjudications:
+                try:
+                    scope = effective_completion_evidence_scope(
+                        index,
+                        completion,
+                    )
+                except EvidenceScopeProjectionError as exc:
+                    raise TransitionError(
+                        "Study claim-scoped diagnosis scope is malformed"
+                    ) from exc
+                scoped_adjudications.append((adjudication, scope))
+        if not scoped_adjudications:
             return None
         try:
-            pattern = diagnose_scientific_adjudications(tuple(adjudications))
-        except ScientificDiagnosisError as exc:
+            pattern = diagnose_effective_scientific_adjudications(
+                tuple(scoped_adjudications)
+            )
+        except EffectiveScientificDiagnosisError as exc:
             raise TransitionError(
                 "Study claim-scoped diagnosis evidence is malformed"
             ) from exc

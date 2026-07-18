@@ -330,6 +330,13 @@ evidence state, confidence, counterfactual, and reopen condition. KPI magnitude
 alone cannot choose the state. Engineering failure is `engineering_gap`, not
 scientific falsification.
 
+Project every disposition-driving completion through its current effective
+evidence scope before diagnosis. Audit-only and scientific-validity-invalidated
+completions retain their exact diagnostic claim inventory but cannot create
+axis-level scientific confirmation debt. When no disposition-driving completion
+retains scientific authority, use the typed non-identifiable branch rather than
+promoting supported audit claims or a stale historical verdict.
+
 Classify engineering reentry from exact gap and repair evidence, not from a
 diagnosis label alone. `not_identifiable` may support reentry only when the
 bound record proves a recoverable non-scientific inability and the successor
