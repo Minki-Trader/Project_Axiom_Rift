@@ -24,7 +24,6 @@ from axiom_rift.research.fixed_hold_family_job import (
 )
 from axiom_rift.research.fixed_hold_family_trace import FixedHoldProtocolDefinition
 from axiom_rift.research.fixed_hold_replay_runtime import (
-    FixedHoldRepairContext,
     FixedHoldReplayRuntimeAdapter,
     FixedHoldRuntimeContext,
     build_fixed_hold_replay_job_plan,
@@ -32,7 +31,6 @@ from axiom_rift.research.fixed_hold_replay_runtime import (
     fixed_hold_replay_job_implementation_artifact,
     fixed_hold_replay_job_implementation_sha256,
     materialize_fixed_hold_replay_job_implementation,
-    materialize_running_job_implementation_repair_proof,
 )
 from axiom_rift.research.gap_event_fixed_hold_v3 import (
     compute_gap_event_fixed_hold_v3_family_trace,
@@ -134,10 +132,14 @@ def materialize_gap_event_fixed_hold_v3_job_implementation(
 
 
 def materialize_gap_event_fixed_hold_v3_running_job_repair_proof(
-    writer: FixedHoldRepairContext,
+    writer: object,
     *,
     verification_evidence_hashes: tuple[str, ...],
 ) -> str:
+    from axiom_rift.operations.fixed_hold_repair_materializer import (
+        materialize_running_job_implementation_repair_proof,
+    )
+
     return materialize_running_job_implementation_repair_proof(
         writer,
         adapter=RUNTIME_ADAPTER,

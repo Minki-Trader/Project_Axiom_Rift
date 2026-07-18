@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from typing import Any
 
+from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.repair_semantic_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_CASE_IDS,
@@ -9,6 +11,12 @@ from axiom_rift.operations.repair_semantic_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_METHOD,
     FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL,
     SEMANTIC_EQUIVALENCE_BINDING_SCHEMA,
+)
+from axiom_rift.operations.repair_validation import (
+    ATTEMPT_TRACE_SCHEMA,
+    BINDING_SCHEMA,
+    REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+    TRACE_SCHEMA,
 )
 from axiom_rift.operations.scientific_multiplicity_authority import (
     build_multiplicity_batch_binding,
@@ -36,6 +44,10 @@ JOB_PERMIT_ID = "c" * 64
 ENGINE_ENTRY_RECORD_ID = "d" * 64
 VALIDATION_PLAN_HASH = "4" * 64
 VALIDATOR_ID = "validator:" + "5" * 64
+REPAIR_VALIDATION_PLAN_HASH = "6" * 64
+REPAIR_VALIDATION_RESULT_HASH = "7" * 64
+REPAIR_VALIDATOR_ID = "validator:" + "8" * 64
+REPAIR_VALIDATION_PROTOCOL = "fixture.repair.registered.v1"
 MATERIAL_IDENTITY = "material:" + "6" * 64
 SCIENTIFIC_CLAIMS = ["C01-fixed-hold-selection"]
 SCIENTIFIC_MODES = [
@@ -123,6 +135,7 @@ def _repair_open_record(
     predecessor_close_id: str | None,
     authority_sequence: int,
     root_cause: str,
+    registered_authority: bool = False,
 ) -> IndexRecord:
     failure_manifest = {
         "failure_kind": "engineering",
@@ -153,6 +166,16 @@ def _repair_open_record(
             **failure_manifest,
             "episode": episode,
             "predecessor_repair_close_record_id": predecessor_close_id,
+            **(
+                {
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "repair_validation_scope": "fixture_only",
+                }
+                if registered_authority
+                else {}
+            ),
             "resume_action": "continue_batch",
             "scientific_trial_delta": 0,
         },
@@ -346,6 +369,115 @@ def _repair_attempt_and_close_records(
         "semantic_equivalence_validation": semantic_validation,
         "verification_evidence_hashes": [VERIFICATION_HASH],
     }
+    registered_authority = (
+        opened.payload.get("repair_authority_schema")
+        == REGISTERED_REPAIR_AUTHORITY_SCHEMA
+    )
+    if registered_authority:
+        context = {
+            key: attempt_identity_payload[key]
+            for key in (
+                "cause_hash",
+                "changed_dimension",
+                "explanation",
+                "failure_observation",
+                "implementation_proof_hash",
+                "job_hash",
+                "job_id",
+                "new_basis_hash",
+                "new_evidence_hashes",
+                "outcome",
+                "previous_basis_hash",
+                "prior_attempt_record_id",
+                "repair_id",
+                "reproduction_evidence_hashes",
+                "resume_action",
+                "scientific_semantics_changed",
+            )
+        }
+        artifact_roles = [
+            {
+                "output_name": "validation_result",
+                "sha256": REPAIR_VALIDATION_RESULT_HASH,
+            }
+        ]
+        binding = {
+            "artifact_roles": artifact_roles,
+            "context": context,
+            "mission_id": MISSION_ID,
+            "protocol": REPAIR_VALIDATION_PROTOCOL,
+            "schema": BINDING_SCHEMA,
+            "verification_kind": "attempt",
+        }
+        repair_validation_body = {
+            "receipts": [
+                {
+                    "authority_scope": "fixture_only",
+                    "evidence_subject": {
+                        "id": opened.record_id,
+                        "kind": "Repair",
+                    },
+                    "facts": {
+                        "binding": binding,
+                        "cause_resolved": True,
+                        "failure_reproduced": False,
+                        "material_change": True,
+                    },
+                    "protocol": REPAIR_VALIDATION_PROTOCOL,
+                    "receipt_hash": VERIFICATION_HASH,
+                    "registry_trace": {
+                        "declared_artifact_count": 2,
+                        "opened_artifact_count": 2,
+                        "validator_id": REPAIR_VALIDATOR_ID,
+                    },
+                    "result_artifact_hashes": [
+                        REPAIR_VALIDATION_RESULT_HASH
+                    ],
+                    "schema": TRACE_SCHEMA,
+                    "validation_plan_hash": REPAIR_VALIDATION_PLAN_HASH,
+                    "verification_kind": "attempt",
+                    "verdict": "passed",
+                }
+            ],
+            "schema": ATTEMPT_TRACE_SCHEMA,
+            "verification_count": 1,
+        }
+        repair_validation = {
+            **repair_validation_body,
+            "trace_sha256": sha256(
+                canonical_bytes(repair_validation_body)
+            ).hexdigest(),
+        }
+        attempt_identity_payload["attempt_fingerprint"] = canonical_digest(
+            domain="repair-attempt-intervention",
+            payload={
+                "changed_dimension": attempt_identity_payload[
+                    "changed_dimension"
+                ],
+                "implementation_proof_hash": attempt_identity_payload[
+                    "implementation_proof_hash"
+                ],
+                "new_basis_hash": attempt_identity_payload["new_basis_hash"],
+                "new_evidence_hashes": attempt_identity_payload[
+                    "new_evidence_hashes"
+                ],
+                "outcome": attempt_identity_payload["outcome"],
+                "verification_capabilities": [
+                    {
+                        "protocol": REPAIR_VALIDATION_PROTOCOL,
+                        "validator_id": REPAIR_VALIDATOR_ID,
+                    }
+                ],
+            },
+        )
+        attempt_identity_payload.update(
+            {
+                "repair_authority_schema": (
+                    REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                ),
+                "repair_validation": repair_validation,
+            }
+        )
     attempt_id = canonical_digest(
         domain="repair-attempt",
         payload=attempt_identity_payload,
@@ -372,6 +504,15 @@ def _repair_attempt_and_close_records(
         "repair_id": opened.record_id,
         "semantic_equivalence_validation": semantic_validation,
     }
+    if registered_authority:
+        close_identity_payload.update(
+            {
+                "repair_authority_schema": (
+                    REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                ),
+                "repair_validation": repair_validation,
+            }
+        )
     close_id = canonical_digest(
         domain="repair-close",
         payload=close_identity_payload,
@@ -394,6 +535,16 @@ def _repair_attempt_and_close_records(
             ),
             "prior_attempt_record_id": None,
             "repair_id": opened.record_id,
+            **(
+                {
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "repair_validation": repair_validation,
+                }
+                if registered_authority
+                else {}
+            ),
             "resume_action": "continue_batch",
             "scientific_failure_delta": 0,
             "scientific_trial_delta": 0,
@@ -407,6 +558,37 @@ def _repair_attempt_and_close_records(
         authority_offset=1,
     )
     return attempt, close
+
+
+def _repair_attempt_fingerprint_record(
+    attempt: IndexRecord,
+) -> IndexRecord | None:
+    attempt_fingerprint = attempt.payload.get("attempt_fingerprint")
+    if not isinstance(attempt_fingerprint, str):
+        return None
+    repair_id = str(attempt.payload["repair_id"])
+    record_id = canonical_digest(
+        domain="repair-attempt-fingerprint",
+        payload={
+            "attempt_fingerprint": attempt_fingerprint,
+            "repair_id": repair_id,
+        },
+    )
+    return IndexRecord(
+        kind="repair-attempt-fingerprint",
+        record_id=record_id,
+        subject=f"Repair:{repair_id}",
+        status=attempt.status,
+        fingerprint=attempt_fingerprint,
+        payload={
+            "attempt_fingerprint": attempt_fingerprint,
+            "attempt_record_id": attempt.record_id,
+            "repair_id": repair_id,
+        },
+        authority_sequence=attempt.authority_sequence,
+        authority_event_id=attempt.authority_event_id,
+        authority_offset=0,
+    )
 
 
 def _resume_record(

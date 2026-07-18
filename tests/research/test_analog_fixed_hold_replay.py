@@ -4,14 +4,17 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta
 from hashlib import sha256
+import importlib
 from pathlib import Path
 
 import pytest
 
-import axiom_rift.operations.validation as validation_module
 import axiom_rift.research.replay_coverage as replay_coverage_module
-import axiom_rift.research.validation_v2 as validation_v2_module
 from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job_context import (
+    running_job_operational_identity_boundary_paths,
+    running_job_scientific_projection_dependency_paths,
+)
 from axiom_rift.research.analog_fixed_hold_replay import (
     analog_fixed_hold_replay_configurations,
     analog_fixed_hold_replay_controlled_chassis,
@@ -78,6 +81,18 @@ from axiom_rift.research.scientific_trace import (
 )
 
 
+SOURCE_ROOT = Path(__file__).resolve().parents[2] / "src"
+FIXED_HOLD_ADAPTER_MODULES = (
+    "axiom_rift.research.analog_fixed_hold_replay_job",
+    "axiom_rift.research.composite_consensus_replay_job",
+    "axiom_rift.research.composite_router_replay_job",
+    "axiom_rift.research.distribution_asymmetry_replay_job",
+    "axiom_rift.research.drawdown_state_replay_job",
+    "axiom_rift.research.gap_event_fixed_hold_v3_job",
+    "axiom_rift.research.gap_fixed_hold_job",
+    "axiom_rift.research.volatility_duration_fixed_hold_job",
+    "axiom_rift.research.volatility_duration_replay_job",
+)
 CONTEXT = 622
 ORIGINAL_FAMILY_END = 492
 EXPECTED_REFERENCES = (
@@ -486,7 +501,7 @@ def test_controlled_chassis_and_runtime_closure_are_prospective() -> None:
         "adjudication.py",
         "fixed_hold_family_job.py",
         "reproducible_cache.py",
-        "validation.py",
+        "validation_identity.py",
         "validation_v2.py",
     }.issubset(path_names)
     assert {
@@ -497,19 +512,57 @@ def test_controlled_chassis_and_runtime_closure_are_prospective() -> None:
         "historical_family_stu0032.py",
         "p0_replay_inventory.py",
         "p0_selection_inference.py",
+        "completion_evidence_scope.py",
+        "effective_evidence_scope.py",
+        "permits.py",
+        "repair_protocol.py",
+        "repair_semantic_equivalence.py",
+        "repair_validation.py",
+        "running_job.py",
+        "running_job_repair_projection.py",
+        "validation.py",
+        "validation_integrity.py",
     }.isdisjoint(path_names)
-    assert Path(validation_module.__file__).resolve() in path_set
     assert Path(replay_coverage_module.__file__).resolve() in path_set
 
 
-def test_runtime_implementation_binds_validator_dependency_bytes(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("module_name", FIXED_HOLD_ADAPTER_MODULES)
+def test_every_fixed_hold_adapter_separates_admission_from_science(
+    module_name: str,
 ) -> None:
-    dependency = next(
-        path
-        for path in validation_v2_module.SCIENTIFIC_VALIDATION_V2_DEPENDENCIES
-        if path.name == "adjudication.py"
-    ).resolve()
+    module = importlib.import_module(module_name)
+    adapter = module.RUNTIME_ADAPTER
+    paths = set(fixed_hold_replay_runtime_dependency_paths(adapter))
+    assert set(running_job_scientific_projection_dependency_paths()).issubset(
+        paths
+    )
+    assert set(running_job_operational_identity_boundary_paths()).isdisjoint(
+        paths
+    )
+    assert {
+        "fixed_hold_family_job.py",
+        "fixed_hold_replay_runtime.py",
+        "running_job_context.py",
+        "validation_identity.py",
+        Path(module.__file__).name,
+    }.issubset({path.name for path in paths})
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "axiom_rift/operations/running_job_context.py",
+        "axiom_rift/research/fixed_hold_family_job.py",
+    ),
+)
+def test_runtime_implementation_binds_scientific_execution_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    relative_path: str,
+) -> None:
+    dependency = (SOURCE_ROOT / relative_path).resolve()
+    assert dependency in fixed_hold_replay_runtime_dependency_paths(
+        RUNTIME_ADAPTER
+    )
     baseline_artifact = fixed_hold_replay_job_implementation_artifact(
         RUNTIME_ADAPTER
     )
@@ -535,6 +588,47 @@ def test_runtime_implementation_binds_validator_dependency_bytes(
         baseline_artifact
     ).hexdigest()
     assert changed_identity != baseline_identity
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "axiom_rift/operations/repair_validation.py",
+        "axiom_rift/operations/validation.py",
+    ),
+)
+def test_runtime_implementation_ignores_operational_tooling_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    relative_path: str,
+) -> None:
+    dependency = (SOURCE_ROOT / relative_path).resolve()
+    assert dependency.is_file()
+    assert dependency not in fixed_hold_replay_runtime_dependency_paths(
+        RUNTIME_ADAPTER
+    )
+    baseline_artifact = fixed_hold_replay_job_implementation_artifact(
+        RUNTIME_ADAPTER
+    )
+    baseline_identity = fixed_hold_replay_job_implementation_sha256(
+        RUNTIME_ADAPTER
+    )
+    original_read_bytes = Path.read_bytes
+
+    def perturbed_read_bytes(path: Path) -> bytes:
+        content = original_read_bytes(path)
+        if path.resolve() == dependency:
+            return content + b"\n# operational tooling perturbation"
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", perturbed_read_bytes)
+    assert (
+        fixed_hold_replay_job_implementation_artifact(RUNTIME_ADAPTER)
+        == baseline_artifact
+    )
+    assert (
+        fixed_hold_replay_job_implementation_sha256(RUNTIME_ADAPTER)
+        == baseline_identity
+    )
 
 
 def test_four_jobs_share_one_exact_family_cache_producer() -> None:

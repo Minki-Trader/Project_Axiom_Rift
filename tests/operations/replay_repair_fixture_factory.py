@@ -28,6 +28,7 @@ from replay_repair_fixture_records import (
     _event_id,
     _judgment_record,
     _repair_attempt_and_close_records,
+    _repair_attempt_fingerprint_record,
     _repair_open_record,
     _repair_semantic_validation,
     _request,
@@ -101,6 +102,7 @@ def _repair_fixture(
     tmp_path: Path,
     *,
     include_admission: bool = True,
+    registered_repair_authority: bool = False,
 ) -> _RepairFixture:
     old_request = _request(OLD_IMPLEMENTATION)
     new_request = _request(NEW_IMPLEMENTATION)
@@ -200,6 +202,7 @@ def _repair_fixture(
         predecessor_close_id=None,
         authority_sequence=18,
         root_cause="fixture implementation defect",
+        registered_authority=registered_repair_authority,
     )
     semantic_validation = _repair_semantic_validation(
         REGISTERED[0],
@@ -214,6 +217,7 @@ def _repair_fixture(
         authority_sequence=20,
         attempt_proof_hash=ATTEMPT_PROOF_HASH,
     )
+    attempt_fingerprint_record = _repair_attempt_fingerprint_record(attempt)
     resume = _resume_record(
         repair_close,
         event_sequence=1,
@@ -338,6 +342,7 @@ def _repair_fixture(
         batch,
         declaration,
         repair_open,
+        *((attempt_fingerprint_record,) if attempt_fingerprint_record else ()),
         attempt,
         repair_close,
         resume,

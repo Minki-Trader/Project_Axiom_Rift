@@ -123,6 +123,8 @@ def _compact_control_fixture(kind: str) -> dict[str, object]:
                 "latest_attempt_record_id": None,
                 "latest_basis_hash": cause_hash,
                 "predecessor_repair_close_record_id": None,
+                "repair_authority_schema": "registered_repair_authority.v2",
+                "repair_validation_scope": "fixture_only",
                 "resume_action": "continue_batch",
             }
             if action.get("kind") == "execute_repair":
@@ -292,6 +294,7 @@ def _fixtures() -> dict[str, tuple[dict[str, object], dict[str, object]]]:
         "complete_engineering_failure": (
             {
                 "disposition_hash": D1,
+                "disposition_record_id": D0,
                 "job_id": JOB,
                 "kind": "complete_engineering_failure",
             },
@@ -299,6 +302,7 @@ def _fixtures() -> dict[str, tuple[dict[str, object], dict[str, object]]]:
                 active_job={
                     "id": JOB,
                     "required_engineering_disposition_hash": D1,
+                    "required_engineering_disposition_record_id": D0,
                     "required_engineering_failure_cause_hash": D2,
                     "required_engineering_repair_id": None,
                     "status": "running",

@@ -82,7 +82,6 @@ from tests.operations.test_writer import (
     REPO_ROOT,
     batch_spec,
     changed_domain_executable,
-    engineering_failure_disposition,
     exhaustion_standard,
     initiative_objective,
     job_implementation_identity,
@@ -91,11 +90,8 @@ from tests.operations.test_writer import (
     portfolio_axis_baseline,
     quant_team_review_for_current_action,
     record_fixture_research_intake,
-    repair_attempt_proof,
     study_question,
 )
-
-
 class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = TemporaryDirectory()
@@ -111,7 +107,10 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
             study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
             foundation_root=REPO_ROOT,
             validation_registry=EvidenceValidatorRegistry(
-                (self.validator, self.fixed_hold_validator)
+                (
+                    self.validator,
+                    self.fixed_hold_validator,
+                )
             ),
         )
         self.writer.initialize_ready()
@@ -833,20 +832,8 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
                 }
             )
         )
-        verification = self.writer.evidence.finalize(
-            b"independent semantic-equivalence verification receipt input"
-        )
         outer_evidence = tuple(sorted({inner.sha256, *inner_evidence}))
-        outer = repair_attempt_proof(
-            self.writer,
-            outcome="repaired",
-            changed_dimension="implementation",
-            new_basis_hash=implementation_identity,
-            new_evidence_hashes=outer_evidence,
-            verification_evidence_hashes=(verification.sha256,),
-            implementation_proof_hash=inner.sha256,
-        )
-        return outer, inner.sha256, outer_evidence
+        return inner.sha256, inner.sha256, outer_evidence
 
     def _validate_direct_implementation_pair(
         self,
@@ -979,25 +966,12 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
                 }
             )
         )
-        verification = self.writer.evidence.finalize(
-            b"legacy self-authored false verification"
-        )
-        return repair_attempt_proof(
-            self.writer,
-            outcome="repaired",
-            changed_dimension="implementation",
-            new_basis_hash=self.new_implementation_identity,
-            new_evidence_hashes=tuple(
-                sorted({inner.sha256, *inner_evidence})
-            ),
-            verification_evidence_hashes=(verification.sha256,),
-            implementation_proof_hash=inner.sha256,
-        )
+        return inner.sha256
 
     def test_false_unchanged_declaration_cannot_close_production_repair(self) -> None:
         proof = self._legacy_false_packet()
         with self.assertRaisesRegex(
-            TransitionError, "requires_scientific_change"
+            TransitionError, "outcome-free candidate evaluation"
         ):
             self.writer.close_repair(
                 changed_cause_proof_hash=proof,
@@ -1007,7 +981,7 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
     def test_missing_pair_or_changed_ast_cannot_close(self) -> None:
         partial, _inner, _evidence = self._packet(missing_pair=True)
         with self.assertRaisesRegex(
-            TransitionError, "requires_scientific_change"
+            TransitionError, "outcome-free candidate evaluation"
         ):
             self.writer.close_repair(
                 changed_cause_proof_hash=partial,
@@ -1019,7 +993,7 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
             expected_verdict="failed",
         )
         with self.assertRaisesRegex(
-            TransitionError, "requires_scientific_change"
+            TransitionError, "outcome-free candidate evaluation"
         ):
             self.writer.close_repair(
                 changed_cause_proof_hash=failed,
@@ -1033,7 +1007,7 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
             forged_observations=True,
         )
         with self.assertRaisesRegex(
-            TransitionError, "requires_scientific_change"
+            TransitionError, "outcome-free candidate evaluation"
         ):
             self.writer.close_repair(
                 changed_cause_proof_hash=forged,
@@ -1070,7 +1044,9 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
         proof, _inner, _evidence = self._packet()
         registered = self.writer.validation_registry
         self.writer.validation_registry = EvidenceValidatorRegistry()
-        with self.assertRaisesRegex(TransitionError, "requires_scientific_change"):
+        with self.assertRaisesRegex(
+            TransitionError, "outcome-free candidate evaluation"
+        ):
             self.writer.close_repair(
                 changed_cause_proof_hash=proof,
                 operation_id="reject-unregistered-equivalence-validator",
@@ -1079,7 +1055,7 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
         self.validator.protocol = "tampered.after.registration"
         try:
             with self.assertRaisesRegex(
-                TransitionError, "requires_scientific_change"
+                TransitionError, "outcome-free candidate evaluation"
             ):
                 self.writer.close_repair(
                     changed_cause_proof_hash=proof,
@@ -1624,66 +1600,37 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
         )
         proof, _inner, _evidence = self._packet()
         with self.assertRaisesRegex(
-            TransitionError, "requires_scientific_change"
+            TransitionError, "outcome-free candidate evaluation"
         ):
             self.writer.close_repair(
                 changed_cause_proof_hash=proof,
                 operation_id="reject-unproven-comment-only-equivalence",
             )
 
-    def test_rejected_equivalence_preserves_requires_scientific_change_exit(
-        self,
-    ) -> None:
+    def test_rejected_equivalence_cannot_authorize_scientific_exit(self) -> None:
         repaired_proof, inner_hash, outer_evidence = self._packet(
             missing_pair=True
         )
         with self.assertRaisesRegex(
-            TransitionError, "requires_scientific_change"
+            TransitionError, "outcome-free candidate evaluation"
         ):
             self.writer.close_repair(
                 changed_cause_proof_hash=repaired_proof,
                 operation_id="reject-equivalence-before-scientific-exit",
             )
-        failed_verification = self.writer.evidence.finalize(
-            b"semantic equivalence remains incomplete"
-        )
-        failed_proof = repair_attempt_proof(
-            self.writer,
-            outcome="failed",
-            changed_dimension="implementation",
-            new_basis_hash=self.new_implementation_identity,
-            new_evidence_hashes=outer_evidence,
-            verification_evidence_hashes=(failed_verification.sha256,),
-            implementation_proof_hash=inner_hash,
-        )
-        failed = self.writer.record_failed_repair_attempt(
-            attempt_proof_hash=failed_proof,
-            operation_id="record-equivalence-failure",
-        )
-        disposition_hash = engineering_failure_disposition(
-            self.writer,
-            job_id=self.job_id,
-            evidence_hashes=(self.reproduction.sha256,),
-            repair_attempt_record_ids=(failed.result["attempt_record_id"],),
-            disposition="requires_scientific_change",
-        )
-        concluded = self.writer.conclude_repair_unrecovered(
-            disposition_hash=disposition_hash,
-            operation_id="conclude-requires-scientific-change",
-        )
-        self.assertEqual(
-            concluded.result["disposition_hash"], disposition_hash
-        )
+        with self.assertRaisesRegex(
+            TransitionError, "outcome-free candidate evaluation"
+        ):
+            self.writer.record_failed_repair_attempt(
+                attempt_proof_hash=inner_hash,
+                operation_id="reject-caller-authored-equivalence-failure",
+            )
         control = self.writer.read_control()
         assert control is not None
-        self.assertIsNone(control["scientific"]["active_repair"])
+        self.assertIsNotNone(control["scientific"]["active_repair"])
         self.assertEqual(
-            control["next_action"],
-            {
-                "disposition_hash": disposition_hash,
-                "job_id": self.job_id,
-                "kind": "complete_engineering_failure",
-            },
+            control["next_action"]["kind"],
+            "execute_repair",
         )
 
 

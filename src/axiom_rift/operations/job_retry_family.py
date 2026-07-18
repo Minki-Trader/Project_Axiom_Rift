@@ -435,6 +435,14 @@ class JobRetryValidationAuthority:
         }
 
 
+class JobRetryValidationDispatchRequired(RuntimeError):
+    """A Writer dry pass reached one registered retry-validation boundary."""
+
+    def __init__(self, arguments: Mapping[str, Any]) -> None:
+        super().__init__("engineering retry validation must run outside Writer lock")
+        self.arguments = _plain_canonical(arguments)
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeSourceRetryResolution:
     new_basis_hash: str
@@ -602,6 +610,8 @@ def validate_engineering_retry_evidence(
     validation_registry: EvidenceValidatorRegistry,
     evidence_path: EvidencePathResolver,
     engineering_fixture: bool,
+    prevalidated_authority: JobRetryValidationAuthority | None = None,
+    defer_validation: bool = False,
 ) -> JobRetryValidationAuthority:
     """Run one immutable engineering validator and bind its exact facts."""
 
@@ -622,6 +632,58 @@ def validate_engineering_retry_evidence(
         raise JobRetryFamilyError(
             "engineering validation artifacts must be distinct and ordered"
         )
+    dispatch_arguments = {
+        "binding": _plain_canonical(binding),
+        "changed_dimension": changed_dimension,
+        "engineering_fixture": engineering_fixture,
+        "evidence_subject": _plain_canonical(evidence_subject),
+        "mission_id": mission_id,
+        "new_basis_hash": new_basis_hash,
+        "new_work_fingerprint": new_work_fingerprint,
+        "prior_completion_record_id": prior_completion_record_id,
+        "prior_job_hash": prior_job_hash,
+        "prior_job_id": prior_job_id,
+        "prior_work_fingerprint": prior_work_fingerprint,
+        "receipt_hash": receipt_hash,
+        "result_artifact_hashes": list(results),
+        "result_manifest": _plain_canonical(result_manifest),
+        "retry_family_fingerprint": retry_family_fingerprint,
+        "validation_plan_hash": plan_hash,
+        "validator_id": validator_id,
+    }
+    if prevalidated_authority is not None:
+        exact_binding = _plain_canonical(binding)
+        role_hashes = {
+            artifact_hash
+            for _role, artifact_hash in prevalidated_authority.artifact_roles
+        }
+        if (
+            prevalidated_authority.receipt_hash != receipt_hash
+            or prevalidated_authority.validator_id != validator_id
+            or prevalidated_authority.validation_plan_hash != plan_hash
+            or prevalidated_authority.measurement_artifact_hashes != results
+            or role_hashes != {plan_hash, *results}
+            or _plain_canonical(prevalidated_authority.facts).get("binding")
+            != exact_binding
+            or _plain_canonical(prevalidated_authority.facts).get(
+                "cause_resolved"
+            )
+            is not True
+            or _plain_canonical(prevalidated_authority.facts).get(
+                "material_change"
+            )
+            is not True
+            or prevalidated_authority.declared_artifact_count
+            != len(results) + 1
+            or prevalidated_authority.opened_artifact_count
+            != len(results) + 1
+        ):
+            raise JobRetryFamilyError(
+                "prevalidated engineering retry authority differs from dispatch"
+            )
+        return prevalidated_authority
+    if defer_validation:
+        raise JobRetryValidationDispatchRequired(dispatch_arguments)
     try:
         artifacts = (
             ValidationArtifact(
@@ -724,6 +786,10 @@ def parse_job_retry_resume_authority(
     evidence_path: EvidencePathResolver,
     validation_registry: EvidenceValidatorRegistry,
     engineering_fixture: bool,
+    prevalidated_authorities: (
+        Mapping[str, JobRetryValidationAuthority] | None
+    ) = None,
+    defer_validation: bool = False,
 ) -> JobRetryResumeAuthority:
     """Validate one evidence-bound release of a failed retry family."""
 
@@ -942,12 +1008,24 @@ def parse_job_retry_resume_authority(
             validation_registry=validation_registry,
             evidence_path=evidence_path,
             engineering_fixture=engineering_fixture,
+            prevalidated_authority=(
+                None
+                if prevalidated_authorities is None
+                else prevalidated_authorities.get(receipt_hash)
+            ),
+            defer_validation=defer_validation,
         )
         if receipt.get("verdict") != "passed":
             raise JobRetryFamilyError(
                 "Job retry caller verdict differs from validated facts"
             )
         validations.append(validation)
+    if prevalidated_authorities is not None and set(
+        prevalidated_authorities
+    ) != set(receipts):
+        raise JobRetryFamilyError(
+            "prevalidated retry authority set differs from receipts"
+        )
     if set(new_evidence).intersection(verification_support):
         raise JobRetryFamilyError(
             "Job retry verification support reuses changed-basis evidence"
@@ -965,6 +1043,7 @@ __all__ = [
     "JobRetryFamily",
     "JobRetryFamilyError",
     "JobRetryResumeAuthority",
+    "JobRetryValidationDispatchRequired",
     "JobRetryValidationAuthority",
     "RETRY_RESUME_AUTHORITY_SCHEMA",
     "RuntimeSourceRetryResolution",

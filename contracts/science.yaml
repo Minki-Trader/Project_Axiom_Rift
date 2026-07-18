@@ -588,7 +588,9 @@ project_goal_audit_v2_protocol:
       source_observable_or_context_dependent_closure_is_generic_equivalence: false
       changed_python_ast_path_swap_nonpython_or_hash_set_only_proof_is_equivalence: false
       behavior_change_needs_protocol_specific_validation_or_new_scientific_identity: true
-      incomplete_or_nonpassed_equivalence_requires_new_executable_or_study_scope: true
+      incomplete_or_nonpassed_equivalence_alone_requires_new_executable_or_study_scope: false
+      incomplete_or_nonpassed_equivalence_is_zero_credit_repair_observation: true
+      positive_registered_semantic_change_proof_required_for_new_scope: true
   data_exposure:
     observed_development_is_distinct_content_addressed_prefix: true
     prefix_binds_parent_dataset_and_split: true

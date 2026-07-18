@@ -23,6 +23,7 @@ from axiom_rift.operations.job_retry_family import (
     RETRY_RESUME_AUTHORITY_SCHEMA,
     JobRetryFamily,
     JobRetryFamilyError,
+    JobRetryValidationAuthority,
     derive_job_retry_family,
     derive_runtime_source_retry_resolution,
     evidence_schema,
@@ -191,6 +192,10 @@ def _typed_resume_basis_record(
     evidence_path: EvidencePathResolver,
     validation_registry: EvidenceValidatorRegistry,
     engineering_fixture: bool,
+    prevalidated_authorities: (
+        Mapping[str, JobRetryValidationAuthority] | None
+    ),
+    defer_validation: bool,
 ) -> IndexRecord:
     if prior_failure is None or engineering_disposition is None:
         raise JobRetryAdmissionRejected(
@@ -218,6 +223,8 @@ def _typed_resume_basis_record(
             evidence_path=evidence_path,
             validation_registry=validation_registry,
             engineering_fixture=engineering_fixture,
+            prevalidated_authorities=prevalidated_authorities,
+            defer_validation=defer_validation,
         )
         basis_id = retry_basis_identity(
             retry_family_fingerprint=family.fingerprint,
@@ -276,6 +283,10 @@ def _require_implementation_retry(
     evidence_path: EvidencePathResolver,
     validation_registry: EvidenceValidatorRegistry,
     engineering_fixture: bool,
+    prevalidated_authorities: (
+        Mapping[str, JobRetryValidationAuthority] | None
+    ),
+    defer_validation: bool,
 ) -> IndexRecord:
     previous_spec = previous_declaration.payload["spec"]
     if (
@@ -453,6 +464,12 @@ def _require_implementation_retry(
         validation_registry=validation_registry,
         evidence_path=evidence_path,
         engineering_fixture=engineering_fixture,
+        prevalidated_authority=(
+            None
+            if prevalidated_authorities is None
+            else prevalidated_authorities.get(changed_proof_hash)
+        ),
+        defer_validation=defer_validation,
     )
     basis_id = retry_basis_identity(
         retry_family_fingerprint=family.fingerprint,
@@ -505,6 +522,10 @@ def prepare_job_retry_admission(
     evidence_path: EvidencePathResolver,
     validation_registry: EvidenceValidatorRegistry,
     engineering_fixture: bool,
+    prevalidated_authorities: (
+        Mapping[str, JobRetryValidationAuthority] | None
+    ) = None,
+    defer_validation: bool = False,
 ) -> JobRetryAdmission:
     """Derive one family and authorize only a materially changed retry."""
 
@@ -524,6 +545,10 @@ def prepare_job_retry_admission(
         raise JobRetryAdmissionIntegrityError(str(exc)) from exc
     latest = history.latest_attempt
     if latest is None or latest.status not in {"failed", "not_evaluable"}:
+        if prevalidated_authorities:
+            raise JobRetryAdmissionIntegrityError(
+                "unrelated retry validation authority is present"
+            )
         return JobRetryAdmission(
             family=family,
             stream_head=history.stream_head,
@@ -621,6 +646,10 @@ def prepare_job_retry_admission(
             "requires_scientific_change must create distinct scientific work"
         )
     if automatic_resolution:
+        if prevalidated_authorities:
+            raise JobRetryAdmissionIntegrityError(
+                "automatic retry carries unrelated validator authority"
+            )
         return JobRetryAdmission(
             family=family,
             stream_head=history.stream_head,
@@ -653,6 +682,8 @@ def prepare_job_retry_admission(
                 evidence_path=evidence_path,
                 validation_registry=validation_registry,
                 engineering_fixture=engineering_fixture,
+                prevalidated_authorities=prevalidated_authorities,
+                defer_validation=defer_validation,
             )
         )
     else:
@@ -676,10 +707,24 @@ def prepare_job_retry_admission(
                     evidence_path=evidence_path,
                     validation_registry=validation_registry,
                     engineering_fixture=engineering_fixture,
+                    prevalidated_authorities=prevalidated_authorities,
+                    defer_validation=defer_validation,
                 )
             )
         except JobRetryFamilyError as exc:
             raise JobRetryAdmissionRejected(str(exc)) from exc
+    consumed_validation_receipts = {
+        validation.get("receipt_hash")
+        for record in basis_records
+        for validation in record.payload.get("validations", [])
+        if isinstance(validation, Mapping)
+    }
+    if prevalidated_authorities is not None and set(
+        prevalidated_authorities
+    ) != consumed_validation_receipts:
+        raise JobRetryAdmissionIntegrityError(
+            "prevalidated retry authority set differs from admission"
+        )
     return JobRetryAdmission(
         family=family,
         stream_head=history.stream_head,

@@ -15,6 +15,7 @@ from axiom_rift.core.canonical import (
 from axiom_rift.core.component_surface import (
     ARCHITECTURE_ROLE_DOMAINS,
     ComponentManifestError,
+    ComponentOutsideArchitectureError,
     architecture_component_surface_identity as _core_architecture_surface,
     component_manifest_domain as _core_component_domain,
     component_manifest_identity as _core_component_identity,
@@ -26,6 +27,10 @@ from axiom_rift.research.governance import ResearchLayer
 
 class ChassisIdentityError(ValueError):
     """Raised when controlled component or chassis identity is ambiguous."""
+
+
+class ChassisComponentOutsideArchitectureError(ChassisIdentityError):
+    """A valid component is intentionally outside the architecture chassis."""
 
 
 class ArchitectureRole(str, Enum):
@@ -142,6 +147,8 @@ def _architecture_component_surface_identity(
         raise ChassisIdentityError("architecture surface requires a component manifest")
     try:
         return _core_architecture_surface(manifest, role=role.value)
+    except ComponentOutsideArchitectureError as exc:
+        raise ChassisComponentOutsideArchitectureError(str(exc)) from exc
     except ComponentManifestError as exc:
         raise ChassisIdentityError(str(exc)) from exc
 
@@ -160,6 +167,8 @@ def architecture_component_semantic_surface_identity(
         raise ChassisIdentityError("architecture surface requires a component manifest")
     try:
         return _core_architecture_surface(manifest)
+    except ComponentOutsideArchitectureError as exc:
+        raise ChassisComponentOutsideArchitectureError(str(exc)) from exc
     except ComponentManifestError as exc:
         raise ChassisIdentityError(str(exc)) from exc
 
@@ -1771,6 +1780,7 @@ __all__ = [
     "ArchitectureRole",
     "ArchitectureRoleSpec",
     "ChassisIdentityError",
+    "ChassisComponentOutsideArchitectureError",
     "ComponentParityDimension",
     "ComponentParityEvidence",
     "ControlledStudyChassis",

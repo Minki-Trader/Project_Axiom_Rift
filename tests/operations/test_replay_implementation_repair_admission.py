@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.replay_implementation_repair_admission import (
     ReplayImplementationRepairAdmissionIntegrityError,
     current_replay_implementation_repair_admission,
     inspect_replay_implementation_repair_boundary,
     require_replay_implementation_repair_link,
+)
+from axiom_rift.operations.replay_repair_operational_authority import (
+    ReplayRepairOperationalAuthorityError,
+    require_repair_chain,
 )
 from axiom_rift.operations.replay_study_admission import (
     ReplayRegistrationState,
@@ -58,6 +65,214 @@ def test_repair_successor_authenticates_durable_production_chain(
         study_id=STUDY_ID,
         base_admission=fixture.predecessor,
     ) == fixture.admission
+
+
+def _require_fixture_repair_chain(
+    fixture: Any,
+    *,
+    trigger_close_id: str | None = None,
+) -> None:
+    require_repair_chain(
+        fixture.index,
+        job_id=fixture.declaration.record_id,
+        declared_implementation_identity=fixture.declaration.payload["spec"][
+            "implementation_identity"
+        ],
+        expected_implementation_identity=NEW_IMPLEMENTATION,
+        trigger_repair_close_record_id=(
+            trigger_close_id or fixture.repair_close.record_id
+        ),
+        declaration=fixture.declaration,
+        executable_id=REGISTERED[0],
+    )
+
+
+def _replace_registered_trace(
+    fixture: Any,
+    trace: dict[str, Any] | None,
+) -> IndexRecord:
+    attempt_payload = dict(fixture.attempt.payload)
+    if trace is None:
+        attempt_payload.pop("repair_validation")
+    else:
+        attempt_payload["repair_validation"] = trace
+    attempt_identity = dict(attempt_payload)
+    attempt_identity.pop("scientific_failure_delta")
+    attempt_identity.pop("scientific_trial_delta")
+    attempt = replace(
+        fixture.attempt,
+        record_id=canonical_digest(
+            domain="repair-attempt",
+            payload=attempt_identity,
+        ),
+        payload=attempt_payload,
+    )
+    close_payload = {
+        **fixture.repair_close.payload,
+        "attempt_record_id": attempt.record_id,
+    }
+    if trace is None:
+        close_payload.pop("repair_validation")
+    else:
+        close_payload["repair_validation"] = trace
+    close_identity = {
+        "proof": close_payload["changed_cause_proof_hash"],
+        "repair_authority_schema": close_payload[
+            "repair_authority_schema"
+        ],
+        "repair_id": close_payload["repair_id"],
+        "semantic_equivalence_validation": close_payload[
+            "semantic_equivalence_validation"
+        ],
+    }
+    if trace is not None:
+        close_identity["repair_validation"] = trace
+    close = replace(
+        fixture.repair_close,
+        record_id=canonical_digest(
+            domain="repair-close",
+            payload=close_identity,
+        ),
+        payload=close_payload,
+    )
+    fingerprint_record = next(
+        record
+        for record in fixture.records
+        if record.kind == "repair-attempt-fingerprint"
+        and record.payload.get("attempt_record_id") == fixture.attempt.record_id
+    )
+    updated_fingerprint_record = replace(
+        fingerprint_record,
+        payload={
+            **fingerprint_record.payload,
+            "attempt_record_id": attempt.record_id,
+        },
+    )
+    fixture.replace_records(
+        (
+            (fixture.attempt, attempt),
+            (fixture.repair_close, close),
+            (fingerprint_record, updated_fingerprint_record),
+        )
+    )
+    return close
+
+
+def test_registered_repair_authority_accepts_exact_trace_bearing_chain(
+    tmp_path: Path,
+) -> None:
+    fixture = _repair_fixture(
+        tmp_path,
+        registered_repair_authority=True,
+    )
+
+    _require_fixture_repair_chain(fixture)
+    require_replay_implementation_repair_link(
+        fixture.index,
+        predecessor_admission=fixture.predecessor,
+        admission=fixture.admission,
+        study_id=STUDY_ID,
+    )
+
+
+def test_registered_repair_authority_uses_validator_capability_fingerprint(
+    tmp_path: Path,
+) -> None:
+    fixture = _repair_fixture(
+        tmp_path,
+        registered_repair_authority=True,
+    )
+    trace = fixture.attempt.payload["repair_validation"]
+    receipt = trace["receipts"][0]
+
+    expected = canonical_digest(
+        domain="repair-attempt-intervention",
+        payload={
+            "changed_dimension": fixture.attempt.payload["changed_dimension"],
+            "implementation_proof_hash": fixture.attempt.payload[
+                "implementation_proof_hash"
+            ],
+            "new_basis_hash": fixture.attempt.payload["new_basis_hash"],
+            "new_evidence_hashes": fixture.attempt.payload[
+                "new_evidence_hashes"
+            ],
+            "outcome": fixture.attempt.payload["outcome"],
+            "verification_capabilities": [
+                {
+                    "protocol": receipt["protocol"],
+                    "validator_id": receipt["registry_trace"]["validator_id"],
+                }
+            ],
+        },
+    )
+    assert fixture.attempt.payload["attempt_fingerprint"] == expected
+
+
+def test_registered_repair_authority_rejects_trace_stripped_downgrade(
+    tmp_path: Path,
+) -> None:
+    fixture = _repair_fixture(
+        tmp_path,
+        registered_repair_authority=True,
+    )
+    rehashed_close = _replace_registered_trace(fixture, None)
+
+    with pytest.raises(
+        ReplayRepairOperationalAuthorityError,
+        match="attempt trace is malformed|invalid implementation Repair chain",
+    ):
+        _require_fixture_repair_chain(
+            fixture,
+            trigger_close_id=rehashed_close.record_id,
+        )
+
+
+def test_registered_repair_authority_rejects_rehashed_trace_tampering(
+    tmp_path: Path,
+) -> None:
+    fixture = _repair_fixture(
+        tmp_path,
+        registered_repair_authority=True,
+    )
+    trace = deepcopy(fixture.attempt.payload["repair_validation"])
+    trace["receipts"][0]["facts"]["binding"]["context"][
+        "new_basis_hash"
+    ] = "f" * 64
+    trace_body = {
+        key: value for key, value in trace.items() if key != "trace_sha256"
+    }
+    trace["trace_sha256"] = sha256(canonical_bytes(trace_body)).hexdigest()
+    rehashed_close = _replace_registered_trace(fixture, trace)
+
+    with pytest.raises(
+        ReplayRepairOperationalAuthorityError,
+        match="registered Repair attempt trace is malformed",
+    ):
+        _require_fixture_repair_chain(
+            fixture,
+            trigger_close_id=rehashed_close.record_id,
+        )
+
+
+def test_registered_repair_authority_requires_attempt_fingerprint_record(
+    tmp_path: Path,
+) -> None:
+    fixture = _repair_fixture(
+        tmp_path,
+        registered_repair_authority=True,
+    )
+    fingerprint_record = next(
+        record
+        for record in fixture.records
+        if record.kind == "repair-attempt-fingerprint"
+    )
+    fixture.remove_records((fingerprint_record,))
+
+    with pytest.raises(
+        ReplayRepairOperationalAuthorityError,
+        match="attempt chain is malformed",
+    ):
+        _require_fixture_repair_chain(fixture)
 
 
 def test_repair_successor_preserves_failed_changed_basis_history(
@@ -172,6 +387,23 @@ def test_multi_implementation_repair_requires_every_continuous_semantic_edge(
             admission=fixture.admission,
             study_id=STUDY_ID,
         )
+
+
+def test_registered_multi_repair_preserves_trace_authority_and_event_order(
+    tmp_path: Path,
+) -> None:
+    fixture = _repair_fixture(
+        tmp_path,
+        registered_repair_authority=True,
+    )
+    _add_second_implementation_repair(fixture, continuous=True)
+
+    require_replay_implementation_repair_link(
+        fixture.index,
+        predecessor_admission=fixture.predecessor,
+        admission=fixture.admission,
+        study_id=STUDY_ID,
+    )
 
 
 def test_multi_implementation_repair_rejects_discontinuous_artifact_chain(

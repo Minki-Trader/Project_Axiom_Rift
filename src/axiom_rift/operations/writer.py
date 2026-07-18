@@ -82,6 +82,12 @@ from axiom_rift.operations.job_retry_admission import (
     build_retry_family_declaration_record,
     prepare_job_retry_admission,
 )
+from axiom_rift.operations.job_retry_family import (
+    JobRetryFamilyError,
+    JobRetryValidationAuthority,
+    JobRetryValidationDispatchRequired,
+    validate_engineering_retry_evidence,
+)
 from axiom_rift.operations.job_admission_authority import (
     JobAdmissionAuthorityError,
     require_job_admission,
@@ -134,9 +140,36 @@ from axiom_rift.operations.running_job_repair_projection import (
 from axiom_rift.operations.repair_protocol import (
     EngineeringFailureDisposition,
     RepairAttemptProof,
-    RepairProtocolError,
-    parse_engineering_failure_disposition,
-    parse_repair_attempt_proof,
+    repair_attempt_intervention_fingerprint,
+)
+from axiom_rift.operations.repair_candidate import (
+    VALIDATION_UNAVAILABLE_REASON_CODES,
+    RepairCandidate,
+    RepairCandidateError,
+    RepairEvaluation,
+    build_repair_evaluation,
+    parse_repair_candidate,
+    parse_repair_evaluation,
+)
+from axiom_rift.operations.repair_observation_authority import (
+    REPAIR_VALIDATION_OBSERVATION_SCHEMA,
+    RepairObservationAuthorityError,
+    require_repair_validation_observation_stream,
+)
+from axiom_rift.operations.repair_validation import (
+    DISPOSITION_TRACE_SCHEMA,
+    RepairValidationError,
+    REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+    build_repair_candidate_validation_context,
+    parse_repair_candidate_validation_receipt,
+    build_repair_validation_plan,
+    repair_validation_binding,
+    repair_validation_capabilities,
+    require_stored_accepted_repair_candidate_attempt,
+    require_stored_repair_candidate_validation,
+    require_stored_engineering_disposition_validation,
+    require_stored_repair_attempt_validation,
+    validate_repair_candidate,
 )
 from axiom_rift.operations.repair_semantic_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL,
@@ -153,7 +186,6 @@ from axiom_rift.operations.runtime_completion import (
     RuntimeSuccessAuthorityError,
     candidate_job_execution_context,
     current_runtime_source_snapshot,
-    require_runtime_success_authority,
 )
 from axiom_rift.operations.scientific_multiplicity_authority import (
     ScientificMultiplicityAuthorityError,
@@ -175,6 +207,7 @@ from axiom_rift.operations.study_close_delivery import (
 )
 from axiom_rift.operations.validation import (
     EngineeringFixtureValidator,
+    EngineeringRepairFixtureValidator,
     EngineeringRetryFixtureValidator,
     EvidenceValidationError,
     EvidenceValidationRequest,
@@ -225,8 +258,19 @@ class IdenticalFailedRetryError(TransitionError):
     """A failed work fingerprint was retried without new information."""
 
 
+class RepairSemanticEquivalenceUnavailable(TransitionError):
+    """A Repair candidate lacks positive semantic-equivalence authority."""
+
+    def __init__(self, message: str, *, reason_code: str) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
 _EXPECTED_FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID = (
-    "validator:9302b1e1a6a7b425b75b3b17990eb889b013495fff74065271a09fe420b96a46"
+    "validator:0939ba481119ff698ff4cb0ff9826aaf3f5bc69581be04c8303ca341ec43dcaa"
+)
+_EXPECTED_FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID = (
+    "validator:a785ff972bc1dc40a32d5cfd3709d00ac7e4a05086bf6653b9de0ae3f628c287"
 )
 
 
@@ -245,6 +289,27 @@ def _fixed_hold_authority_correction_validator_id() -> str:
             "fixed-hold correction validator differs from its registered capability"
         )
     return FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID
+
+
+def _fixed_hold_repair_attempt_validator() -> tuple[str, str]:
+    """Lazy-load and pin the production engineering Repair capability."""
+
+    from axiom_rift.operations.fixed_hold_repair_validation import (
+        FIXED_HOLD_REPAIR_ATTEMPT_PROTOCOL,
+        FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID,
+    )
+
+    if (
+        FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID
+        != _EXPECTED_FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID
+    ):
+        raise EvidenceValidationError(
+            "fixed-hold Repair validator differs from its registered capability"
+        )
+    return (
+        FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID,
+        FIXED_HOLD_REPAIR_ATTEMPT_PROTOCOL,
+    )
 
 
 _PERMIT_RULES: dict[PermitKind, tuple[frozenset[SubjectKind], frozenset[str]]] = {
@@ -385,6 +450,86 @@ class TransitionResult:
     revision: int
     reused: bool
     result: Mapping[str, Any]
+
+
+_REPAIR_EVALUATION_CAPABILITY_TOKEN = object()
+_REPAIR_DISPOSITION_CAPABILITY_TOKEN = object()
+_REPAIR_DISPOSITION_MATERIALIZATION_TOKEN = object()
+_JOB_COMPLETION_VALIDATION_CAPABILITY_TOKEN = object()
+_EXTERNAL_REENTRY_VALIDATION_CAPABILITY_TOKEN = object()
+_JOB_RETRY_VALIDATION_CAPABILITY_TOKEN = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _RepairEvaluationCapability:
+    """Unforgeable in-process handoff from one dispatch to one Writer event."""
+
+    token: object
+    control_hash: str
+    candidate: RepairCandidate
+    evaluation: RepairEvaluation
+    repair_validation: Mapping[str, Any]
+    semantic_equivalence_validation: Mapping[str, Any] | None
+    semantic_equivalence_validation_hash: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class _RepairDispositionCapability:
+    """One registered terminal derivation bound to one stable control head."""
+
+    token: object
+    control_hash: str
+    disposition_hash: str
+    disposition: EngineeringFailureDisposition
+    disposition_validation: Mapping[str, Any]
+    disposition_validation_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class _JobCompletionValidationCapability:
+    """Registered Job evidence derived once outside the Writer lock."""
+
+    token: object
+    control_hash: str
+    job_id: str
+    job_hash: str
+    request_hash: str
+    manifests: Mapping[str, Mapping[str, Any]]
+    manifests_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ExternalReentryValidationCapability:
+    """One external-change dispatch bound to one blocked Mission head."""
+
+    token: object
+    control_hash: str
+    request_hash: str
+    validation_payload: Mapping[str, Any]
+    validation_payload_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class _JobRetryValidationCapability:
+    """One or more retry validators executed outside one stable Writer head."""
+
+    token: object
+    control_hash: str
+    authorities: Mapping[str, JobRetryValidationAuthority]
+
+
+class _JobRetryValidationOutsideLock(RuntimeError):
+    """Internal unwind from a dry Writer pass to a lock-free validator."""
+
+    def __init__(
+        self,
+        *,
+        control_hash: str,
+        requirement: JobRetryValidationDispatchRequired,
+    ) -> None:
+        super().__init__(str(requirement))
+        self.control_hash = control_hash
+        self.requirement = requirement
 
 
 Prepare = Callable[
@@ -979,12 +1124,16 @@ class StateWriter:
         self.study_close_delivery_observation = (
             study_close_delivery_observation
         )
+        self._repair_disposition_capabilities: dict[
+            str, _RepairDispositionCapability
+        ] = {}
         self.validation_registry = (
             validation_registry
             if validation_registry is not None
             else EvidenceValidatorRegistry(
                 (
                     EngineeringFixtureValidator(),
+                    EngineeringRepairFixtureValidator(),
                     EngineeringRetryFixtureValidator(),
                 )
                 if engineering_fixture
@@ -2460,6 +2609,7 @@ class StateWriter:
                                 "repair_attempt_failed",
                                 "repair_closed",
                                 "repair_concluded_unrecovered",
+                                "repair_validation_observed",
                             },
                         }
                         if event_kind not in allowed_by_status.get(
@@ -2472,6 +2622,7 @@ class StateWriter:
                         "repair_attempt_failed",
                         "repair_closed",
                         "repair_concluded_unrecovered",
+                        "repair_validation_observed",
                     }:
                         raise TransitionError(
                             "active Repair must close before another transition"
@@ -5558,6 +5709,7 @@ class StateWriter:
         portfolio_decision_id: str,
     ) -> list[IndexRecord]:
         from axiom_rift.research.chassis import (
+            ChassisComponentOutsideArchitectureError,
             ChassisIdentityError,
             architecture_component_semantic_surface_identity,
             component_semantic_surface_identity,
@@ -5584,10 +5736,10 @@ class StateWriter:
                 raise TransitionError("component parity endpoint manifest is malformed")
             try:
                 surface = architecture_component_semantic_surface_identity(manifest)
-            except ChassisIdentityError as exc:
-                if "outside the prediction-to-position" not in str(exc):
-                    raise TransitionError(str(exc)) from exc
+            except ChassisComponentOutsideArchitectureError:
                 surface = component_semantic_surface_identity(manifest)
+            except ChassisIdentityError as exc:
+                raise TransitionError(str(exc)) from exc
             record_id = canonical_digest(
                 domain="component-parity-member",
                 payload={
@@ -5730,6 +5882,7 @@ class StateWriter:
         equivalences: tuple[Mapping[str, Any], ...],
     ) -> dict[str, str]:
         from axiom_rift.research.chassis import (
+            ChassisComponentOutsideArchitectureError,
             ChassisIdentityError,
             architecture_component_semantic_surface_identity,
         )
@@ -5778,9 +5931,9 @@ class StateWriter:
                 surface = architecture_component_semantic_surface_identity(
                     manifest
                 )
+            except ChassisComponentOutsideArchitectureError:
+                continue
             except ChassisIdentityError as exc:
-                if "outside the prediction-to-position" in str(exc):
-                    continue
                 raise RecoveryRequired(str(exc)) from exc
             owner = surface_owners.get(surface)
             if owner is None:
@@ -5806,9 +5959,9 @@ class StateWriter:
                     surface = architecture_component_semantic_surface_identity(
                         manifests[component_id]
                     )
+                except ChassisComponentOutsideArchitectureError:
+                    continue
                 except ChassisIdentityError as exc:
-                    if "outside the prediction-to-position" in str(exc):
-                        continue
                     raise RecoveryRequired(str(exc)) from exc
                 prior = replacements.get(surface)
                 if prior is not None and prior != class_surface:
@@ -13976,10 +14129,29 @@ class StateWriter:
             "scientific_binding": spec.get("scientific_binding"),
             "source_binding": spec.get("source_binding"),
         }
+        retry_validation_capability: _JobRetryValidationCapability | None = (
+            None
+        )
 
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
                 raise TransitionError("control is absent")
+            prevalidated_retry_authorities: (
+                Mapping[str, JobRetryValidationAuthority] | None
+            ) = None
+            if retry_validation_capability is not None:
+                if (
+                    retry_validation_capability.token
+                    is not _JOB_RETRY_VALIDATION_CAPABILITY_TOKEN
+                    or retry_validation_capability.control_hash
+                    != current.get("control_hash")
+                ):
+                    raise TransitionError(
+                        "Job retry validation capability is stale"
+                    )
+                prevalidated_retry_authorities = (
+                    retry_validation_capability.authorities
+                )
             body = self._body(current)
             science = body["scientific"]
             return_next_action = _copy(body["next_action"])
@@ -14505,7 +14677,16 @@ class StateWriter:
                     evidence_path=self.evidence.verified_path,
                     validation_registry=self.validation_registry,
                     engineering_fixture=self.engineering_fixture,
+                    prevalidated_authorities=(
+                        prevalidated_retry_authorities
+                    ),
+                    defer_validation=True,
                 )
+            except JobRetryValidationDispatchRequired as exc:
+                raise _JobRetryValidationOutsideLock(
+                    control_hash=str(current["control_hash"]),
+                    requirement=exc,
+                ) from exc
             except JobRetryAdmissionSpecificationError as exc:
                 raise TransitionError(str(exc)) from exc
             except JobRetryAdmissionIntegrityError as exc:
@@ -14677,16 +14858,65 @@ class StateWriter:
                 "job_hash": job_hash,
             }
 
-        return self._commit(
-            event_kind="job_declared",
-            operation_id=operation_id,
-            subject=(
-                f"{spec['evidence_subject']['kind']}:{spec['evidence_subject']['id']}"
-            ),
-            payload={"job_spec_hash": _digest(dict(spec), domain="job-spec")},
-            prepare=prepare,
-            read_only_when_unchanged=True,
-        )
+        while True:
+            try:
+                return self._commit(
+                    event_kind="job_declared",
+                    operation_id=operation_id,
+                    subject=(
+                        f"{spec['evidence_subject']['kind']}:"
+                        f"{spec['evidence_subject']['id']}"
+                    ),
+                    payload={
+                        "job_spec_hash": _digest(
+                            dict(spec), domain="job-spec"
+                        )
+                    },
+                    prepare=prepare,
+                    read_only_when_unchanged=True,
+                )
+            except _JobRetryValidationOutsideLock as dispatch:
+                if (
+                    retry_validation_capability is not None
+                    and retry_validation_capability.control_hash
+                    != dispatch.control_hash
+                ):
+                    raise TransitionError(
+                        "Job retry head changed between validation dispatches"
+                    ) from dispatch
+                arguments = dict(dispatch.requirement.arguments)
+                receipt_hash = arguments.get("receipt_hash")
+                result_hashes = arguments.get("result_artifact_hashes")
+                if type(receipt_hash) is not str or not isinstance(
+                    result_hashes, list
+                ):
+                    raise TransitionError(
+                        "Job retry validation dispatch is malformed"
+                    ) from dispatch
+                arguments["result_artifact_hashes"] = tuple(result_hashes)
+                try:
+                    authority = validate_engineering_retry_evidence(
+                        **arguments,
+                        validation_registry=self.validation_registry,
+                        evidence_path=self.evidence.verified_path,
+                    )
+                except JobRetryFamilyError as exc:
+                    raise IdenticalFailedRetryError(str(exc)) from exc
+                authorities = (
+                    {}
+                    if retry_validation_capability is None
+                    else dict(retry_validation_capability.authorities)
+                )
+                if receipt_hash in authorities:
+                    raise TransitionError(
+                        "Job retry validator requested a duplicate dispatch"
+                    )
+                authorities[receipt_hash] = authority
+                retry_validation_capability = _JobRetryValidationCapability(
+                    token=_JOB_RETRY_VALIDATION_CAPABILITY_TOKEN,
+                    control_hash=dispatch.control_hash,
+                    authorities=authorities,
+                )
 
     def issue_permit(
         self,
@@ -24834,6 +25064,401 @@ class StateWriter:
             "verdict": validated.verdict,
         }
 
+    @staticmethod
+    def _job_completion_validation_request_hash(
+        *,
+        outcome: str,
+        output_manifest: Mapping[str, Any],
+        failure_manifest: Mapping[str, Any] | None,
+    ) -> str:
+        return canonical_digest(
+            domain="job-completion-validation-request",
+            payload={
+                "failure": (
+                    None
+                    if failure_manifest is None
+                    else dict(failure_manifest)
+                ),
+                "outcome": outcome,
+                "outputs": dict(output_manifest),
+            },
+        )
+
+    @staticmethod
+    def _job_completion_validation_kinds(
+        *,
+        declared_spec: Mapping[str, Any],
+        outcome: str,
+        failure_manifest: Mapping[str, Any] | None,
+    ) -> tuple[str, ...]:
+        kinds: list[str] = []
+        if outcome == "success":
+            if declared_spec.get("runtime_binding") is not None:
+                kinds.append("runtime")
+            if declared_spec.get("source_binding") is not None:
+                kinds.append("source")
+            if declared_spec.get("scientific_binding") is not None:
+                kinds.append("scientific")
+            if declared_spec.get("component_parity_binding") is not None:
+                kinds.append("component_parity")
+        external_binding = declared_spec.get("external_dependency_binding")
+        if isinstance(external_binding, Mapping) and (
+            outcome == "success"
+            or (
+                failure_manifest is not None
+                and failure_manifest.get("failure_kind")
+                == "external_dependency"
+            )
+        ):
+            kinds.append("external")
+        return tuple(kinds)
+
+    def _materialize_job_completion_validation_capability(
+        self,
+        *,
+        outcome: str,
+        output_manifest: Mapping[str, Any],
+        failure_manifest: Mapping[str, Any] | None,
+    ) -> _JobCompletionValidationCapability | None:
+        """Freeze one Job head, release its lock, and validate exactly once."""
+
+        request_hash = self._job_completion_validation_request_hash(
+            outcome=outcome,
+            output_manifest=output_manifest,
+            failure_manifest=failure_manifest,
+        )
+        dispatches: dict[str, dict[str, Any]] = {}
+        with self.open_stable_index() as (control, index):
+            science = control.get("scientific")
+            job = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_job")
+            )
+            if not isinstance(job, Mapping) or job.get("status") != "running":
+                # Let _commit preserve its normal idempotent-operation path.
+                return None
+            job_id = job.get("id")
+            job_hash = job.get("hash")
+            if type(job_id) is not str or type(job_hash) is not str:
+                raise TransitionError("running Job identity is invalid")
+            declaration = index.get("job-declared", job_id)
+            if declaration is None or declaration.fingerprint != job_hash:
+                raise TransitionError("current Job declaration is unavailable")
+            declared_spec = declaration.payload.get("spec")
+            if not isinstance(declared_spec, Mapping):
+                raise TransitionError("current Job spec is unavailable")
+            validation_kinds = self._job_completion_validation_kinds(
+                declared_spec=declared_spec,
+                outcome=outcome,
+                failure_manifest=failure_manifest,
+            )
+            if not validation_kinds:
+                return None
+            if job.get("required_repair_resume_record_id") is not None:
+                raise TransitionError(
+                    "a repaired Job must re-enter its exact engine before completion"
+                )
+            expected_outputs = declared_spec.get("expected_outputs")
+            output_classes = declared_spec.get("output_classes")
+            if not isinstance(expected_outputs, list) or not isinstance(
+                output_classes, Mapping
+            ):
+                raise TransitionError("current Job output declaration is invalid")
+            _require_job_output_namespace(
+                expected_outputs,
+                output_classes=output_classes,
+            )
+            _require_job_output_namespace(
+                tuple(output_manifest),
+                output_classes=output_classes,
+                name="Job completion outputs",
+            )
+            if outcome == "success" and set(output_manifest) != set(
+                expected_outputs
+            ):
+                raise TransitionError(
+                    "successful Job output manifest differs from declaration"
+                )
+            if outcome != "success" and not set(output_manifest).issubset(
+                expected_outputs
+            ):
+                raise TransitionError("failed Job returned an undeclared output")
+            if set(output_classes) != set(expected_outputs):
+                raise TransitionError(
+                    "Job output classes differ from expected outputs"
+                )
+            for output_name, output_hash in output_manifest.items():
+                _require_ascii("output name", output_name)
+                _require_digest("output hash", output_hash)
+                if output_classes[output_name] == "durable_evidence":
+                    self.evidence.verify(output_hash)
+                else:
+                    target = (self.root / output_name).resolve()
+                    local_root = (self.root / "local").resolve()
+                    if local_root not in target.parents:
+                        raise TransitionError("Job local output escaped local/")
+                    if outcome == "success" and not target.is_file():
+                        raise TransitionError(
+                            "successful Job local output is absent"
+                        )
+                    if (
+                        target.is_file()
+                        and sha256(target.read_bytes()).hexdigest()
+                        != output_hash
+                    ):
+                        raise TransitionError("Job local output hash mismatch")
+            start_record_id = job.get("start_record_id")
+            start_record = (
+                None
+                if type(start_record_id) is not str
+                else index.get("job-started", start_record_id)
+            )
+            if start_record is None:
+                raise TransitionError(
+                    "current Job start provenance is unavailable"
+                )
+            job_permit_id = start_record.payload.get("job_permit_id")
+            if type(job_permit_id) is not str:
+                raise TransitionError("current Job start permit is unavailable")
+            current_execution = RunningJobExecution(
+                job_id=job_id,
+                job_hash=job_hash,
+                start_record_id=str(start_record_id),
+                job_permit_id=job_permit_id,
+            )
+
+            def completion_runtime_source(
+                snapshot: LocalIndexView,
+                source_id: str,
+                *,
+                freshness_required: bool = True,
+            ) -> IndexRecord:
+                try:
+                    return self._require_runtime_source(
+                        snapshot,
+                        source_id,
+                        freshness_required=freshness_required,
+                    )
+                except TransitionError as exc:
+                    raise JobCompletionEntryAuthorityError(str(exc)) from exc
+
+            runtime_binding = declared_spec.get("runtime_binding")
+            try:
+                require_repair_resume_entry(
+                    index=index,
+                    job=job,
+                    job_id=job_id,
+                    declared_spec=declared_spec,
+                    current_execution=current_execution,
+                    effective_implementation_resolver=(
+                        self._effective_running_job_implementation
+                    ),
+                )
+                provenance = require_completion_engine_entry(
+                    control=control,
+                    index=index,
+                    job=job,
+                    job_id=job_id,
+                    declaration=declaration,
+                    start_record=start_record,
+                    start_record_id=str(start_record_id),
+                    job_permit_id=job_permit_id,
+                    current_execution=current_execution,
+                    runtime_binding=runtime_binding,
+                    outcome=outcome,
+                    failure_manifest=failure_manifest,
+                    engineering_disposition=None,
+                    direction=control.get("next_action"),
+                    engineering_fixture=self.engineering_fixture,
+                    runtime_source_resolver=completion_runtime_source,
+                )
+            except JobCompletionEntryIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except JobCompletionEntryAuthorityError as exc:
+                raise TransitionError(str(exc)) from exc
+            mission_id = declaration.payload.get("mission_id")
+            evidence_subject = declared_spec.get("evidence_subject")
+            if type(mission_id) is not str or not isinstance(
+                evidence_subject, Mapping
+            ):
+                raise TransitionError("Job validation authority is unavailable")
+            shared = {
+                "job_hash": job_hash,
+                "job_id": job_id,
+                "output_classes": _copy(output_classes),
+                "output_manifest": _copy(output_manifest),
+            }
+            if "runtime" in validation_kinds:
+                candidate_context = declaration.payload.get(
+                    "candidate_execution_context"
+                )
+                dispatches["runtime"] = {
+                    **shared,
+                    "binding": _copy(runtime_binding),
+                    "provenance": _copy(provenance),
+                    "source_lifecycle_coverage": (
+                        candidate_context.get("source_lifecycle_coverage")
+                        if isinstance(candidate_context, Mapping)
+                        else None
+                    ),
+                }
+            source_binding = declared_spec.get("source_binding")
+            if "source" in validation_kinds:
+                dispatches["source"] = {
+                    **shared,
+                    "binding": _copy(source_binding),
+                    "evidence_subject": _copy(evidence_subject),
+                    "mission_id": mission_id,
+                }
+            scientific_binding = declared_spec.get("scientific_binding")
+            if "scientific" in validation_kinds:
+                declared_batch_id = declaration.payload.get("batch_id")
+                active_batch = science.get("active_batch")
+                batch_record = (
+                    None
+                    if type(declared_batch_id) is not str
+                    else index.get("batch-open", declared_batch_id)
+                )
+                if type(declared_batch_id) is str and (
+                    not isinstance(active_batch, Mapping)
+                    or active_batch.get("id") != declared_batch_id
+                    or batch_record is None
+                ):
+                    raise TransitionError(
+                        "scientific Job lost its exact active Batch before completion"
+                    )
+                executable_id = evidence_subject.get("id")
+                if type(executable_id) is not str:
+                    raise TransitionError(
+                        "scientific Job lost its Executable authority"
+                    )
+                dispatches["scientific"] = {
+                    **shared,
+                    "batch_record": batch_record,
+                    "binding": _copy(scientific_binding),
+                    "executable_id": executable_id,
+                    "expected_batch_id": (
+                        declared_batch_id
+                        if type(declared_batch_id) is str
+                        else None
+                    ),
+                    "mission_id": mission_id,
+                }
+            component_binding = declared_spec.get(
+                "component_parity_binding"
+            )
+            if "component_parity" in validation_kinds:
+                dispatches["component_parity"] = {
+                    **shared,
+                    "binding": _copy(component_binding),
+                    "evidence_subject": _copy(evidence_subject),
+                    "mission_id": mission_id,
+                }
+            external_binding = declared_spec.get(
+                "external_dependency_binding"
+            )
+            if "external" in validation_kinds:
+                dispatches["external"] = {
+                    **shared,
+                    "binding": _copy(external_binding),
+                    "mission_id": mission_id,
+                    "outcome": outcome,
+                }
+            control_hash = str(control["control_hash"])
+
+        manifests: dict[str, Mapping[str, Any]] = {}
+        if "runtime" in dispatches:
+            manifests["runtime"] = self._derive_runtime_job_evidence(
+                **dispatches["runtime"]
+            )
+        if "source" in dispatches:
+            manifests["source"] = self._derive_source_job_evidence(
+                **dispatches["source"]
+            )
+        if "scientific" in dispatches:
+            manifests["scientific"] = self._derive_scientific_job_evidence(
+                **dispatches["scientific"]
+            )
+        if "component_parity" in dispatches:
+            manifests["component_parity"] = (
+                self._derive_component_parity_job_evidence(
+                    **dispatches["component_parity"]
+                )
+            )
+        if "external" in dispatches:
+            manifests["external"] = (
+                self._derive_external_dependency_evidence(
+                    **dispatches["external"]
+                )
+            )
+        sealed_manifests = {
+            name: _copy(manifest) for name, manifest in manifests.items()
+        }
+        manifests_hash = canonical_digest(
+            domain="job-completion-validation-manifests",
+            payload=sealed_manifests,
+        )
+        return _JobCompletionValidationCapability(
+            token=_JOB_COMPLETION_VALIDATION_CAPABILITY_TOKEN,
+            control_hash=control_hash,
+            job_id=job_id,
+            job_hash=job_hash,
+            request_hash=request_hash,
+            manifests=sealed_manifests,
+            manifests_hash=manifests_hash,
+        )
+
+    def _require_job_completion_validation_capability(
+        self,
+        *,
+        capability: _JobCompletionValidationCapability | None,
+        current: Mapping[str, Any],
+        job: Mapping[str, Any],
+        declared_spec: Mapping[str, Any],
+        outcome: str,
+        output_manifest: Mapping[str, Any],
+        failure_manifest: Mapping[str, Any] | None,
+    ) -> dict[str, dict[str, Any]]:
+        validation_kinds = self._job_completion_validation_kinds(
+            declared_spec=declared_spec,
+            outcome=outcome,
+            failure_manifest=failure_manifest,
+        )
+        if not validation_kinds:
+            if capability is not None:
+                raise TransitionError(
+                    "Job completion carries unrelated validation authority"
+                )
+            return {}
+        request_hash = self._job_completion_validation_request_hash(
+            outcome=outcome,
+            output_manifest=output_manifest,
+            failure_manifest=failure_manifest,
+        )
+        if (
+            capability is None
+            or capability.token
+            is not _JOB_COMPLETION_VALIDATION_CAPABILITY_TOKEN
+            or capability.control_hash != current.get("control_hash")
+            or capability.job_id != job.get("id")
+            or capability.job_hash != job.get("hash")
+            or capability.request_hash != request_hash
+            or set(capability.manifests) != set(validation_kinds)
+            or canonical_digest(
+                domain="job-completion-validation-manifests",
+                payload=dict(capability.manifests),
+            )
+            != capability.manifests_hash
+        ):
+            raise TransitionError(
+                "Job completion validation capability is absent or stale"
+            )
+        return {
+            name: _copy(manifest)
+            for name, manifest in capability.manifests.items()
+        }
+
     def complete_job(
         self,
         *,
@@ -24854,6 +25479,24 @@ class StateWriter:
         except JobContractError as exc:
             raise TransitionError(str(exc)) from exc
 
+        completion_validation_capability: (
+            _JobCompletionValidationCapability | None
+        ) = None
+        if crash_after != "after_evidence":
+            # Registered validators consume content-addressed outputs.  Make
+            # caller-supplied blobs visible before the lock-free dispatch;
+            # EvidenceStore finalization is deterministic and idempotent, so
+            # _commit can retain its existing crash and evidence semantics.
+            for blob in evidence_blobs:
+                self.evidence.finalize(blob)
+            completion_validation_capability = (
+                self._materialize_job_completion_validation_capability(
+                    outcome=outcome,
+                    output_manifest=output_manifest,
+                    failure_manifest=failure_manifest,
+                )
+            )
+
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
                 raise TransitionError("control is absent")
@@ -24870,6 +25513,8 @@ class StateWriter:
             if not isinstance(declared_spec, dict):
                 raise TransitionError("current Job spec is unavailable")
             engineering_disposition: dict[str, Any] | None = None
+            engineering_disposition_record_id: str | None = None
+            engineering_disposition_trace_sha256: str | None = None
             required_engineering_disposition = job.get(
                 "required_engineering_disposition_hash"
             )
@@ -24878,6 +25523,9 @@ class StateWriter:
             )
             required_engineering_repair = job.get(
                 "required_engineering_repair_id"
+            )
+            required_engineering_disposition_record = job.get(
+                "required_engineering_disposition_record_id"
             )
             direction = body.get("next_action")
             if job.get("required_repair_resume_record_id") is not None:
@@ -24893,37 +25541,55 @@ class StateWriter:
                     "required_engineering_repair_id" not in job
                     or not isinstance(required_engineering_disposition, str)
                     or not isinstance(required_engineering_cause, str)
+                    or not isinstance(
+                        required_engineering_disposition_record, str
+                    )
                     or failure_manifest["engineering_cause_hash"]
                     != required_engineering_cause
                     or not isinstance(direction, Mapping)
                     or set(direction)
-                    != {"disposition_hash", "job_id", "kind"}
+                    != {
+                        "disposition_hash",
+                        "disposition_record_id",
+                        "job_id",
+                        "kind",
+                    }
                     or direction.get("kind")
                     != "complete_engineering_failure"
                     or direction.get("job_id") != job_id
                     or direction.get("disposition_hash")
                     != disposition_hash
+                    or direction.get("disposition_record_id")
+                    != required_engineering_disposition_record
                     or required_engineering_disposition
                     != disposition_hash
                 ):
                     raise TransitionError(
                         "engineering failure lacks its exact durable disposition"
                     )
-                disposition = self._engineering_failure_disposition(
+                (
+                    engineering_disposition,
+                    engineering_disposition_trace_sha256,
+                ) = (
+                    self._recorded_engineering_failure_disposition(
                     _index,
-                    disposition_hash=disposition_hash,
                     job_id=job_id,
                     job_hash=job["hash"],
                     repair_id=required_engineering_repair,
                     cause_hash=required_engineering_cause,
-                    reproduction_evidence_hashes=failure_manifest[
-                        "minimum_reproduction_evidence"
-                    ],
+                    disposition_hash=disposition_hash,
+                    disposition_record_id=(
+                        required_engineering_disposition_record
+                    ),
+                    )
                 )
-                engineering_disposition = disposition.payload()
+                engineering_disposition_record_id = (
+                    required_engineering_disposition_record
+                )
             elif (
                 required_engineering_disposition is not None
                 or required_engineering_cause is not None
+                or required_engineering_disposition_record is not None
                 or "required_engineering_repair_id" in job
                 or (
                     isinstance(direction, Mapping)
@@ -24959,6 +25625,17 @@ class StateWriter:
                 "component_parity_binding"
             )
             component_parity_manifest: dict[str, Any] | None = None
+            prevalidated_manifests = (
+                self._require_job_completion_validation_capability(
+                    capability=completion_validation_capability,
+                    current=current,
+                    job=job,
+                    declared_spec=declared_spec,
+                    outcome=outcome,
+                    output_manifest=output_manifest,
+                    failure_manifest=failure_manifest,
+                )
+            )
             if (
                 failure_manifest is not None
                 and failure_manifest["failure_kind"]
@@ -25106,35 +25783,9 @@ class StateWriter:
                     if target.is_file() and sha256(target.read_bytes()).hexdigest() != output_hash:
                         raise TransitionError("Job local output hash mismatch")
             if runtime_binding is not None and outcome == "success":
-                runtime_manifest = self._derive_runtime_job_evidence(
-                    job_id=job_id,
-                    job_hash=job["hash"],
-                    binding=runtime_binding,
-                    provenance=provenance,
-                    source_lifecycle_coverage=(
-                        declaration.payload.get(
-                            "candidate_execution_context", {}
-                        ).get("source_lifecycle_coverage")
-                        if isinstance(
-                            declaration.payload.get(
-                                "candidate_execution_context"
-                            ), Mapping
-                        )
-                        else None
-                    ),
-                    output_manifest=output_manifest,
-                    output_classes=output_classes,
-                )
+                runtime_manifest = _copy(prevalidated_manifests["runtime"])
             if source_binding is not None and outcome == "success":
-                source_manifest = self._derive_source_job_evidence(
-                    job_id=job_id,
-                    job_hash=job["hash"],
-                    mission_id=declaration.payload["mission_id"],
-                    evidence_subject=declared_spec["evidence_subject"],
-                    binding=source_binding,
-                    output_manifest=output_manifest,
-                    output_classes=output_classes,
-                )
+                source_manifest = _copy(prevalidated_manifests["source"])
             if scientific_binding is not None and outcome == "success":
                 if set(output_manifest) != set(expected_outputs):
                     raise TransitionError(
@@ -25158,36 +25809,16 @@ class StateWriter:
                     raise TransitionError(
                         "scientific Job lost its exact active Batch before completion"
                     )
-                scientific_manifest = self._derive_scientific_job_evidence(
-                    job_id=job_id,
-                    job_hash=job["hash"],
-                    mission_id=declaration.payload["mission_id"],
-                    executable_id=declared_spec["evidence_subject"]["id"],
-                    binding=scientific_binding,
-                    output_manifest=output_manifest,
-                    output_classes=output_classes,
-                    batch_record=scientific_batch_record,
-                    expected_batch_id=(
-                        declared_batch_id
-                        if isinstance(declared_batch_id, str)
-                        else None
-                    ),
+                scientific_manifest = _copy(
+                    prevalidated_manifests["scientific"]
                 )
             if component_parity_binding is not None and outcome == "success":
                 if set(output_manifest) != set(expected_outputs):
                     raise TransitionError(
                         "component parity disposition requires every declared output"
                     )
-                component_parity_manifest = (
-                    self._derive_component_parity_job_evidence(
-                        job_id=job_id,
-                        job_hash=job["hash"],
-                        mission_id=declaration.payload["mission_id"],
-                        evidence_subject=declared_spec["evidence_subject"],
-                        binding=component_parity_binding,
-                        output_manifest=output_manifest,
-                        output_classes=output_classes,
-                    )
+                component_parity_manifest = _copy(
+                    prevalidated_manifests["component_parity"]
                 )
             if isinstance(external_binding, dict) and (
                 outcome == "success"
@@ -25200,14 +25831,8 @@ class StateWriter:
                     raise TransitionError(
                         "external dependency disposition requires every declared output"
                     )
-                external_manifest = self._derive_external_dependency_evidence(
-                    job_id=job_id,
-                    job_hash=job["hash"],
-                    mission_id=declaration.payload["mission_id"],
-                    binding=external_binding,
-                    outcome=outcome,
-                    output_manifest=output_manifest,
-                    output_classes=output_classes,
+                external_manifest = _copy(
+                    prevalidated_manifests["external"]
                 )
             if (
                 failure_manifest is not None
@@ -25252,6 +25877,13 @@ class StateWriter:
                 "scientific": scientific_manifest,
                 "source": source_manifest,
             }
+            if engineering_disposition is not None:
+                completion_identity_payload[
+                    "engineering_disposition_record_id"
+                ] = engineering_disposition_record_id
+                completion_identity_payload[
+                    "engineering_disposition_trace_sha256"
+                ] = engineering_disposition_trace_sha256
             if component_parity_manifest is not None:
                 completion_identity_payload["component_parity"] = (
                     component_parity_manifest
@@ -25278,6 +25910,13 @@ class StateWriter:
             }
             if component_parity_manifest is not None:
                 completion_payload["component_parity"] = component_parity_manifest
+            if engineering_disposition is not None:
+                completion_payload["engineering_disposition_record_id"] = (
+                    engineering_disposition_record_id
+                )
+                completion_payload[
+                    "engineering_disposition_trace_sha256"
+                ] = engineering_disposition_trace_sha256
             record = _record(
                 kind="job-completed",
                 record_id=record_id,
@@ -26249,6 +26888,10 @@ class StateWriter:
                 "latest_attempt_record_id": None,
                 "latest_basis_hash": cause_hash,
                 "predecessor_repair_close_record_id": predecessor_id,
+                "repair_authority_schema": REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+                "repair_validation_scope": (
+                    "fixture_only" if self.engineering_fixture else "production"
+                ),
                 "resume_action": resume_action,
             }
             body["next_action"] = {"kind": "execute_repair", "repair_id": repair_id}
@@ -26263,6 +26906,12 @@ class StateWriter:
                     **failure_manifest,
                     "episode": repair_episode,
                     "predecessor_repair_close_record_id": predecessor_id,
+                    "repair_authority_schema": REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+                    "repair_validation_scope": (
+                        "fixture_only"
+                        if self.engineering_fixture
+                        else "production"
+                    ),
                     "resume_action": resume_action,
                     "scientific_trial_delta": 0,
                 },
@@ -26283,7 +26932,14 @@ class StateWriter:
         *,
         repair: Mapping[str, Any],
         job: Mapping[str, Any],
-    ) -> tuple[IndexRecord, IndexRecord | None, str | None, str, int]:
+    ) -> tuple[
+        IndexRecord,
+        IndexRecord | None,
+        str | None,
+        str,
+        int,
+        tuple[str, ...],
+    ]:
         repair_id = repair.get("id")
         if not isinstance(repair_id, str):
             raise TransitionError("active Repair identity is invalid")
@@ -26301,84 +26957,836 @@ class StateWriter:
             != repair.get("predecessor_repair_close_record_id")
             or opened.payload.get("resume_action")
             != repair.get("resume_action")
+            or opened.payload.get("repair_authority_schema")
+            != REGISTERED_REPAIR_AUTHORITY_SCHEMA
+            or repair.get("repair_authority_schema")
+            != REGISTERED_REPAIR_AUTHORITY_SCHEMA
+            or opened.payload.get("repair_validation_scope")
+            != repair.get("repair_validation_scope")
+            or repair.get("repair_validation_scope")
+            != ("fixture_only" if self.engineering_fixture else "production")
         ):
             raise TransitionError("Repair cause record is absent")
         stream = f"repair-attempt:{repair_id}"
         head = index.event_head(stream)
-        prior = (
-            None
-            if head is None
-            else index.get(head.record_kind, head.record_id)
-        )
-        if prior is None:
-            prior_record_id = None
-            previous_basis = repair.get("cause_hash")
-            sequence = 1
-        else:
+        prior: IndexRecord | None = None
+        prior_record_id: str | None = None
+        previous_basis = repair.get("cause_hash")
+        if not isinstance(previous_basis, str):
+            raise RecoveryRequired("Repair cause basis is unavailable")
+        used_bases = [previous_basis]
+        if head is not None:
+            for ordinal in range(1, head.sequence + 1):
+                record = index.event_record(stream, ordinal)
+                if record is None:
+                    raise RecoveryRequired("Repair attempt stream has a gap")
+                new_basis = record.payload.get("new_basis_hash")
+                if (
+                    record.kind != "repair-attempt"
+                    or record.status != "failed"
+                    or record.subject != f"Repair:{repair_id}"
+                    or record.payload.get("job_id") != job.get("id")
+                    or record.payload.get("repair_id") != repair_id
+                    or record.payload.get("cause_hash")
+                    != repair.get("cause_hash")
+                    or record.payload.get("prior_attempt_record_id")
+                    != prior_record_id
+                    or record.payload.get("previous_basis_hash")
+                    != previous_basis
+                    or not isinstance(new_basis, str)
+                ):
+                    raise RecoveryRequired(
+                        "Repair attempt stream does not form one changed-basis chain"
+                    )
+                prior = record
+                prior_record_id = record.record_id
+                previous_basis = new_basis
+                used_bases.append(new_basis)
             if (
-                prior.kind != "repair-attempt"
-                or prior.status != "failed"
-                or prior.subject != f"Repair:{repair_id}"
-                or prior.payload.get("job_id") != job.get("id")
-                or prior.payload.get("repair_id") != repair_id
+                prior is None
+                or head.record_kind != prior.kind
+                or head.record_id != prior.record_id
             ):
                 raise RecoveryRequired("Repair attempt head is invalid")
-            prior_record_id = prior.record_id
-            previous_basis = prior.payload.get("new_basis_hash")
-            sequence = head.sequence + 1
-        if not isinstance(previous_basis, str):
-            raise RecoveryRequired("Repair attempt basis is unavailable")
+        sequence = 1 if head is None else head.sequence + 1
         if (
             repair.get("latest_attempt_record_id") != prior_record_id
             or repair.get("latest_basis_hash") != previous_basis
         ):
             raise RecoveryRequired("active Repair trails its attempt stream")
-        return opened, prior, prior_record_id, previous_basis, sequence
+        return (
+            opened,
+            prior,
+            prior_record_id,
+            previous_basis,
+            sequence,
+            tuple(used_bases),
+        )
 
-    def _parse_active_repair_attempt(
+    def _parse_active_repair_candidate(
         self,
         *,
-        proof_hash: str,
-        expected_outcome: str,
+        index: LocalIndex,
+        candidate_hash: str,
         repair: Mapping[str, Any],
         job: Mapping[str, Any],
         opened: IndexRecord,
         prior_record_id: str | None,
         previous_basis: str,
-    ) -> RepairAttemptProof:
+        used_basis_hashes: Sequence[str],
+    ) -> RepairCandidate:
+        """Bind one outcome-free candidate to the exact active Repair head."""
+
         try:
-            content = self.evidence.read_verified(proof_hash)
-            return parse_repair_attempt_proof(
-                content,
-                expected_outcome=expected_outcome,
+            attempt_records: list[IndexRecord] = []
+            accepted_changed_evidence: set[str] = set()
+            attempt_head = index.event_head(f"repair-attempt:{repair['id']}")
+            if attempt_head is not None:
+                for sequence in range(1, attempt_head.sequence + 1):
+                    attempt_record = index.event_record(
+                        f"repair-attempt:{repair['id']}", sequence
+                    )
+                    if attempt_record is None:
+                        raise RepairObservationAuthorityError(
+                            "accepted Repair attempt stream has a gap"
+                        )
+                    attempt_records.append(attempt_record)
+                    changed_evidence = attempt_record.payload.get(
+                        "new_evidence_hashes"
+                    )
+                    if (
+                        not isinstance(changed_evidence, (list, tuple))
+                        or any(type(identity) is not str for identity in changed_evidence)
+                    ):
+                        raise RepairObservationAuthorityError(
+                            "accepted Repair attempt changed evidence is malformed"
+                        )
+                    accepted_changed_evidence.update(changed_evidence)
+            declaration = index.get("job-declared", str(job["id"]))
+            mission_id = (
+                None
+                if declaration is None
+                else declaration.payload.get("mission_id")
+            )
+            if type(mission_id) is not str:
+                raise RepairObservationAuthorityError(
+                    "Repair candidate Mission authority is unavailable"
+                )
+            observations, observation_head = (
+                require_repair_validation_observation_stream(
+                    index,
+                    repair_id=str(repair["id"]),
+                    job_id=str(job["id"]),
+                    job_hash=str(job["hash"]),
+                    cause_hash=str(repair["cause_hash"]),
+                    reproduction_evidence_hashes=opened.payload[
+                        "minimum_reproduction_evidence"
+                    ],
+                    resume_action=str(repair["resume_action"]),
+                    mission_id=mission_id,
+                    expected_scope=(
+                        "fixture_only"
+                        if self.engineering_fixture
+                        else "production"
+                    ),
+                    accepted_attempts=attempt_records,
+                    evidence=self.evidence,
+                )
+            )
+            bound_observations = tuple(
+                {
+                    "new_information_evidence_hashes": list(
+                        item["new_information_evidence_hashes"]
+                    ),
+                    "observation_record_id": item[
+                        "observation_record_id"
+                    ],
+                }
+                for item in observations
+            )
+            candidate = parse_repair_candidate(
+                self.evidence.read_verified(candidate_hash),
                 repair_id=str(repair["id"]),
                 job_id=str(job["id"]),
                 job_hash=str(job["hash"]),
                 cause_hash=str(repair["cause_hash"]),
-                resume_action=str(repair["resume_action"]),
+                previous_basis_hash=previous_basis,
+                prior_attempt_record_id=prior_record_id,
                 reproduction_evidence_hashes=opened.payload[
                     "minimum_reproduction_evidence"
                 ],
-                prior_attempt_record_id=prior_record_id,
-                previous_basis_hash=previous_basis,
-                read_evidence=self.evidence.read_verified,
+                resume_action=str(repair["resume_action"]),
+                expected_prior_validation_observation_head=(
+                    observation_head
+                ),
+                expected_bound_validation_observations=bound_observations,
                 verify_evidence=self.evidence.verify,
             )
         except (
             FileNotFoundError,
             OSError,
-            RepairProtocolError,
+            RepairCandidateError,
+            RepairObservationAuthorityError,
             RuntimeError,
             TypeError,
             ValueError,
         ) as exc:
             raise TransitionError(str(exc)) from exc
+        if candidate.sha256 != candidate_hash:
+            raise TransitionError("Repair candidate identity differs from its bytes")
+        reused_basis = (
+            candidate.new_basis_hash == previous_basis
+            or candidate.new_basis_hash in set(used_basis_hashes)
+        )
+        genuinely_new_changed_evidence = (
+            set(candidate.new_evidence_hashes)
+            - accepted_changed_evidence
+            - set(used_basis_hashes)
+        )
+        if reused_basis and not genuinely_new_changed_evidence:
+            raise IdenticalFailedRetryError(
+                "reused Repair basis requires genuinely new changed evidence"
+            )
+        return candidate
+
+    @staticmethod
+    def _repair_candidate_attempt_proof(
+        candidate: RepairCandidate,
+        evaluation: RepairEvaluation,
+    ) -> RepairAttemptProof:
+        if evaluation.mode not in {"failure_reproduced", "repaired"}:
+            raise TransitionError(
+                "zero-credit Repair evaluation cannot enter the attempt stream"
+            )
+        if (
+            evaluation.mode == "repaired"
+            and candidate.changed_dimension == "input"
+        ):
+            raise TransitionError(
+                "a changed Job input requires a new Job identity, not in-place Repair"
+            )
+        return RepairAttemptProof(
+            repair_id=candidate.repair_id,
+            job_id=candidate.job_id,
+            job_hash=candidate.job_hash,
+            cause_hash=candidate.cause_hash,
+            outcome=(
+                "repaired" if evaluation.mode == "repaired" else "failed"
+            ),
+            changed_dimension=candidate.changed_dimension,
+            previous_basis_hash=candidate.previous_basis_hash,
+            new_basis_hash=candidate.new_basis_hash,
+            prior_attempt_record_id=candidate.prior_attempt_record_id,
+            reproduction_evidence_hashes=(
+                candidate.reproduction_evidence_hashes
+            ),
+            new_evidence_hashes=candidate.new_evidence_hashes,
+            verification_evidence_hashes=(
+                candidate.verification_evidence_hashes
+            ),
+            implementation_proof_hash=candidate.implementation_proof_hash,
+            explanation=candidate.explanation,
+            failure_observation=(
+                None
+                if evaluation.mode == "repaired"
+                else "registered_original_failure_reproduced"
+            ),
+            resume_action=candidate.resume_action,
+        )
+
+    @staticmethod
+    def _stored_repair_candidate_from_attempt(
+        record: IndexRecord,
+    ) -> RepairCandidate | None:
+        value = record.payload.get("repair_candidate")
+        if value is None:
+            return None
+        if not isinstance(value, Mapping):
+            raise RepairValidationError(
+                "stored Repair candidate payload is invalid"
+            )
+        try:
+            candidate = parse_repair_candidate(
+                canonical_bytes(dict(value)),
+                repair_id=str(record.payload.get("repair_id")),
+                job_id=str(record.payload.get("job_id")),
+                job_hash=str(record.payload.get("job_hash")),
+                cause_hash=str(record.payload.get("cause_hash")),
+                previous_basis_hash=str(
+                    record.payload.get("previous_basis_hash")
+                ),
+                prior_attempt_record_id=record.payload.get(
+                    "prior_attempt_record_id"
+                ),
+                reproduction_evidence_hashes=record.payload.get(
+                    "reproduction_evidence_hashes", ()
+                ),
+                resume_action=str(record.payload.get("resume_action")),
+            )
+        except (RepairCandidateError, TypeError, ValueError) as exc:
+            raise RepairValidationError(str(exc)) from exc
+        if (
+            record.payload.get("repair_candidate_hash") != candidate.sha256
+            or record.payload.get("attempt_proof_hash") != candidate.sha256
+        ):
+            raise RepairValidationError(
+                "stored Repair candidate identity differs"
+            )
+        return candidate
+
+    def _require_repair_evaluation_capability(
+        self,
+        *,
+        capability: _RepairEvaluationCapability,
+        current: Mapping[str, Any],
+        candidate: RepairCandidate,
+        mission_id: str,
+        expected_mode: str,
+    ) -> dict[str, Any]:
+        if (
+            capability.token is not _REPAIR_EVALUATION_CAPABILITY_TOKEN
+            or capability.control_hash != current.get("control_hash")
+            or capability.candidate != candidate
+            or capability.evaluation.candidate_hash != candidate.sha256
+            or capability.evaluation.mode != expected_mode
+            or (
+                capability.semantic_equivalence_validation is None
+                and capability.semantic_equivalence_validation_hash
+                is not None
+            )
+            or (
+                capability.semantic_equivalence_validation is not None
+                and (
+                    capability.semantic_equivalence_validation_hash
+                    != sha256(
+                        canonical_bytes(
+                            dict(
+                                capability.semantic_equivalence_validation
+                            )
+                        )
+                    ).hexdigest()
+                )
+            )
+        ):
+            raise TransitionError(
+                "Repair evaluation capability differs from the stable head"
+            )
+        try:
+            return require_stored_repair_candidate_validation(
+                candidate=candidate,
+                repair_validation=capability.repair_validation,
+                mission_id=mission_id,
+                evidence=self.evidence,
+                expected_scope=(
+                    "fixture_only" if self.engineering_fixture else "production"
+                ),
+            )
+        except (RepairValidationError, TypeError, ValueError) as exc:
+            raise TransitionError(str(exc)) from exc
+
+    @staticmethod
+    def _repair_validation_unavailable_reason(detail: object) -> str:
+        reason_code = getattr(detail, "reason_code", None)
+        if reason_code in VALIDATION_UNAVAILABLE_REASON_CODES:
+            return str(reason_code)
+        if isinstance(detail, (FileNotFoundError, OSError)):
+            return "declared_artifact_absent_drifted_or_unopened"
+        if isinstance(
+            detail,
+            (
+                RepairCandidateError,
+                RepairValidationError,
+                TypeError,
+                ValueError,
+            ),
+        ):
+            return "plan_or_context_binding_mismatch"
+        return "validator_execution_failed"
+
+    def _repair_evaluation_from_validation(
+        self,
+        *,
+        candidate: RepairCandidate,
+        repair_validation: Mapping[str, Any],
+    ) -> RepairEvaluation:
+        registered = repair_validation.get("registered_trace")
+        evaluation = repair_validation.get("evaluation")
+        if not isinstance(registered, Mapping) or not isinstance(
+            evaluation, Mapping
+        ):
+            raise TransitionError("Repair candidate evaluation trace is absent")
+        registry = registered.get("registry_trace")
+        if not isinstance(registry, Mapping):
+            raise TransitionError("Repair candidate registry trace is absent")
+        try:
+            return parse_repair_evaluation(
+                canonical_bytes(dict(evaluation)),
+                candidate_hash=candidate.sha256,
+                validator_id=str(registry.get("validator_id")),
+                validation_plan_hash=str(
+                    registered.get("validation_plan_hash")
+                ),
+                registry_trace_hash=str(
+                    repair_validation.get("registered_trace_hash")
+                ),
+                read_evidence=self.evidence.read_verified,
+            )
+        except (RepairCandidateError, TypeError, ValueError) as exc:
+            raise TransitionError(str(exc)) from exc
+
+    def _record_repair_validation_observation(
+        self,
+        *,
+        _candidate_capability: _RepairEvaluationCapability,
+        operation_id: str,
+    ) -> TransitionResult:
+        if (
+            not isinstance(_candidate_capability, _RepairEvaluationCapability)
+            or _candidate_capability.token
+            is not _REPAIR_EVALUATION_CAPABILITY_TOKEN
+        ):
+            raise TransitionError(
+                "Repair observation requires an evaluated candidate capability"
+            )
+        candidate_hash = _candidate_capability.candidate.sha256
+        evaluation = _candidate_capability.evaluation
+        if not evaluation.zero_credit_observation:
+            raise TransitionError(
+                "accepted Repair evaluation cannot enter the observation stream"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            repair = science.get("active_repair")
+            job = science.get("active_job")
+            if not isinstance(repair, dict) or not isinstance(job, dict):
+                raise TransitionError(
+                    "Repair observation requires one active Repair"
+                )
+            if (
+                job.get("status") != "interrupted_repair"
+                or repair.get("job_id") != job.get("id")
+            ):
+                raise TransitionError("Repair and interrupted Job diverge")
+            (
+                opened,
+                _prior,
+                prior_record_id,
+                previous_basis,
+                _attempt_sequence,
+                used_basis_hashes,
+            ) = self._repair_attempt_context(index, repair=repair, job=job)
+            candidate = self._parse_active_repair_candidate(
+                index=index,
+                candidate_hash=candidate_hash,
+                repair=repair,
+                job=job,
+                opened=opened,
+                prior_record_id=prior_record_id,
+                previous_basis=previous_basis,
+                used_basis_hashes=used_basis_hashes,
+            )
+            if (
+                _candidate_capability.control_hash
+                != current.get("control_hash")
+                or _candidate_capability.candidate != candidate
+                or evaluation.candidate_hash != candidate.sha256
+            ):
+                raise TransitionError(
+                    "Repair observation capability differs from the stable head"
+                )
+            declaration = index.get("job-declared", str(job["id"]))
+            mission_id = (
+                None
+                if declaration is None
+                else declaration.payload.get("mission_id")
+            )
+            if type(mission_id) is not str:
+                raise TransitionError(
+                    "Repair observation lost its Job Mission authority"
+                )
+            registered_candidate_validation = (
+                _candidate_capability.repair_validation
+            )
+            validation_payload: dict[str, Any] | None = None
+            if registered_candidate_validation:
+                validation_payload = require_stored_repair_candidate_validation(
+                    candidate=candidate,
+                    repair_validation=registered_candidate_validation,
+                    mission_id=mission_id,
+                    evidence=self.evidence,
+                    expected_scope=(
+                        "fixture_only"
+                        if self.engineering_fixture
+                        else "production"
+                    ),
+                )
+                stored_evaluation = self._repair_evaluation_from_validation(
+                    candidate=candidate,
+                    repair_validation=validation_payload,
+                )
+                if stored_evaluation != evaluation:
+                    raise TransitionError(
+                        "Repair observation differs from registered evaluation"
+                    )
+            elif (
+                evaluation.mode != "validation_unavailable"
+                or evaluation.registry_trace_hash is not None
+            ):
+                raise TransitionError(
+                    "unregistered Repair observation must be validation_unavailable"
+                )
+            identity_payload = {
+                "candidate_hash": candidate.sha256,
+                "evaluation": evaluation.payload(),
+                "registered_candidate_validation": validation_payload,
+                "repair_id": candidate.repair_id,
+                "schema": REPAIR_VALIDATION_OBSERVATION_SCHEMA,
+            }
+            record_id = canonical_digest(
+                domain="repair-validation-observation",
+                payload=identity_payload,
+            )
+            if index.get("repair-validation-observation", record_id) is not None:
+                raise IdenticalFailedRetryError(
+                    "identical Repair validation observation already exists"
+                )
+            stream = f"repair-validation-observation:{candidate.repair_id}"
+            head = index.event_head(stream)
+            record = _record(
+                kind="repair-validation-observation",
+                record_id=record_id,
+                subject=f"Repair:{candidate.repair_id}",
+                status=evaluation.mode,
+                fingerprint=candidate.sha256,
+                payload={
+                    **identity_payload,
+                    "basis_advance": False,
+                    "candidate": candidate.payload(),
+                    "candidate_delta": 0,
+                    "holdout_reveal_delta": 0,
+                    "release_delta": 0,
+                    "repair_attempt_delta": 0,
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "scientific_failure_delta": 0,
+                    "scientific_trial_delta": 0,
+                },
+                event_stream=stream,
+                event_sequence=1 if head is None else head.sequence + 1,
+            )
+            return body, [record], {
+                "candidate_hash": candidate.sha256,
+                "evaluation_mode": evaluation.mode,
+                "observation_record_id": record_id,
+                "repair_id": candidate.repair_id,
+            }
+
+        return self._commit(
+            event_kind="repair_validation_observed",
+            operation_id=operation_id,
+            subject="Repair:active",
+            payload={
+                "candidate_hash": candidate_hash,
+                "evaluation": evaluation.payload(),
+            },
+            prepare=prepare,
+        )
+
+    def _existing_repair_candidate_operation(
+        self,
+        *,
+        candidate_hash: str,
+        operation_id: str,
+    ) -> TransitionResult | None:
+        """Return an exact prior candidate evaluation without redispatch."""
+
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                self._require_stable_locked(index)
+                existing = index.get("operation", operation_id)
+                if existing is None:
+                    return None
+                event_kind = existing.payload.get("event_kind")
+                expected_field = {
+                    "repair_attempt_failed": "attempt_proof_hash",
+                    "repair_closed": "changed_cause_proof_hash",
+                    "repair_validation_observed": "candidate_hash",
+                }.get(event_kind)
+                if (
+                    existing.status != "success"
+                    or expected_field is None
+                    or existing.authority_sequence is None
+                    or existing.authority_event_id is None
+                    or existing.authority_offset is None
+                ):
+                    raise TransitionError(
+                        "existing Repair candidate operation is invalid"
+                    )
+                event = self.journal.read_event_at(
+                    offset=existing.authority_offset,
+                    expected_sequence=existing.authority_sequence,
+                    expected_event_id=existing.authority_event_id,
+                )
+                payload = event.get("payload")
+                if (
+                    event.get("operation_id") != operation_id
+                    or event.get("event_kind") != event_kind
+                    or not isinstance(payload, Mapping)
+                    or payload.get(expected_field) != candidate_hash
+                ):
+                    raise TransitionError(
+                        "idempotency key reused with different Repair candidate"
+                    )
+                return TransitionResult(
+                    event_id=existing.authority_event_id,
+                    revision=existing.authority_sequence,
+                    reused=True,
+                    result=existing.payload.get("result", {}),
+                )
+
+    def evaluate_repair_candidate(
+        self,
+        *,
+        candidate_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Dispatch once outside the Writer lock, then consume at one head."""
+
+        _require_digest("Repair candidate", candidate_hash)
+        _require_ascii("operation_id", operation_id)
+        existing = self._existing_repair_candidate_operation(
+            candidate_hash=candidate_hash,
+            operation_id=operation_id,
+        )
+        if existing is not None:
+            return existing
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                science = current["scientific"]
+                repair = science.get("active_repair")
+                job = science.get("active_job")
+                if not isinstance(repair, Mapping) or not isinstance(
+                    job, Mapping
+                ):
+                    raise TransitionError(
+                        "Repair candidate evaluation requires an active Repair"
+                    )
+                (
+                    opened,
+                    _prior,
+                    prior_record_id,
+                    previous_basis,
+                    _attempt_sequence,
+                    used_basis_hashes,
+                ) = self._repair_attempt_context(
+                    index,
+                    repair=repair,
+                    job=job,
+                )
+                candidate = self._parse_active_repair_candidate(
+                    index=index,
+                    candidate_hash=candidate_hash,
+                    repair=repair,
+                    job=job,
+                    opened=opened,
+                    prior_record_id=prior_record_id,
+                    previous_basis=previous_basis,
+                    used_basis_hashes=used_basis_hashes,
+                )
+                declaration = index.get("job-declared", candidate.job_id)
+                mission_id = (
+                    None
+                    if declaration is None
+                    else declaration.payload.get("mission_id")
+                )
+                if type(mission_id) is not str:
+                    raise TransitionError(
+                        "Repair candidate lost its Job Mission authority"
+                    )
+                stable_control_hash = str(current["control_hash"])
+
+        if len(candidate.verification_evidence_hashes) != 1:
+            raise TransitionError(
+                "Repair candidate requires one routing receipt"
+            )
+        try:
+            route = parse_repair_candidate_validation_receipt(
+                self.evidence.read_verified(
+                    candidate.verification_evidence_hashes[0]
+                )
+            )
+        except (
+            FileNotFoundError,
+            OSError,
+            RepairValidationError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise TransitionError(str(exc)) from exc
+        repair_validation: dict[str, Any] | None
+        try:
+            repair_validation = validate_repair_candidate(
+                candidate=candidate,
+                mission_id=mission_id,
+                evidence=self.evidence,
+                registry=self.validation_registry,
+                engineering_fixture=self.engineering_fixture,
+            )
+            evaluation = self._repair_evaluation_from_validation(
+                candidate=candidate,
+                repair_validation=repair_validation,
+            )
+        except (
+            EvidenceValidationError,
+            FileNotFoundError,
+            OSError,
+            RepairValidationError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            repair_validation = None
+            reason_code = self._repair_validation_unavailable_reason(exc)
+            try:
+                evaluation_payload = build_repair_evaluation(
+                    candidate_hash=candidate.sha256,
+                    validator_id=route["validator_id"],
+                    validation_plan_hash=route["check_plan_hash"],
+                    registry_trace_hash=None,
+                    mode="validation_unavailable",
+                    cause_resolved=None,
+                    failure_reproduced=None,
+                    material_change=None,
+                    new_failure_manifest_hash=None,
+                    reason_code=reason_code,
+                )
+                evaluation = parse_repair_evaluation(
+                    canonical_bytes(evaluation_payload),
+                    candidate_hash=candidate.sha256,
+                    validator_id=route["validator_id"],
+                    validation_plan_hash=route["check_plan_hash"],
+                    registry_trace_hash=None,
+                )
+            except RepairCandidateError as candidate_exc:
+                raise TransitionError(str(candidate_exc)) from candidate_exc
+        semantic_equivalence_validation: dict[str, Any] | None = None
+        if evaluation.mode == "repaired":
+            try:
+                semantic_dispatch = (
+                    self._prepare_candidate_semantic_equivalence_dispatch(
+                        candidate=candidate,
+                        expected_control_hash=stable_control_hash,
+                    )
+                )
+                if semantic_dispatch is not None:
+                    semantic_equivalence_validation = (
+                        self._run_implementation_repair_semantic_equivalence(
+                            **semantic_dispatch
+                        )
+                    )
+            except TransitionError:
+                # The close boundary converts an absent positive semantic
+                # capability into one typed zero-credit observation.  No
+                # validator is retried while holding the Writer lock.
+                semantic_equivalence_validation = None
+        semantic_validation_hash = (
+            None
+            if semantic_equivalence_validation is None
+            else sha256(
+                canonical_bytes(semantic_equivalence_validation)
+            ).hexdigest()
+        )
+        capability = _RepairEvaluationCapability(
+            token=_REPAIR_EVALUATION_CAPABILITY_TOKEN,
+            control_hash=stable_control_hash,
+            candidate=candidate,
+            evaluation=evaluation,
+            repair_validation=(
+                {} if repair_validation is None else repair_validation
+            ),
+            semantic_equivalence_validation=(
+                semantic_equivalence_validation
+            ),
+            semantic_equivalence_validation_hash=semantic_validation_hash,
+        )
+        if evaluation.zero_credit_observation:
+            return self._record_repair_validation_observation(
+                _candidate_capability=capability,
+                operation_id=operation_id,
+            )
+        if evaluation.mode == "failure_reproduced":
+            return self.record_failed_repair_attempt(
+                attempt_proof_hash=candidate_hash,
+                operation_id=operation_id,
+                _candidate_capability=capability,
+            )
+        try:
+            return self.close_repair(
+                changed_cause_proof_hash=candidate_hash,
+                operation_id=operation_id,
+                _candidate_capability=capability,
+            )
+        except RepairSemanticEquivalenceUnavailable as exc:
+            inner = parse_canonical(
+                self.evidence.read_verified(
+                    str(candidate.implementation_proof_hash)
+                )
+            )
+            if not isinstance(inner, Mapping):
+                raise
+            semantic_validator_id = inner.get(
+                "semantic_equivalence_validator_id"
+            )
+            semantic_plan_hash = inner.get(
+                "semantic_equivalence_validation_plan_hash"
+            )
+            unavailable_payload = build_repair_evaluation(
+                candidate_hash=candidate.sha256,
+                validator_id=str(semantic_validator_id),
+                validation_plan_hash=str(semantic_plan_hash),
+                registry_trace_hash=None,
+                mode="validation_unavailable",
+                cause_resolved=None,
+                failure_reproduced=None,
+                material_change=None,
+                new_failure_manifest_hash=None,
+                reason_code=self._repair_validation_unavailable_reason(exc),
+            )
+            unavailable = parse_repair_evaluation(
+                canonical_bytes(unavailable_payload),
+                candidate_hash=candidate.sha256,
+                validator_id=str(semantic_validator_id),
+                validation_plan_hash=str(semantic_plan_hash),
+                registry_trace_hash=None,
+            )
+            unavailable_capability = _RepairEvaluationCapability(
+                token=_REPAIR_EVALUATION_CAPABILITY_TOKEN,
+                control_hash=capability.control_hash,
+                candidate=capability.candidate,
+                evaluation=unavailable,
+                repair_validation={},
+                semantic_equivalence_validation=None,
+                semantic_equivalence_validation_hash=None,
+            )
+            return self._record_repair_validation_observation(
+                _candidate_capability=unavailable_capability,
+                operation_id=operation_id,
+            )
 
     def record_failed_repair_attempt(
         self,
         *,
         attempt_proof_hash: str,
         operation_id: str,
+        _candidate_capability: _RepairEvaluationCapability | None = None,
     ) -> TransitionResult:
         """Preserve one failed changed-basis attempt without abandoning Repair."""
 
@@ -26404,21 +27812,78 @@ class StateWriter:
                 prior_record_id,
                 previous_basis,
                 sequence,
+                used_basis_hashes,
             ) = self._repair_attempt_context(index, repair=repair, job=job)
-            proof = self._parse_active_repair_attempt(
-                proof_hash=attempt_proof_hash,
-                expected_outcome="failed",
+            if _candidate_capability is None:
+                raise TransitionError(
+                    "Repair requires outcome-free candidate evaluation"
+                )
+            candidate = self._parse_active_repair_candidate(
+                index=index,
+                candidate_hash=attempt_proof_hash,
                 repair=repair,
                 job=job,
                 opened=opened,
                 prior_record_id=prior_record_id,
                 previous_basis=previous_basis,
+                used_basis_hashes=used_basis_hashes,
             )
+            declaration = index.get("job-declared", str(job["id"]))
+            mission_id = (
+                None
+                if declaration is None
+                else declaration.payload.get("mission_id")
+            )
+            if type(mission_id) is not str:
+                raise TransitionError(
+                    "Repair candidate lost its Job Mission authority"
+                )
+            repair_validation = self._require_repair_evaluation_capability(
+                capability=_candidate_capability,
+                current=current,
+                candidate=candidate,
+                mission_id=mission_id,
+                expected_mode="failure_reproduced",
+            )
+            proof = self._repair_candidate_attempt_proof(
+                candidate,
+                _candidate_capability.evaluation,
+            )
+            attempt_fingerprint = repair_attempt_intervention_fingerprint(
+                proof,
+                verification_capabilities=repair_validation_capabilities(
+                    repair_validation
+                ),
+            )
+            fingerprint_record_id = canonical_digest(
+                domain="repair-attempt-fingerprint",
+                payload={
+                    "attempt_fingerprint": attempt_fingerprint,
+                    "repair_id": repair["id"],
+                },
+            )
+            if index.get(
+                "repair-attempt-fingerprint", fingerprint_record_id
+            ) is not None:
+                raise IdenticalFailedRetryError(
+                    "identical Repair intervention requires new evidence or protocol"
+                )
+            candidate_authority = {
+                "repair_candidate": candidate.payload(),
+                "repair_candidate_hash": candidate.sha256,
+                "repair_evaluation": _candidate_capability.evaluation.payload(),
+            }
             record_id = canonical_digest(
                 domain="repair-attempt",
                 payload={
                     "attempt_proof_hash": attempt_proof_hash,
+                    "attempt_fingerprint": attempt_fingerprint,
                     **proof.payload(),
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "repair_validation": repair_validation,
+                    **candidate_authority,
                 },
             )
             record = _record(
@@ -26429,12 +27894,30 @@ class StateWriter:
                 fingerprint=attempt_proof_hash,
                 payload={
                     "attempt_proof_hash": attempt_proof_hash,
+                    "attempt_fingerprint": attempt_fingerprint,
                     **proof.payload(),
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "repair_validation": repair_validation,
+                    **candidate_authority,
                     "scientific_failure_delta": 0,
                     "scientific_trial_delta": 0,
                 },
                 event_stream=f"repair-attempt:{repair['id']}",
                 event_sequence=sequence,
+            )
+            fingerprint_record = _record(
+                kind="repair-attempt-fingerprint",
+                record_id=fingerprint_record_id,
+                subject=f"Repair:{repair['id']}",
+                status="failed",
+                fingerprint=attempt_fingerprint,
+                payload={
+                    "attempt_fingerprint": attempt_fingerprint,
+                    "attempt_record_id": record_id,
+                    "repair_id": repair["id"],
+                },
             )
             repair["latest_attempt_record_id"] = record_id
             repair["latest_basis_hash"] = proof.new_basis_hash
@@ -26444,7 +27927,7 @@ class StateWriter:
                 "prior_attempt_record_id": record_id,
                 "required_previous_basis_hash": proof.new_basis_hash,
             }
-            return body, [record], {
+            return body, [fingerprint_record, record], {
                 "attempt_record_id": record_id,
                 "job_id": job["id"],
                 "repair_id": repair["id"],
@@ -26458,84 +27941,469 @@ class StateWriter:
             prepare=prepare,
         )
 
-    def _engineering_failure_disposition(
+    def materialize_engineering_repair_disposition(
+        self,
+        *,
+        inventory_validator_id: str,
+        inventory_protocol: str,
+        inventory_result_artifacts: Mapping[str, str],
+        rationale: str,
+        resume_condition: str,
+        semantic_change_successor_artifact_hash: str | None = None,
+    ) -> str:
+        """Run terminal domain validation once, outside the Writer lock.
+
+        The materializer freezes the current information set under the stable
+        read boundary, releases it, dispatches registered validators, and
+        installs an unforgeable capability for the later Journal commit.
+        """
+
+        from axiom_rift.operations.repair_disposition_materializer import (
+            _materialize_engineering_repair_disposition,
+        )
+
+        return _materialize_engineering_repair_disposition(
+            self,
+            _writer_token=_REPAIR_DISPOSITION_MATERIALIZATION_TOKEN,
+            inventory_validator_id=inventory_validator_id,
+            inventory_protocol=inventory_protocol,
+            inventory_result_artifacts=inventory_result_artifacts,
+            rationale=rationale,
+            resume_condition=resume_condition,
+            semantic_change_successor_artifact_hash=(
+                semantic_change_successor_artifact_hash
+            ),
+        )
+
+    def _install_engineering_repair_disposition_capability(
+        self,
+        *,
+        _writer_token: object,
+        expected_control_hash: str,
+        disposition_hash: str,
+        disposition: EngineeringFailureDisposition,
+        disposition_validation: Mapping[str, Any],
+    ) -> str:
+        """Seal one Writer-owned handoff after registered validation."""
+
+        if _writer_token is not _REPAIR_DISPOSITION_MATERIALIZATION_TOKEN:
+            raise TransitionError(
+                "engineering disposition capability issuer is unauthorized"
+            )
+        _require_digest("engineering disposition control", expected_control_hash)
+        _require_digest("engineering disposition", disposition_hash)
+        if not isinstance(disposition, EngineeringFailureDisposition):
+            raise TransitionError(
+                "engineering disposition capability payload is untyped"
+            )
+        self.evidence.verify(disposition_hash)
+        validation = _copy(disposition_validation)
+        trace_body = {
+            key: value
+            for key, value in validation.items()
+            if key != "trace_sha256"
+        }
+        if (
+            validation.get("schema") != DISPOSITION_TRACE_SCHEMA
+            or validation.get("trace_sha256")
+            != sha256(canonical_bytes(trace_body)).hexdigest()
+        ):
+            raise TransitionError(
+                "engineering disposition validation trace is invalid"
+            )
+        validation_hash = sha256(canonical_bytes(validation)).hexdigest()
+        capability = _RepairDispositionCapability(
+            token=_REPAIR_DISPOSITION_CAPABILITY_TOKEN,
+            control_hash=expected_control_hash,
+            disposition_hash=disposition_hash,
+            disposition=disposition,
+            disposition_validation=validation,
+            disposition_validation_hash=validation_hash,
+        )
+        self._repair_disposition_capabilities[disposition_hash] = capability
+        return disposition_hash
+
+    def _require_engineering_repair_disposition_capability(
+        self,
+        *,
+        current: Mapping[str, Any],
+        disposition_hash: str,
+        job_id: str,
+        job_hash: str,
+        repair_id: str,
+        cause_hash: str,
+    ) -> tuple[EngineeringFailureDisposition, dict[str, Any]]:
+        capability = self._repair_disposition_capabilities.get(
+            disposition_hash
+        )
+        if (
+            capability is None
+            or capability.token is not _REPAIR_DISPOSITION_CAPABILITY_TOKEN
+            or capability.control_hash != current.get("control_hash")
+            or capability.disposition_hash != disposition_hash
+            or capability.disposition.job_id != job_id
+            or capability.disposition.repair_id != repair_id
+            or capability.disposition.cause_hash != cause_hash
+            or sha256(
+                canonical_bytes(dict(capability.disposition_validation))
+            ).hexdigest()
+            != capability.disposition_validation_hash
+        ):
+            raise TransitionError(
+                "engineering disposition requires one prepared validation "
+                "capability for the exact stable head"
+            )
+        if job_hash != current["scientific"]["active_job"].get("hash"):
+            raise TransitionError(
+                "engineering disposition capability names another Job head"
+            )
+        return capability.disposition, _copy(
+            capability.disposition_validation
+        )
+
+    def _recorded_engineering_failure_disposition(
         self,
         index: LocalIndex,
         *,
-        disposition_hash: str,
         job_id: str,
         job_hash: str,
         repair_id: str | None,
         cause_hash: str,
-        reproduction_evidence_hashes: Sequence[str],
-    ) -> EngineeringFailureDisposition:
-        failed_records = (
-            ()
+        disposition_hash: str,
+        disposition_record_id: str,
+    ) -> tuple[dict[str, Any], str]:
+        expected_kind = (
+            "engineering-failure-disposition"
             if repair_id is None
-            else tuple(
-                sorted(
-                    (
-                        record
-                        for record in index.records_by_subject_status(
-                            f"Repair:{repair_id}", "failed"
-                        )
-                        if record.kind == "repair-attempt"
-                        and record.payload.get("repair_id") == repair_id
-                    ),
-                    key=lambda record: record.record_id,
-                )
-            )
+            else "repair-close"
         )
-        repair_attempts = tuple(
+        record = index.get(expected_kind, disposition_record_id)
+        disposition = None if record is None else record.payload.get("disposition")
+        validation = (
+            None if record is None else record.payload.get("disposition_validation")
+        )
+        cause = None if record is None else record.payload.get("cause")
+        if not isinstance(validation, Mapping):
+            raise RecoveryRequired(
+                "engineering failure disposition validation record is invalid"
+            )
+        identity_payload = (
             {
-                "attempt_proof_hash": record.payload.get(
-                    "attempt_proof_hash"
-                ),
-                "changed_dimension": record.payload.get(
-                    "changed_dimension"
-                ),
-                "new_basis_hash": record.payload.get("new_basis_hash"),
-                "repair_attempt_record_id": record.record_id,
-                "verification_receipt_hashes": record.payload.get(
-                    "verification_evidence_hashes"
-                ),
+                "cause_hash": cause_hash,
+                "disposition_hash": disposition_hash,
+                "disposition_validation": validation,
+                "job_id": job_id,
+                "repair_authority_schema": REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+                "repair_id": None,
             }
-            for record in failed_records
+            if repair_id is None
+            else {
+                "disposition_hash": disposition_hash,
+                "disposition_validation": validation,
+                "repair_authority_schema": REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+                "repair_id": repair_id,
+            }
         )
-        try:
-            disposition = parse_engineering_failure_disposition(
-                self.evidence.read_verified(disposition_hash),
-                job_id=job_id,
-                job_hash=job_hash,
-                repair_id=repair_id,
-                cause_hash=cause_hash,
-                reproduction_evidence_hashes=reproduction_evidence_hashes,
-                repair_attempts=repair_attempts,
-                read_evidence=self.evidence.read_verified,
-                verify_evidence=self.evidence.verify,
-            )
-        except (
-            FileNotFoundError,
-            OSError,
-            RepairProtocolError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            raise TransitionError(str(exc)) from exc
-        failed_attempts = tuple(record.record_id for record in failed_records)
-        if disposition.repair_attempt_record_ids != failed_attempts:
-            raise TransitionError(
-                "engineering disposition omits or invents failed Repair attempts"
-            )
+        expected_record_id = canonical_digest(
+            domain=(
+                "engineering-failure-disposition"
+                if repair_id is None
+                else "repair-unrecovered"
+            ),
+            payload=identity_payload,
+        )
+        expected_keys = {
+            "cause",
+            "cause_hash",
+            "disposition",
+            "disposition_hash",
+            "disposition_validation",
+            "job_id",
+            "repair_authority_schema",
+            "repair_id",
+            "scientific_failure_delta",
+            "scientific_trial_delta",
+        }
+        if repair_id is not None:
+            expected_keys.add("resume_action")
         if (
-            disposition.disposition == "repair_exhausted_changed_causes"
-            and (repair_id is None or len(failed_attempts) < 2)
+            record is None
+            or disposition_record_id != expected_record_id
+            or record.record_id != disposition_record_id
+            or record.kind != expected_kind
+            or record.subject != f"Job:{job_id}"
+            or record.fingerprint != disposition_hash
+            or set(record.payload) != expected_keys
+            or record.payload.get("job_id") != job_id
+            or record.payload.get("repair_id") != repair_id
+            or record.payload.get("disposition_hash") != disposition_hash
+            or record.payload.get("cause_hash") != cause_hash
+            or record.payload.get("repair_authority_schema")
+            != REGISTERED_REPAIR_AUTHORITY_SCHEMA
+            or type(record.payload.get("scientific_failure_delta")) is not int
+            or record.payload.get("scientific_failure_delta") != 0
+            or type(record.payload.get("scientific_trial_delta")) is not int
+            or record.payload.get("scientific_trial_delta") != 0
+            or not isinstance(cause, Mapping)
+            or set(cause)
+            != {
+                "failure_kind",
+                "interrupted_action",
+                "minimum_reproduction_evidence",
+                "root_cause",
+            }
+            or _digest(cause, domain="repair-cause") != cause_hash
+            or not isinstance(disposition, Mapping)
+            or disposition.get("schema")
+            != "engineering_failure_disposition.v1"
+            or disposition.get("job_id") != job_id
+            or disposition.get("repair_id") != repair_id
+            or disposition.get("cause_hash") != cause_hash
+            or record.status != disposition.get("disposition")
+            and not (expected_kind == "repair-close" and record.status == "unrecovered")
         ):
-            raise TransitionError(
-                "one failed Repair attempt cannot establish changed-cause exhaustion"
+            raise RecoveryRequired(
+                "engineering failure disposition validation record is invalid"
             )
-        return disposition
+        declaration = index.get("job-declared", job_id)
+        mission_id = (
+            None if declaration is None else declaration.payload.get("mission_id")
+        )
+        if (
+            declaration is None
+            or declaration.subject != f"Job:{job_id}"
+            or declaration.fingerprint != job_hash
+            or type(mission_id) is not str
+        ):
+            raise RecoveryRequired(
+                "engineering disposition lost its Job declaration"
+            )
+        attempts: list[dict[str, Any]] = []
+        attempt_records: list[IndexRecord] = []
+        if repair_id is not None:
+            stream = f"repair-attempt:{repair_id}"
+            head = index.event_head(stream)
+            if head is not None:
+                for sequence in range(1, head.sequence + 1):
+                    attempt_record = index.event_record(stream, sequence)
+                    if (
+                        attempt_record is None
+                        or attempt_record.status != "failed"
+                        or attempt_record.event_sequence != sequence
+                    ):
+                        raise RecoveryRequired(
+                            "stored failed Repair attempt stream is invalid"
+                        )
+                    try:
+                        candidate = self._stored_repair_candidate_from_attempt(
+                            attempt_record
+                        )
+                        if candidate is None:
+                            if not self.engineering_fixture:
+                                raise RepairValidationError(
+                                    "production Repair attempt lacks its "
+                                    "outcome-free candidate authority"
+                                )
+                            require_stored_repair_attempt_validation(
+                                attempt_payload=attempt_record.payload,
+                                repair_validation=attempt_record.payload.get(
+                                    "repair_validation"
+                                ),
+                                mission_id=mission_id,
+                                expected_scope=(
+                                    "fixture_only"
+                                    if self.engineering_fixture
+                                    else "production"
+                                ),
+                            )
+                        else:
+                            require_stored_repair_candidate_validation(
+                                candidate=candidate,
+                                repair_validation=attempt_record.payload.get(
+                                    "repair_validation"
+                                ),
+                                mission_id=mission_id,
+                                evidence=self.evidence,
+                                expected_scope=(
+                                    "fixture_only"
+                                    if self.engineering_fixture
+                                    else "production"
+                                ),
+                            )
+                    except (RepairValidationError, TypeError, ValueError) as exc:
+                        raise RecoveryRequired(
+                            "stored failed Repair attempt trace is invalid"
+                        ) from exc
+                    attempts.append(
+                        {
+                            "attempt_proof_hash": attempt_record.payload.get(
+                                "attempt_proof_hash"
+                            ),
+                            "changed_dimension": attempt_record.payload.get(
+                                "changed_dimension"
+                            ),
+                            "new_basis_hash": attempt_record.payload.get(
+                                "new_basis_hash"
+                            ),
+                            "repair_attempt_record_id": attempt_record.record_id,
+                            "repair_axis_id": (
+                                None
+                                if candidate is None
+                                else candidate.repair_axis_id
+                            ),
+                            "repair_validation": dict(
+                                attempt_record.payload["repair_validation"]
+                            ),
+                            "verification_receipt_hashes": list(
+                                attempt_record.payload.get(
+                                    "verification_evidence_hashes", []
+                                )
+                            ),
+                        }
+                    )
+                    attempt_records.append(attempt_record)
+        if disposition.get("repair_attempt_record_ids") != [
+            item["repair_attempt_record_id"] for item in attempts
+        ]:
+            raise RecoveryRequired(
+                "stored disposition differs from its Repair attempt stream"
+            )
+        validation_observations: tuple[dict[str, Any], ...] = ()
+        validation_observation_head: dict[str, Any] | None = None
+        if repair_id is not None:
+            opened = index.get("repair-open", repair_id)
+            if (
+                opened is None
+                or opened.fingerprint != cause_hash
+                or not isinstance(opened.payload.get("resume_action"), str)
+            ):
+                raise RecoveryRequired(
+                    "stored Repair observations lost their open authority"
+                )
+            try:
+                (
+                    validation_observations,
+                    validation_observation_head,
+                ) = require_repair_validation_observation_stream(
+                    index,
+                    repair_id=repair_id,
+                    job_id=job_id,
+                    job_hash=job_hash,
+                    cause_hash=cause_hash,
+                    reproduction_evidence_hashes=cause[
+                        "minimum_reproduction_evidence"
+                    ],
+                    resume_action=str(opened.payload["resume_action"]),
+                    mission_id=mission_id,
+                    expected_scope=(
+                        "fixture_only"
+                        if self.engineering_fixture
+                        else "production"
+                    ),
+                    accepted_attempts=attempt_records,
+                    evidence=self.evidence,
+                )
+            except (
+                RepairObservationAuthorityError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                raise RecoveryRequired(str(exc)) from exc
+        if not self.engineering_fixture:
+            if repair_id is None:
+                raise RecoveryRequired(
+                    "prospective stored disposition lacks Repair authority"
+                )
+            observation_stream = (
+                f"repair-validation-observation:{repair_id}"
+            )
+            for ordinal, attempt_record in enumerate(attempt_records):
+                bound_observations: list[dict[str, Any]] = []
+                prior_observation_head: dict[str, Any] | None = None
+                for observation in validation_observations:
+                    observation_record = index.event_record(
+                        observation_stream,
+                        int(observation["observation_sequence"]),
+                    )
+                    if (
+                        observation_record is None
+                        or type(observation_record.authority_sequence) is not int
+                        or type(attempt_record.authority_sequence) is not int
+                    ):
+                        raise RecoveryRequired(
+                            "stored Repair disposition chronology is malformed"
+                        )
+                    if (
+                        observation_record.authority_sequence
+                        >= attempt_record.authority_sequence
+                    ):
+                        break
+                    bound_observations.append(
+                        {
+                            "new_information_evidence_hashes": list(
+                                observation[
+                                    "new_information_evidence_hashes"
+                                ]
+                            ),
+                            "observation_record_id": (
+                                observation_record.record_id
+                            ),
+                        }
+                    )
+                    prior_observation_head = {
+                        "fingerprint": observation_record.fingerprint,
+                        "record_id": observation_record.record_id,
+                        "sequence": observation_record.event_sequence,
+                    }
+                try:
+                    candidate, stored_validation = (
+                        require_stored_accepted_repair_candidate_attempt(
+                            attempt_payload=attempt_record.payload,
+                            mission_id=mission_id,
+                            expected_scope="production",
+                            evidence=self.evidence,
+                            expected_prior_validation_observation_head=(
+                                prior_observation_head
+                            ),
+                            expected_bound_validation_observations=(
+                                bound_observations
+                            ),
+                        )
+                    )
+                except (RepairValidationError, TypeError, ValueError) as exc:
+                    raise RecoveryRequired(
+                        "stored Repair disposition attempt lost its exact "
+                        "observation binding"
+                    ) from exc
+                attempts[ordinal]["repair_axis_id"] = candidate.repair_axis_id
+                attempts[ordinal]["repair_validation"] = stored_validation
+        try:
+            require_stored_engineering_disposition_validation(
+                disposition_payload=disposition,
+                disposition_validation=validation,
+                mission_id=mission_id,
+                job_hash=job_hash,
+                reproduction_evidence_hashes=cause[
+                    "minimum_reproduction_evidence"
+                ],
+                repair_attempts=attempts,
+                repair_validation_observations=validation_observations,
+                repair_validation_observation_head=(
+                    validation_observation_head
+                ),
+                evidence=self.evidence,
+                expected_scope=(
+                    "fixture_only" if self.engineering_fixture else "production"
+                ),
+            )
+        except (RepairValidationError, TypeError, ValueError) as exc:
+            raise RecoveryRequired(
+                "stored engineering disposition trace is invalid"
+            ) from exc
+        trace_sha256 = validation.get("trace_sha256")
+        if not isinstance(trace_sha256, str):
+            raise RecoveryRequired("stored disposition trace digest is absent")
+        return dict(disposition), trace_sha256
 
     def record_engineering_failure_disposition(
         self,
@@ -26544,108 +28412,11 @@ class StateWriter:
         disposition_hash: str,
         operation_id: str,
     ) -> TransitionResult:
-        """Authorize direct Job failure only through a durable typed decision."""
+        """Reject prospective terminal judgement before a Repair is opened."""
 
-        _require_digest("engineering disposition", disposition_hash)
-        failure_manifest, cause_hash = self._engineering_failure_cause(
-            failure
-        )
-
-        def prepare(current: dict[str, Any] | None, index: LocalIndex):
-            if current is None:
-                raise TransitionError("control is absent")
-            body = self._body(current)
-            science = body["scientific"]
-            job = science.get("active_job")
-            if (
-                not isinstance(job, dict)
-                or job.get("status") != "running"
-                or science.get("active_repair") is not None
-            ):
-                raise TransitionError(
-                    "engineering disposition requires one running unrepaired Job"
-                )
-            if job.get("required_repair_resume_record_id") is not None:
-                raise TransitionError(
-                    "a repaired Job must re-enter its engine before disposition"
-                )
-            declaration = index.get("job-declared", job["id"])
-            spec = (
-                None
-                if declaration is None
-                else declaration.payload.get("spec")
-            )
-            if (
-                not isinstance(spec, Mapping)
-                or failure_manifest["interrupted_action"]
-                != spec.get("callable_identity")
-            ):
-                raise TransitionError(
-                    "engineering disposition differs from the active Job"
-                )
-            disposition = self._engineering_failure_disposition(
-                index,
-                disposition_hash=disposition_hash,
-                job_id=job["id"],
-                job_hash=job["hash"],
-                repair_id=None,
-                cause_hash=cause_hash,
-                reproduction_evidence_hashes=failure_manifest[
-                    "minimum_reproduction_evidence"
-                ],
-            )
-            record_id = canonical_digest(
-                domain="engineering-failure-disposition",
-                payload={
-                    "cause_hash": cause_hash,
-                    "disposition_hash": disposition_hash,
-                    "job_id": job["id"],
-                    "repair_id": None,
-                },
-            )
-            record = _record(
-                kind="engineering-failure-disposition",
-                record_id=record_id,
-                subject=f"Job:{job['id']}",
-                status=disposition.disposition,
-                fingerprint=disposition_hash,
-                payload={
-                    "cause": failure_manifest,
-                    "cause_hash": cause_hash,
-                    "disposition": disposition.payload(),
-                    "disposition_hash": disposition_hash,
-                    "job_id": job["id"],
-                    "repair_id": None,
-                    "scientific_failure_delta": 0,
-                    "scientific_trial_delta": 0,
-                },
-            )
-            job["required_engineering_disposition_hash"] = disposition_hash
-            job["required_engineering_failure_cause_hash"] = cause_hash
-            job["required_engineering_repair_id"] = None
-            body["next_action"] = {
-                "disposition_hash": disposition_hash,
-                "job_id": job["id"],
-                "kind": "complete_engineering_failure",
-            }
-            return body, [record], {
-                "cause_hash": cause_hash,
-                "disposition_hash": disposition_hash,
-                "disposition_record_id": record_id,
-                "job_id": job["id"],
-                "repair_id": None,
-            }
-
-        return self._commit(
-            event_kind="engineering_failure_disposition_recorded",
-            operation_id=operation_id,
-            subject="Job:active",
-            payload={
-                "cause_hash": cause_hash,
-                "disposition_hash": disposition_hash,
-                "failure": failure_manifest,
-            },
-            prepare=prepare,
+        raise TransitionError(
+            "engineering failure must open Repair before any terminal "
+            "disposition can be evaluated"
         )
 
     def conclude_repair_unrecovered(
@@ -26672,19 +28443,18 @@ class StateWriter:
                 or repair.get("job_id") != job.get("id")
             ):
                 raise TransitionError("Repair and interrupted Job diverge")
-            opened, _prior, _prior_id, _basis, _sequence = (
+            opened, _prior, _prior_id, _basis, _sequence, _used_bases = (
                 self._repair_attempt_context(index, repair=repair, job=job)
             )
-            disposition = self._engineering_failure_disposition(
-                index,
-                disposition_hash=disposition_hash,
-                job_id=job["id"],
-                job_hash=job["hash"],
-                repair_id=repair["id"],
-                cause_hash=repair["cause_hash"],
-                reproduction_evidence_hashes=opened.payload[
-                    "minimum_reproduction_evidence"
-                ],
+            disposition, disposition_validation = (
+                self._require_engineering_repair_disposition_capability(
+                    current=current,
+                    disposition_hash=disposition_hash,
+                    job_id=job["id"],
+                    job_hash=job["hash"],
+                    repair_id=repair["id"],
+                    cause_hash=repair["cause_hash"],
+                )
             )
             stream = f"job-repair:{job['id']}"
             head = index.event_head(stream)
@@ -26693,6 +28463,10 @@ class StateWriter:
                 payload={
                     "disposition_hash": disposition_hash,
                     "repair_id": repair["id"],
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "disposition_validation": disposition_validation,
                 },
             )
             record = _record(
@@ -26702,10 +28476,25 @@ class StateWriter:
                 status="unrecovered",
                 fingerprint=disposition_hash,
                 payload={
+                    "cause": {
+                        "failure_kind": opened.payload["failure_kind"],
+                        "interrupted_action": opened.payload[
+                            "interrupted_action"
+                        ],
+                        "minimum_reproduction_evidence": list(
+                            opened.payload["minimum_reproduction_evidence"]
+                        ),
+                        "root_cause": opened.payload["root_cause"],
+                    },
+                    "cause_hash": repair["cause_hash"],
                     "disposition": disposition.payload(),
                     "disposition_hash": disposition_hash,
+                    "disposition_validation": disposition_validation,
                     "job_id": job["id"],
                     "repair_id": repair["id"],
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
                     "resume_action": repair["resume_action"],
                     "scientific_failure_delta": 0,
                     "scientific_trial_delta": 0,
@@ -26716,12 +28505,14 @@ class StateWriter:
             science["active_repair"] = None
             job["status"] = "running"
             job["required_engineering_disposition_hash"] = disposition_hash
+            job["required_engineering_disposition_record_id"] = record_id
             job["required_engineering_failure_cause_hash"] = repair[
                 "cause_hash"
             ]
             job["required_engineering_repair_id"] = repair["id"]
             body["next_action"] = {
                 "disposition_hash": disposition_hash,
+                "disposition_record_id": record_id,
                 "job_id": job["id"],
                 "kind": "complete_engineering_failure",
             }
@@ -26741,12 +28532,24 @@ class StateWriter:
         )
 
     @staticmethod
-    def _semantic_equivalence_repair_error(detail: object) -> TransitionError:
-        return TransitionError(
+    def _semantic_equivalence_repair_error(
+        detail: object,
+    ) -> RepairSemanticEquivalenceUnavailable:
+        reason_code = getattr(detail, "reason_code", None)
+        if reason_code not in VALIDATION_UNAVAILABLE_REASON_CODES:
+            reason_code = (
+                "declared_artifact_absent_drifted_or_unopened"
+                if isinstance(detail, (FileNotFoundError, OSError))
+                else "plan_or_context_binding_mismatch"
+            )
+        return RepairSemanticEquivalenceUnavailable(
             "in-place implementation Repair lacks fully passed registered "
-            "semantic-equivalence; record a failed Repair attempt and preserve "
-            "the requires_scientific_change disposition path: "
-            f"{detail}"
+            "semantic-equivalence; keep Repair active and record only a "
+            "zero-credit validation observation. This rejection cannot "
+            "authorize requires_scientific_change without a separate positive "
+            "registered semantic-change proof: "
+            f"{detail}",
+            reason_code=reason_code,
         )
 
     def _implementation_repair_semantic_plan_locked(
@@ -26775,7 +28578,7 @@ class StateWriter:
                     "validator does not implement the registered equivalence protocol"
                 )
         try:
-            self.validation_registry.require_registered_protocol(
+            self.validation_registry.require_plannable_protocol(
                 validator_id=validator_id,
                 domain="scientific",
                 protocol=validation_protocol,
@@ -26927,8 +28730,8 @@ class StateWriter:
         """Materialize or authenticate one recomputable engineering receipt."""
 
         from axiom_rift.operations.fixed_hold_repair_equivalence import (
-            fixed_hold_authority_correction_verification_manifest,
-            require_fixed_hold_authority_correction_verification,
+            fixed_hold_authority_correction_verification_claim_manifest,
+            require_fixed_hold_authority_correction_verification_claim,
         )
         fixed_validator_id = _fixed_hold_authority_correction_validator_id()
 
@@ -26961,19 +28764,169 @@ class StateWriter:
             content = self.evidence.read_verified(evidence_hash)
         else:
             content = canonical_bytes(
-                fixed_hold_authority_correction_verification_manifest(
+                fixed_hold_authority_correction_verification_claim_manifest(
                     new_implementation_identity=new_implementation_identity,
                 )
             )
             evidence_hash = self.evidence.finalize(content).sha256
         try:
-            require_fixed_hold_authority_correction_verification(
+            require_fixed_hold_authority_correction_verification_claim(
                 content,
                 new_implementation_identity=new_implementation_identity,
             )
         except EvidenceValidationError as exc:
             raise TransitionError(str(exc)) from exc
         return (evidence_hash,)
+
+    def materialize_fixed_hold_repair_candidate_validation_plan(
+        self,
+        *,
+        explanation: str,
+        new_basis_hash: str,
+        new_evidence_hashes: tuple[str, ...],
+        implementation_proof_hash: str,
+        result_artifact_hashes: tuple[str, ...],
+        repair_axis_id: str,
+        prior_validation_observation_head: Mapping[str, Any] | None,
+        bound_validation_observations: tuple[Mapping[str, Any], ...],
+    ) -> tuple[str, str, str, tuple[str, ...]]:
+        """Bind a fixed-hold result to one outcome-free Repair candidate."""
+
+        reason = _require_ascii("fixed-hold Repair explanation", explanation)
+        _require_digest("fixed-hold Repair basis", new_basis_hash)
+        _require_digest(
+            "fixed-hold Repair implementation proof",
+            implementation_proof_hash,
+        )
+        if (
+            type(new_evidence_hashes) is not tuple
+            or not new_evidence_hashes
+            or new_evidence_hashes != tuple(sorted(set(new_evidence_hashes)))
+            or new_basis_hash not in new_evidence_hashes
+            or implementation_proof_hash not in new_evidence_hashes
+        ):
+            raise TransitionError(
+                "fixed-hold Repair changed evidence is not exact"
+            )
+        if (
+            type(result_artifact_hashes) is not tuple
+            or len(result_artifact_hashes) != 1
+            or result_artifact_hashes
+            != tuple(sorted(set(result_artifact_hashes)))
+        ):
+            raise TransitionError(
+                "fixed-hold Repair requires one exact validation result"
+            )
+        for identity in (*new_evidence_hashes, *result_artifact_hashes):
+            _require_digest("fixed-hold Repair evidence", identity)
+            self.evidence.read_verified(identity)
+        with self.open_stable_index() as (control, index):
+            science = control.get("scientific")
+            job = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_job")
+            )
+            repair = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_repair")
+            )
+            mission_id = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_mission")
+            )
+            if (
+                not isinstance(job, Mapping)
+                or not isinstance(repair, Mapping)
+                or job.get("status") != "interrupted_repair"
+                or repair.get("job_id") != job.get("id")
+                or type(mission_id) is not str
+            ):
+                raise TransitionError(
+                    "fixed-hold Repair validation requires one interrupted Job"
+                )
+            opened = index.get("repair-open", str(repair.get("id")))
+        reproduction = (
+            None
+            if opened is None
+            else opened.payload.get("minimum_reproduction_evidence")
+        )
+        if (
+            not isinstance(reproduction, list)
+            or not reproduction
+            or reproduction != sorted(set(reproduction))
+        ):
+            raise TransitionError(
+                "fixed-hold Repair reproduction evidence is unavailable"
+            )
+        context = build_repair_candidate_validation_context(
+            bound_validation_observations=bound_validation_observations,
+            cause_hash=str(repair["cause_hash"]),
+            changed_dimension="implementation",
+            explanation=reason,
+            implementation_proof_hash=implementation_proof_hash,
+            job_hash=str(job["hash"]),
+            job_id=str(job["id"]),
+            new_basis_hash=new_basis_hash,
+            new_evidence_hashes=new_evidence_hashes,
+            previous_basis_hash=str(repair["latest_basis_hash"]),
+            prior_attempt_record_id=repair.get("latest_attempt_record_id"),
+            prior_validation_observation_head=(
+                prior_validation_observation_head
+            ),
+            repair_axis_id=repair_axis_id,
+            repair_id=str(repair["id"]),
+            reproduction_evidence_hashes=reproduction,
+            resume_action=str(repair["resume_action"]),
+        )
+        validator_id, protocol = _fixed_hold_repair_attempt_validator()
+        try:
+            self.validation_registry.require_plannable_protocol(
+                validator_id=validator_id,
+                domain="engineering",
+                protocol=protocol,
+            )
+        except EvidenceValidationError as exc:
+            raise TransitionError(str(exc)) from exc
+        artifact_roles = tuple(
+            sorted(
+                (
+                    ("implementation_proof", implementation_proof_hash),
+                    ("new_implementation_manifest", new_basis_hash),
+                    ("validation_result", result_artifact_hashes[0]),
+                    *(
+                        (f"reproduction:{ordinal:04d}", identity)
+                        for ordinal, identity in enumerate(reproduction)
+                    ),
+                )
+            )
+        )
+        if len({identity for _name, identity in artifact_roles}) != len(
+            artifact_roles
+        ):
+            raise TransitionError(
+                "fixed-hold Repair validation artifact roles overlap"
+            )
+        binding = repair_validation_binding(
+            verification_kind="candidate",
+            mission_id=mission_id,
+            protocol=protocol,
+            context=context,
+            artifact_roles=artifact_roles,
+        )
+        plan = build_repair_validation_plan(
+            validator_id=validator_id,
+            binding=binding,
+        )
+        plan_artifact = self.evidence.finalize(canonical_bytes(plan))
+        return (
+            plan_artifact.sha256,
+            validator_id,
+            protocol,
+            tuple(sorted(identity for _name, identity in artifact_roles)),
+        )
 
     def _run_implementation_repair_semantic_equivalence(
         self,
@@ -27114,11 +29067,163 @@ class StateWriter:
             "verdict": validated.verdict,
         }
 
+    def _prepare_candidate_semantic_equivalence_dispatch(
+        self,
+        *,
+        candidate: RepairCandidate,
+        expected_control_hash: str,
+    ) -> dict[str, Any] | None:
+        """Freeze the semantic-equivalence dispatch without running it."""
+
+        if (
+            self.engineering_fixture
+            or candidate.changed_dimension != "implementation"
+        ):
+            return None
+        if candidate.implementation_proof_hash is None:
+            raise self._semantic_equivalence_repair_error(
+                "implementation candidate omits its semantic proof"
+            )
+        try:
+            inner = parse_canonical(
+                self.evidence.read_verified(
+                    candidate.implementation_proof_hash
+                )
+            )
+        except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
+            raise self._semantic_equivalence_repair_error(exc) from exc
+        if not isinstance(inner, Mapping):
+            raise self._semantic_equivalence_repair_error(
+                "implementation semantic proof is not an object"
+            )
+        validator_id = inner.get("semantic_equivalence_validator_id")
+        validation_plan_hash = inner.get(
+            "semantic_equivalence_validation_plan_hash"
+        )
+        result_manifest_hash = inner.get(
+            "semantic_equivalence_result_manifest_hash"
+        )
+        previous_implementation_identity = inner.get(
+            "previous_implementation_identity"
+        )
+        new_implementation_identity = inner.get(
+            "new_implementation_identity"
+        )
+        measurements = inner.get(
+            "semantic_equivalence_measurement_artifact_hashes"
+        )
+        if (
+            type(validator_id) is not str
+            or type(validation_plan_hash) is not str
+            or type(result_manifest_hash) is not str
+            or type(previous_implementation_identity) is not str
+            or type(new_implementation_identity) is not str
+            or not isinstance(measurements, list)
+            or not measurements
+            or measurements != sorted(set(measurements))
+        ):
+            raise self._semantic_equivalence_repair_error(
+                "implementation semantic dispatch is incomplete"
+            )
+        _require_digest("semantic validation plan", validation_plan_hash)
+        _require_digest("semantic result manifest", result_manifest_hash)
+        _require_digest(
+            "previous implementation identity",
+            previous_implementation_identity,
+        )
+        _require_digest(
+            "new implementation identity",
+            new_implementation_identity,
+        )
+        if new_implementation_identity != candidate.new_basis_hash:
+            raise self._semantic_equivalence_repair_error(
+                "candidate basis differs from its implementation proof"
+            )
+        for identity in measurements:
+            _require_digest("semantic measurement", identity)
+        with self.open_stable_index() as (control, index):
+            if control.get("control_hash") != expected_control_hash:
+                raise TransitionError(
+                    "Repair head changed before semantic validation"
+                )
+            science = control.get("scientific")
+            repair = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_repair")
+            )
+            job = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_job")
+            )
+            if (
+                not isinstance(repair, Mapping)
+                or not isinstance(job, Mapping)
+                or repair.get("id") != candidate.repair_id
+                or job.get("id") != candidate.job_id
+                or job.get("hash") != candidate.job_hash
+            ):
+                raise TransitionError(
+                    "Repair head changed before semantic validation"
+                )
+            declaration = index.get("job-declared", candidate.job_id)
+            spec = (
+                None
+                if declaration is None
+                else declaration.payload.get("spec")
+            )
+            subject = (
+                None
+                if not isinstance(spec, Mapping)
+                else spec.get("evidence_subject")
+            )
+            if not isinstance(subject, Mapping) or subject.get(
+                "kind"
+            ) != "Executable":
+                return None
+            if (
+                declaration is None
+                or type(declaration.payload.get("mission_id")) is not str
+                or type(subject.get("id")) is not str
+            ):
+                raise self._semantic_equivalence_repair_error(
+                    "semantic validation lost its Job authority"
+                )
+            plan, planned_old_identity = (
+                self._implementation_repair_semantic_plan_locked(
+                    index,
+                    repair=repair,
+                    job=job,
+                    declaration=declaration,
+                    spec=spec,
+                    new_implementation_identity=candidate.new_basis_hash,
+                    validator_id=validator_id,
+                )
+            )
+            if planned_old_identity != previous_implementation_identity:
+                raise self._semantic_equivalence_repair_error(
+                    "old implementation identity changed before validation"
+                )
+            mission_id = str(declaration.payload["mission_id"])
+            executable_id = str(subject["id"])
+        return {
+            "executable_id": executable_id,
+            "job_hash": candidate.job_hash,
+            "job_id": candidate.job_id,
+            "measurement_artifact_hashes": tuple(measurements),
+            "mission_id": mission_id,
+            "plan": plan,
+            "result_manifest_hash": result_manifest_hash,
+            "validation_plan_hash": validation_plan_hash,
+        }
+
     def close_repair(
         self,
         *,
         changed_cause_proof_hash: str,
         operation_id: str,
+        _candidate_capability: _RepairEvaluationCapability | None = None,
     ) -> TransitionResult:
         _require_digest("changed_cause_proof_hash", changed_cause_proof_hash)
 
@@ -27139,19 +29244,29 @@ class StateWriter:
                 prior_attempt_record_id,
                 previous_basis,
                 attempt_sequence,
+                used_basis_hashes,
             ) = self._repair_attempt_context(
                 _index,
                 repair=repair,
                 job=job,
             )
-            proof = self._parse_active_repair_attempt(
-                proof_hash=changed_cause_proof_hash,
-                expected_outcome="repaired",
+            if _candidate_capability is None:
+                raise TransitionError(
+                    "Repair requires outcome-free candidate evaluation"
+                )
+            candidate = self._parse_active_repair_candidate(
+                index=_index,
+                candidate_hash=changed_cause_proof_hash,
                 repair=repair,
                 job=job,
                 opened=opened,
                 prior_record_id=prior_attempt_record_id,
                 previous_basis=previous_basis,
+                used_basis_hashes=used_basis_hashes,
+            )
+            proof = self._repair_candidate_attempt_proof(
+                candidate,
+                _candidate_capability.evaluation,
             )
             declaration = _index.get("job-declared", job["id"])
             spec = None if declaration is None else declaration.payload.get("spec")
@@ -27412,23 +29527,86 @@ class StateWriter:
                         raise self._semantic_equivalence_repair_error(
                             "Mission identity is unavailable"
                         )
-                    semantic_equivalence_validation = (
-                        self._run_implementation_repair_semantic_equivalence(
-                            plan=plan,
-                            validation_plan_hash=validation_plan_hash,
-                            result_manifest_hash=result_manifest_hash,
-                            measurement_artifact_hashes=measurement_hashes,
-                            mission_id=mission_id,
-                            job_id=job["id"],
-                            job_hash=job["hash"],
-                            executable_id=spec["evidence_subject"]["id"],
-                        )
+                    prepared_semantic = (
+                        _candidate_capability.semantic_equivalence_validation
                     )
+                    if (
+                        _candidate_capability.token
+                        is not _REPAIR_EVALUATION_CAPABILITY_TOKEN
+                        or _candidate_capability.control_hash
+                        != current.get("control_hash")
+                        or prepared_semantic is None
+                    ):
+                        raise self._semantic_equivalence_repair_error(
+                            "positive semantic-equivalence capability is absent"
+                        )
+                    semantic_equivalence_validation = _copy(prepared_semantic)
+                    expected_binding = build_semantic_equivalence_binding(
+                        plan=plan,
+                        validation_plan_hash=validation_plan_hash,
+                        result_manifest_hash=result_manifest_hash,
+                        measurement_artifact_hashes=measurement_hashes,
+                    )
+                    if (
+                        semantic_equivalence_validation.get("binding")
+                        != expected_binding
+                        or semantic_equivalence_validation.get("claims")
+                        != list(plan["claims"])
+                        or semantic_equivalence_validation.get(
+                            "measurement_artifact_hashes"
+                        )
+                        != sorted(measurement_hashes)
+                        or semantic_equivalence_validation.get("verdict")
+                        != "passed"
+                    ):
+                        raise self._semantic_equivalence_repair_error(
+                            "prepared semantic-equivalence trace differs"
+                        )
                 effective_implementation = new_identity
                 implementation_changed = True
+            mission_id = declaration.payload.get("mission_id")
+            if type(mission_id) is not str:
+                raise TransitionError(
+                    "Repair candidate lost its Job Mission authority"
+                )
+            repair_validation = self._require_repair_evaluation_capability(
+                capability=_candidate_capability,
+                current=current,
+                candidate=candidate,
+                mission_id=mission_id,
+                expected_mode="repaired",
+            )
+            attempt_fingerprint = repair_attempt_intervention_fingerprint(
+                proof,
+                verification_capabilities=repair_validation_capabilities(
+                    repair_validation
+                ),
+            )
+            fingerprint_record_id = canonical_digest(
+                domain="repair-attempt-fingerprint",
+                payload={
+                    "attempt_fingerprint": attempt_fingerprint,
+                    "repair_id": repair["id"],
+                },
+            )
+            if _index.get(
+                "repair-attempt-fingerprint", fingerprint_record_id
+            ) is not None:
+                raise IdenticalFailedRetryError(
+                    "identical Repair intervention requires new evidence or protocol"
+                )
+            candidate_authority = {
+                "repair_candidate": candidate.payload(),
+                "repair_candidate_hash": candidate.sha256,
+                "repair_evaluation": _candidate_capability.evaluation.payload(),
+            }
             attempt_identity_payload = {
                 "attempt_proof_hash": changed_cause_proof_hash,
+                "attempt_fingerprint": attempt_fingerprint,
                 **proof.payload(),
+                "repair_authority_schema": REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+                "repair_validation": repair_validation,
+                **candidate_authority,
             }
             if semantic_equivalence_validation is not None:
                 attempt_identity_payload["semantic_equivalence_validation"] = (
@@ -27446,7 +29624,13 @@ class StateWriter:
                 fingerprint=changed_cause_proof_hash,
                 payload={
                     "attempt_proof_hash": changed_cause_proof_hash,
+                    "attempt_fingerprint": attempt_fingerprint,
                     **proof.payload(),
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "repair_validation": repair_validation,
+                    **candidate_authority,
                     **(
                         {
                             "semantic_equivalence_validation": (
@@ -27462,6 +29646,18 @@ class StateWriter:
                 event_stream=f"repair-attempt:{repair['id']}",
                 event_sequence=attempt_sequence,
             )
+            fingerprint_record = _record(
+                kind="repair-attempt-fingerprint",
+                record_id=fingerprint_record_id,
+                subject=f"Repair:{repair['id']}",
+                status="repaired",
+                fingerprint=attempt_fingerprint,
+                payload={
+                    "attempt_fingerprint": attempt_fingerprint,
+                    "attempt_record_id": attempt_record_id,
+                    "repair_id": repair["id"],
+                },
+            )
             science["active_repair"] = None
             job["status"] = "running"
             repair_stream = f"job-repair:{job['id']}"
@@ -27469,6 +29665,9 @@ class StateWriter:
             repair_close_identity_payload = {
                 "repair_id": repair["id"],
                 "proof": changed_cause_proof_hash,
+                "repair_authority_schema": REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+                "repair_validation": repair_validation,
+                **candidate_authority,
             }
             if semantic_equivalence_validation is not None:
                 repair_close_identity_payload[
@@ -27505,6 +29704,11 @@ class StateWriter:
                     ),
                     "prior_attempt_record_id": prior_attempt_record_id,
                     "repair_id": repair["id"],
+                    "repair_authority_schema": (
+                        REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    ),
+                    "repair_validation": repair_validation,
+                    **candidate_authority,
                     **(
                         {
                             "semantic_equivalence_validation": (
@@ -27525,7 +29729,7 @@ class StateWriter:
                     1 if repair_head is None else repair_head.sequence + 1
                 ),
             )
-            return body, [attempt_record, record], {
+            return body, [fingerprint_record, attempt_record, record], {
                 "attempt_record_id": attempt_record_id,
                 "effective_implementation_identity": (
                     effective_implementation
@@ -30151,6 +32355,184 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def _external_reentry_validation_dispatch_locked(
+        self,
+        *,
+        current: Mapping[str, Any],
+        index: LocalIndex | LocalIndexView,
+        basis_record_id: str,
+        mission_close_record_id: str,
+        evidence: ExternalChangeEvidence,
+    ) -> dict[str, Any]:
+        """Freeze exact blocked-Mission evidence without executing a validator."""
+
+        body = self._body(current)
+        science = body["scientific"]
+        boundary = body.get("next_action")
+        if (
+            science.get("active_mission") is not None
+            or any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_initiative",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            )
+            or body.get("authorizations") != {}
+            or not isinstance(boundary, Mapping)
+            or boundary.get("kind") != "await_external_change"
+            or boundary.get("basis_record_id") != basis_record_id
+            or boundary.get("predecessor_mission_close_record_id")
+            != mission_close_record_id
+        ):
+            raise TransitionError(
+                "blocked Mission reentry is not at its exact wait boundary"
+            )
+        mission_id = boundary.get("predecessor_mission_id")
+        blocker = index.get("external-blocker", basis_record_id)
+        close_record = index.get("mission-close", mission_close_record_id)
+        mission_open = (
+            None
+            if type(mission_id) is not str
+            else index.get("mission-open", mission_id)
+        )
+        try:
+            plan = ExternalRecoveryPlan.from_identity_payload(
+                {}
+                if blocker is None
+                else blocker.payload.get("recovery_plan", {})
+            )
+        except ExternalDependencyContractError as exc:
+            raise RecoveryRequired(
+                "blocked Mission reentry lost its typed recovery plan"
+            ) from exc
+        condition = plan.condition
+        if (
+            blocker is None
+            or blocker.status != "complete"
+            or blocker.subject != f"Mission:{mission_id}"
+            or blocker.payload.get("resume_condition_id")
+            != condition.identity
+            or blocker.payload.get("mission_resume_next_action")
+            != condition.resume_action.to_next_action()
+            or close_record is None
+            or close_record.status != "blocked_external"
+            or close_record.subject != f"Mission:{mission_id}"
+            or close_record.payload.get("basis_record_id") != basis_record_id
+            or mission_open is None
+            or evidence.condition_id != condition.identity
+            or boundary.get("resume_condition_id") != condition.identity
+            or boundary.get("mission_resume_next_action")
+            != condition.resume_action.to_next_action()
+        ):
+            raise TransitionError(
+                "blocked Mission reentry differs from its exact terminal"
+            )
+        try:
+            self.evidence.verify(condition.validation_plan_hash)
+        except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+            raise RecoveryRequired(
+                "blocked Mission validation plan is absent or corrupt"
+            ) from exc
+        dependency_head = index.event_head(
+            f"external-dependency:{condition.dependency_id}"
+        )
+        dependency_latest = (
+            None
+            if dependency_head is None
+            else index.get(
+                dependency_head.record_kind,
+                dependency_head.record_id,
+            )
+        )
+        if (
+            dependency_head is None
+            or dependency_latest is None
+            or dependency_latest.status != "external_unavailable"
+        ):
+            raise TransitionError(
+                "blocked Mission dependency state is no longer the exact outage"
+            )
+        project_head = index.event_head("project-goal:OPERATING_DIRECTION.md")
+        if (
+            project_head is None
+            or project_head.record_id != mission_close_record_id
+        ):
+            raise TransitionError(
+                "blocked Mission close is not the current Project Goal boundary"
+            )
+        output_manifest = dict(evidence.output_manifest)
+        result_hash = output_manifest[evidence.result_manifest_output]
+        try:
+            result_manifest = parse_canonical(
+                self.evidence.read_verified(result_hash)
+            )
+        except ValueError as exc:
+            raise TransitionError(
+                "external change result manifest is not canonical"
+            ) from exc
+        required_result = {
+            "blocker_basis_record_id",
+            "condition_id",
+            "measurement_artifact_hashes",
+            "mission_close_record_id",
+            "mission_id",
+            "schema",
+        }
+        measurement_hashes = sorted(
+            artifact_hash
+            for output_name, artifact_hash in evidence.output_manifest
+            if output_name != evidence.result_manifest_output
+        )
+        if (
+            not isinstance(result_manifest, dict)
+            or set(result_manifest) != required_result
+            or result_manifest.get("schema") != "external_change_evidence.v1"
+            or result_manifest.get("blocker_basis_record_id")
+            != basis_record_id
+            or result_manifest.get("condition_id") != condition.identity
+            or result_manifest.get("mission_close_record_id")
+            != mission_close_record_id
+            or result_manifest.get("mission_id") != mission_id
+            or result_manifest.get("measurement_artifact_hashes")
+            != measurement_hashes
+        ):
+            raise TransitionError(
+                "external change result differs from the blocked Mission"
+            )
+        validation_binding = {
+            "blocked_mission_capability": condition.blocked_mission_capability,
+            "dependency_id": condition.dependency_id,
+            "result_manifest_output": evidence.result_manifest_output,
+            "resume_condition_id": condition.identity,
+        }
+        expected_facts = {
+            "blocked_mission_capability": condition.blocked_mission_capability,
+            "dependency_id": condition.dependency_id,
+            "external_change_satisfied": True,
+            "resume_condition_id": condition.identity,
+        }
+        return {
+            "artifact_rows": tuple(evidence.output_manifest),
+            "condition": condition,
+            "dependency_head": dependency_head,
+            "expected_facts": expected_facts,
+            "measurement_hashes": measurement_hashes,
+            "mission_id": str(mission_id),
+            "mission_open": mission_open,
+            "project_head": project_head,
+            "result_manifest": result_manifest,
+            "result_hash": result_hash,
+            "validation_binding": validation_binding,
+        }
+
     def resume_blocked_mission(
         self,
         *,
@@ -30171,6 +32553,118 @@ class StateWriter:
         if not isinstance(evidence, ExternalChangeEvidence):
             raise TransitionError(
                 "blocked Mission reentry requires typed external change evidence"
+            )
+
+        request_hash = canonical_digest(
+            domain="external-reentry-validation-request",
+            payload={
+                "basis_record_id": basis_record_id,
+                "evidence_id": evidence.identity,
+                "mission_close_record_id": mission_close_record_id,
+            },
+        )
+        validation_capability: (
+            _ExternalReentryValidationCapability | None
+        ) = None
+        with self.open_stable_index() as (frozen_control, frozen_index):
+            frozen_boundary = frozen_control.get("next_action")
+            exact_wait_boundary = (
+                isinstance(frozen_boundary, Mapping)
+                and frozen_boundary.get("kind") == "await_external_change"
+                and frozen_boundary.get("basis_record_id")
+                == basis_record_id
+                and frozen_boundary.get(
+                    "predecessor_mission_close_record_id"
+                )
+                == mission_close_record_id
+            )
+            frozen_dispatch = (
+                self._external_reentry_validation_dispatch_locked(
+                    current=frozen_control,
+                    index=frozen_index,
+                    basis_record_id=basis_record_id,
+                    mission_close_record_id=mission_close_record_id,
+                    evidence=evidence,
+                )
+                if exact_wait_boundary
+                else None
+            )
+            frozen_control_hash = str(frozen_control["control_hash"])
+        if frozen_dispatch is not None:
+            artifacts = tuple(
+                ValidationArtifact(
+                    output_name=output_name,
+                    sha256=artifact_hash,
+                    _source=self.evidence.verified_path(artifact_hash),
+                )
+                for output_name, artifact_hash in frozen_dispatch[
+                    "artifact_rows"
+                ]
+            )
+            condition = frozen_dispatch["condition"]
+            request = ExternalChangeValidationRequest(
+                validator_id=condition.validator_id,
+                validation_plan_hash=condition.validation_plan_hash,
+                boundary_id=mission_close_record_id,
+                condition_id=condition.identity,
+                mission_id=frozen_dispatch["mission_id"],
+                evidence_subject={
+                    "kind": "Mission",
+                    "id": frozen_dispatch["mission_id"],
+                },
+                binding=frozen_dispatch["validation_binding"],
+                result_manifest=frozen_dispatch["result_manifest"],
+                artifacts=artifacts,
+                engineering_fixture=False,
+            )
+            try:
+                validated, trace = self.validation_registry.validate(request)
+            except EvidenceValidationError as exc:
+                raise TransitionError(
+                    f"registered external reentry validation failed: {exc}"
+                ) from exc
+            expected_facts = frozen_dispatch["expected_facts"]
+            measurement_hashes = frozen_dispatch["measurement_hashes"]
+            if (
+                validated.verdict != "passed"
+                or dict(validated.facts) != expected_facts
+                or sorted(validated.measurement_artifact_hashes)
+                != measurement_hashes
+                or validated.claims
+                or validated.artifact_roles
+                or validated.scientific_eligible
+                or validated.candidate_eligible
+                or validated.release_eligible
+            ):
+                raise TransitionError(
+                    "external change validator did not satisfy the exact condition"
+                )
+            validation_payload = {
+                "blocker_basis_record_id": basis_record_id,
+                "condition_id": condition.identity,
+                "facts": expected_facts,
+                "measurement_artifact_hashes": measurement_hashes,
+                "mission_close_record_id": mission_close_record_id,
+                "mission_id": frozen_dispatch["mission_id"],
+                "result_manifest_hash": frozen_dispatch["result_hash"],
+                "validation_plan_hash": condition.validation_plan_hash,
+                "validation_trace": {
+                    "declared_artifact_count": trace.declared_artifact_count,
+                    "opened_artifact_count": trace.opened_artifact_count,
+                    "validator_id": trace.validator_id,
+                },
+                "validator_id": condition.validator_id,
+            }
+            validation_payload_hash = canonical_digest(
+                domain="external-reentry-validation-capability",
+                payload=validation_payload,
+            )
+            validation_capability = _ExternalReentryValidationCapability(
+                token=_EXTERNAL_REENTRY_VALIDATION_CAPABILITY_TOKEN,
+                control_hash=frozen_control_hash,
+                request_hash=request_hash,
+                validation_payload=_copy(validation_payload),
+                validation_payload_hash=validation_payload_hash,
             )
 
         def prepare(current: dict[str, Any] | None, index: LocalIndex):
@@ -30312,41 +32806,6 @@ class StateWriter:
                 raise TransitionError(
                     "external change result differs from the blocked Mission"
                 )
-            artifacts: list[ValidationArtifact] = []
-            for output_name, artifact_hash in evidence.output_manifest:
-                artifacts.append(
-                    ValidationArtifact(
-                        output_name=output_name,
-                        sha256=artifact_hash,
-                        _source=self.evidence.verified_path(artifact_hash),
-                    )
-                )
-            validation_binding = {
-                "blocked_mission_capability": (
-                    condition.blocked_mission_capability
-                ),
-                "dependency_id": condition.dependency_id,
-                "result_manifest_output": evidence.result_manifest_output,
-                "resume_condition_id": condition.identity,
-            }
-            request = ExternalChangeValidationRequest(
-                validator_id=condition.validator_id,
-                validation_plan_hash=condition.validation_plan_hash,
-                boundary_id=mission_close_record_id,
-                condition_id=condition.identity,
-                mission_id=mission_id,
-                evidence_subject={"kind": "Mission", "id": mission_id},
-                binding=validation_binding,
-                result_manifest=result_manifest,
-                artifacts=tuple(artifacts),
-                engineering_fixture=False,
-            )
-            try:
-                validated, trace = self.validation_registry.validate(request)
-            except EvidenceValidationError as exc:
-                raise TransitionError(
-                    f"registered external reentry validation failed: {exc}"
-                ) from exc
             expected_facts = {
                 "blocked_mission_capability": (
                     condition.blocked_mission_capability
@@ -30356,35 +32815,41 @@ class StateWriter:
                 "resume_condition_id": condition.identity,
             }
             if (
-                validated.verdict != "passed"
-                or dict(validated.facts) != expected_facts
-                or sorted(validated.measurement_artifact_hashes)
-                != measurement_hashes
-                or validated.claims
-                or validated.artifact_roles
-                or validated.scientific_eligible
-                or validated.candidate_eligible
-                or validated.release_eligible
+                validation_capability is None
+                or validation_capability.token
+                is not _EXTERNAL_REENTRY_VALIDATION_CAPABILITY_TOKEN
+                or validation_capability.control_hash
+                != current.get("control_hash")
+                or validation_capability.request_hash != request_hash
+                or canonical_digest(
+                    domain="external-reentry-validation-capability",
+                    payload=dict(validation_capability.validation_payload),
+                )
+                != validation_capability.validation_payload_hash
             ):
                 raise TransitionError(
-                    "external change validator did not satisfy the exact condition"
+                    "external reentry validation capability is absent or stale"
                 )
-            validation_payload = {
-                "blocker_basis_record_id": basis_record_id,
-                "condition_id": condition.identity,
-                "facts": expected_facts,
-                "measurement_artifact_hashes": measurement_hashes,
-                "mission_close_record_id": mission_close_record_id,
-                "mission_id": mission_id,
-                "result_manifest_hash": result_hash,
-                "validation_plan_hash": condition.validation_plan_hash,
-                "validation_trace": {
-                    "declared_artifact_count": trace.declared_artifact_count,
-                    "opened_artifact_count": trace.opened_artifact_count,
-                    "validator_id": trace.validator_id,
-                },
-                "validator_id": condition.validator_id,
-            }
+            validation_payload = _copy(
+                validation_capability.validation_payload
+            )
+            if any(
+                validation_payload.get(name) != expected
+                for name, expected in {
+                    "blocker_basis_record_id": basis_record_id,
+                    "condition_id": condition.identity,
+                    "facts": expected_facts,
+                    "measurement_artifact_hashes": measurement_hashes,
+                    "mission_close_record_id": mission_close_record_id,
+                    "mission_id": mission_id,
+                    "result_manifest_hash": result_hash,
+                    "validation_plan_hash": condition.validation_plan_hash,
+                    "validator_id": condition.validator_id,
+                }.items()
+            ):
+                raise TransitionError(
+                    "external reentry validation capability differs from authority"
+                )
             validation_id = canonical_digest(
                 domain="external-change-validation",
                 payload=validation_payload,

@@ -26,6 +26,10 @@ from axiom_rift.core.identity import (
     canonical_identity_bytes,
 )
 from axiom_rift.operations import validation as operations_validation_module
+from axiom_rift.operations import (
+    repair_disposition_case as operations_repair_disposition_case_module,
+    validation_identity as operations_validation_identity_module,
+)
 from axiom_rift.research import (
     adjudication as adjudication_module,
     analog_state_family as analog_family_module,
@@ -204,6 +208,12 @@ def forest_replay_dependency_graph() -> dict[Path, tuple[Path, ...]]:
     canonical = _module_source(canonical_module)
     identity = _module_source(identity_module)
     operations_validation = _module_source(operations_validation_module)
+    operations_repair_disposition_case = _module_source(
+        operations_repair_disposition_case_module
+    )
+    operations_validation_identity = _module_source(
+        operations_validation_identity_module
+    )
     adjudication = _module_source(adjudication_module)
     analog_family = _module_source(analog_family_module)
     analog_trace = _module_source(analog_trace_module)
@@ -259,7 +269,14 @@ def forest_replay_dependency_graph() -> dict[Path, tuple[Path, ...]]:
         implementation_closure: (),
         inventory: (canonical,),
         p0_selection: (inventory, selection),
-        operations_validation: (canonical, identity),
+        operations_validation: (
+            canonical,
+            identity,
+            operations_repair_disposition_case,
+            operations_validation_identity,
+        ),
+        operations_repair_disposition_case: (canonical,),
+        operations_validation_identity: (identity,),
         reproducible_cache: (),
         scientific_trace: (),
         selection: (adjudication, canonical, identity),

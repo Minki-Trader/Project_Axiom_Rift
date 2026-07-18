@@ -36,6 +36,8 @@ from axiom_rift.operations.writer import (
     _terminal_scientific_evidence_modes,
 )
 from axiom_rift.operations.validation import (
+    ENGINEERING_REPAIR_FIXTURE_PROTOCOL,
+    ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID,
     ENGINEERING_RETRY_VALIDATOR_ID,
     ENGINEERING_RUNTIME_PLAN_HASH,
     ENGINEERING_VALIDATOR_ID,
@@ -43,8 +45,12 @@ from axiom_rift.operations.validation import (
     EvidenceValidationError,
     EvidenceValidatorRegistry,
 )
+from axiom_rift.operations.repair_disposition_materializer import (
+    materialize_engineering_repair_disposition,
+)
 from tests.operations.fixture_validators import (
     ComponentParityFixtureValidator,
+    EngineeringRepairBoundaryFixtureValidator,
     EngineeringRetryBoundaryFixtureValidator,
     ExternalFixtureValidator,
     RUNTIME_BOUNDARY_PLAN_HASH,
@@ -52,6 +58,10 @@ from tests.operations.fixture_validators import (
     ScientificFixtureValidator,
     SOURCE_BOUNDARY_PLAN_HASH,
     SourceBoundaryFixtureValidator,
+)
+from tests.operations.repair_candidate_fixture import (
+    materialize_fixture_repair_inventory,
+    repair_candidate_fixture,
 )
 from axiom_rift.research.sources import (
     RuntimeSourceDriftObservation,
@@ -174,7 +184,7 @@ from axiom_rift.research.scientific_study import (
 )
 from axiom_rift.storage.journal import JournalIntegrityError, TornJournalError
 from axiom_rift.storage.index import IndexRecord, LocalIndex
-from axiom_rift.storage.state import control_hash
+from axiom_rift.storage.state import WriterLock, control_hash
 from axiom_rift.runtime.source_lifecycle_coverage import (
     derive_source_lifecycle_coverage,
 )
@@ -726,265 +736,6 @@ def job_spec(
             },
         ],
     }
-
-
-def repair_attempt_proof(
-    writer: StateWriter,
-    *,
-    outcome: str,
-    changed_dimension: str,
-    new_basis_hash: str,
-    new_evidence_hashes: tuple[str, ...],
-    verification_evidence_hashes: tuple[str, ...],
-    implementation_proof_hash: str | None = None,
-) -> str:
-    control = writer.read_control()
-    assert control is not None
-    repair = control["scientific"]["active_repair"]
-    job = control["scientific"]["active_job"]
-    assert isinstance(repair, dict) and isinstance(job, dict)
-    with LocalIndex(writer.index_path) as index:
-        opened = index.get("repair-open", repair["id"])
-    assert opened is not None
-    check_plan = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "changed_dimension": changed_dimension,
-                "job_id": job["id"],
-                "new_basis_hash": new_basis_hash,
-                "schema": "fixture_repair_check_plan.v1",
-            }
-        )
-    )
-    verification_receipt = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": repair["cause_hash"],
-                "changed_dimension": changed_dimension,
-                "check_plan_hash": check_plan.sha256,
-                "job_hash": job["hash"],
-                "job_id": job["id"],
-                "new_basis_hash": new_basis_hash,
-                "outcome": outcome,
-                "repair_id": repair["id"],
-                "result_artifact_hashes": sorted(
-                    verification_evidence_hashes
-                ),
-                "resume_action": repair["resume_action"],
-                "schema": "repair_verification_receipt.v1",
-                "scientific_semantics_changed": False,
-                "verdict": (
-                    "passed"
-                    if outcome == "repaired"
-                    else "failure_reproduced"
-                ),
-                "verification_method": "fixture affected-surface check",
-            }
-        )
-    )
-    proof = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": repair["cause_hash"],
-                "changed_dimension": changed_dimension,
-                "explanation": "exercise exact changed-basis Repair evidence",
-                "failure_observation": (
-                    "changed basis still reproduces the engineering failure"
-                    if outcome == "failed"
-                    else None
-                ),
-                "implementation_proof_hash": implementation_proof_hash,
-                "job_hash": job["hash"],
-                "job_id": job["id"],
-                "new_basis_hash": new_basis_hash,
-                "new_evidence_hashes": sorted(new_evidence_hashes),
-                "outcome": outcome,
-                "previous_basis_hash": repair["latest_basis_hash"],
-                "prior_attempt_record_id": repair[
-                    "latest_attempt_record_id"
-                ],
-                "repair_id": repair["id"],
-                "reproduction_evidence_hashes": sorted(
-                    opened.payload["minimum_reproduction_evidence"]
-                ),
-                "resume_action": repair["resume_action"],
-                "schema": "running_job_repair_attempt.v1",
-                "scientific_semantics_changed": False,
-                "verification_evidence_hashes": sorted(
-                    [verification_receipt.sha256]
-                ),
-            }
-        )
-    )
-    return proof.sha256
-
-
-def engineering_failure_disposition(
-    writer: StateWriter,
-    *,
-    job_id: str,
-    evidence_hashes: tuple[str, ...],
-    repair_attempt_record_ids: tuple[str, ...] = (),
-    disposition: str = "requires_scientific_change",
-    cause_hash: str | None = None,
-) -> str:
-    control = writer.read_control()
-    assert control is not None
-    active_repair = control["scientific"]["active_repair"]
-    repair_id = (
-        active_repair["id"]
-        if isinstance(active_repair, dict)
-        else None
-    )
-    if cause_hash is None and isinstance(active_repair, dict):
-        cause_hash = active_repair["cause_hash"]
-    assert isinstance(cause_hash, str)
-    active_job = control["scientific"]["active_job"]
-    assert isinstance(active_job, dict) and active_job["id"] == job_id
-    attempt_entries: list[dict[str, object]] = []
-    reproduction_evidence_hashes = sorted(evidence_hashes)
-    with LocalIndex(writer.index_path) as index:
-        if isinstance(active_repair, dict):
-            opened = index.get("repair-open", active_repair["id"])
-            assert opened is not None
-            reproduction_evidence_hashes = sorted(
-                opened.payload["minimum_reproduction_evidence"]
-            )
-        for attempt_record_id in sorted(repair_attempt_record_ids):
-            attempt = index.get("repair-attempt", attempt_record_id)
-            assert attempt is not None
-            attempt_entries.append(
-                {
-                    "attempt_proof_hash": attempt.payload[
-                        "attempt_proof_hash"
-                    ],
-                    "changed_dimension": attempt.payload[
-                        "changed_dimension"
-                    ],
-                    "new_basis_hash": attempt.payload["new_basis_hash"],
-                    "repair_attempt_record_id": attempt.record_id,
-                    "verification_receipt_hashes": sorted(
-                        attempt.payload["verification_evidence_hashes"]
-                    ),
-                }
-            )
-    basis_by_disposition = {
-        "repair_exhausted_changed_causes": (
-            False,
-            False,
-            "not_applicable",
-            [],
-        ),
-        "repair_infeasible": (False, False, "not_applicable", []),
-        "repair_nonpositive_expected_value": (
-            True,
-            False,
-            "nonpositive",
-            ["remaining bounded repair cause"],
-        ),
-        "requires_scientific_change": (
-            False,
-            True,
-            "not_applicable",
-            [],
-        ),
-    }
-    repairable, semantic_change, expected_value, remaining = (
-        basis_by_disposition[disposition]
-    )
-    verification_results = {
-        "repair_exhausted_changed_causes": "changed_causes_exhausted",
-        "repair_infeasible": "repair_infeasible",
-        "repair_nonpositive_expected_value": "nonpositive_expected_value",
-        "requires_scientific_change": "scientific_change_required",
-    }
-    assessment_plan = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": cause_hash,
-                "disposition": disposition,
-                "job_hash": active_job["hash"],
-                "job_id": job_id,
-                "repair_attempt_record_ids": sorted(
-                    repair_attempt_record_ids
-                ),
-                "repair_id": repair_id,
-                "schema": "fixture_engineering_disposition_check.v1",
-            }
-        )
-    )
-    assessment_result = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "evidence_hashes": sorted(evidence_hashes),
-                "schema": "fixture_engineering_disposition_result.v1",
-                "verification_result": verification_results[disposition],
-            }
-        )
-    )
-    observation = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": cause_hash,
-                "check_plan_hash": assessment_plan.sha256,
-                "disposition": disposition,
-                "job_hash": active_job["hash"],
-                "job_id": job_id,
-                "minimum_reproduction_evidence_hashes": (
-                    reproduction_evidence_hashes
-                ),
-                "repair_attempts": sorted(
-                    attempt_entries,
-                    key=lambda item: item["repair_attempt_record_id"],
-                ),
-                "repair_id": repair_id,
-                "result_artifact_hashes": [assessment_result.sha256],
-                "schema": "engineering_failure_disposition_observation.v1",
-                "scientific_semantics_changed": False,
-                "verification_method": "fixture bounded recovery assessment",
-                "verification_result": verification_results[disposition],
-            }
-        )
-    )
-    basis = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": cause_hash,
-                "disposition": disposition,
-                "expected_value": expected_value,
-                "job_id": job_id,
-                "observation_manifest_hash": observation.sha256,
-                "remaining_changed_causes": remaining,
-                "repair_id": repair_id,
-                "repairable_without_scientific_change": repairable,
-                "schema": "engineering_failure_disposition_basis.v1",
-                "scientific_semantics_change_required": semantic_change,
-            }
-        )
-    )
-    artifact = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "basis_manifest_hash": basis.sha256,
-                "cause_hash": cause_hash,
-                "disposition": disposition,
-                "job_id": job_id,
-                "rationale": "repair would alter registered scientific semantics",
-                "repair_id": repair_id,
-                "repair_attempt_record_ids": sorted(
-                    repair_attempt_record_ids
-                ),
-                "resume_condition": "admit a new exact scientific work identity",
-                "schema": "engineering_failure_disposition.v1",
-                "successor_scope": (
-                    "study"
-                    if disposition == "requires_scientific_change"
-                    else None
-                ),
-            }
-        )
-    )
-    return artifact.sha256
 
 
 def engineering_retry_validation_artifacts(
@@ -3089,6 +2840,176 @@ class WriterTests(unittest.TestCase):
             semantic_proposal=semantic_proposal,
             permit=permit,
             operation_id=f"{operation_prefix}-open",
+        )
+
+    def test_terminal_repair_validation_runs_once_before_writer_commit(
+        self,
+    ) -> None:
+        self.open_mission_and_initiative()
+        opened = self.open_fixture_study(
+            study_id="STU-TWO-PHASE-REPAIR",
+            question=study_question("two phase Repair disposition"),
+            semantic_proposal={"mechanism": "two phase Repair fixture"},
+            operation_prefix="two-phase-repair-study",
+        )
+        repair_batch = batch_spec(
+            batch_id="BAT-TWO-PHASE-REPAIR",
+            study_id="STU-TWO-PHASE-REPAIR",
+            study_hash=opened.result["study_hash"],
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id="STU-TWO-PHASE-REPAIR",
+            input_hash=repair_batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="two-phase-repair-batch-permit",
+        )
+        self.writer.open_batch(
+            batch_spec=repair_batch,
+            permit=batch_permit,
+            operation_id="two-phase-repair-batch-open",
+        )
+        spec = job_spec(
+            self.writer,
+            {"kind": "Study", "id": "STU-TWO-PHASE-REPAIR"},
+        )
+        declared = self.writer.declare_job(
+            spec=spec,
+            operation_id="two-phase-repair-job-declare",
+        )
+        job_id = declared.result["job_id"]
+        job_hash = declared.result["job_hash"]
+        start_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=job_id,
+            input_hash=job_hash,
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="two-phase-repair-job-permit",
+        )
+        self.writer.start_job(
+            permit=start_permit,
+            operation_id="two-phase-repair-job-start",
+        )
+        repair_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=job_id,
+            input_hash=job_hash,
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="two-phase-repair-open-permit",
+        )
+        reproduction = self.writer.evidence.finalize(
+            b"two phase Repair reproduction"
+        )
+        self.writer.open_repair(
+            permit=repair_permit,
+            failure={
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "bounded fixture route is unavailable",
+                "interrupted_action": spec["callable_identity"],
+            },
+            operation_id="two-phase-repair-open",
+        )
+        support = self.writer.evidence.finalize(
+            b"complete fixture route inventory"
+        )
+        facts = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "axes": [
+                        {
+                            "accepted_attempt_record_ids": [],
+                            "axis_id": "fixture-bounded-route",
+                            "changed_dimension": "implementation",
+                            "state": "infeasible",
+                            "support_evidence_hashes": [support.sha256],
+                            "value_assessment": None,
+                        }
+                    ],
+                    "coverage_complete": True,
+                    "no_identity_preserving_repair_route_remaining": True,
+                    "schema": "engineering_repair_inventory_facts.v1",
+                }
+            )
+        )
+        disposition_hash = materialize_engineering_repair_disposition(
+            self.writer,
+            inventory_validator_id=(
+                ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID
+            ),
+            inventory_protocol=ENGINEERING_REPAIR_FIXTURE_PROTOCOL,
+            inventory_result_artifacts={
+                "support:0000": support.sha256,
+                "validation_result": facts.sha256,
+            },
+            rationale="the complete fixture route inventory is infeasible",
+            resume_condition="complete the typed fixture engineering failure",
+        )
+        def advance_repair_head(current, _index):
+            assert current is not None
+            return self.writer._body(current), [], {"advanced": True}
+
+        self.writer._commit(
+            event_kind="repair_validation_observed",
+            operation_id="two-phase-repair-head-advance",
+            subject="Repair:active",
+            payload={"fixture_head_advance": True},
+            prepare=advance_repair_head,
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "exact stable head",
+        ):
+            self.writer.conclude_repair_unrecovered(
+                disposition_hash=disposition_hash,
+                operation_id="reject-stale-two-phase-repair-capability",
+            )
+        disposition_hash = materialize_engineering_repair_disposition(
+            self.writer,
+            inventory_validator_id=(
+                ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID
+            ),
+            inventory_protocol=ENGINEERING_REPAIR_FIXTURE_PROTOCOL,
+            inventory_result_artifacts={
+                "support:0000": support.sha256,
+                "validation_result": facts.sha256,
+            },
+            rationale="the complete fixture route inventory is infeasible",
+            resume_condition="complete the typed fixture engineering failure",
+        )
+        # The Journal commit consumes the prepared capability.  Removing the
+        # registry proves that no validator is rerun under the Writer lock.
+        self.writer.validation_registry = EvidenceValidatorRegistry()
+        concluded = self.writer.conclude_repair_unrecovered(
+            disposition_hash=disposition_hash,
+            operation_id="two-phase-repair-conclude",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            close = index.get(
+                "repair-close",
+                concluded.result["repair_close_record_id"],
+            )
+        assert close is not None
+        validation = close.payload["disposition_validation"]
+        self.assertEqual(
+            validation["derivation"]["facts"]["disposition"],
+            "repair_infeasible",
+        )
+        self.assertEqual(
+            validation["schema"],
+            "engineering_repair_disposition_validation.v3",
         )
 
     def test_completed_job_budget_overreservation_has_typed_repair(self) -> None:
@@ -6638,27 +6559,51 @@ class WriterTests(unittest.TestCase):
             operation_id="open-repair",
         )
         changed_cause = self.writer.evidence.finalize(b"fixture parser repaired proof")
-        with self.assertRaisesRegex(TransitionError, "canonical evidence"):
+        with self.assertRaisesRegex(
+            TransitionError, "outcome-free candidate evaluation"
+        ):
             self.writer.close_repair(
                 changed_cause_proof_hash=changed_cause.sha256,
                 operation_id="reject-untyped-close-repair",
             )
+        unregistered_basis = self.writer.evidence.finalize(
+            b"changed basis with an unregistered Repair validator"
+        )
+        unregistered_check = self.writer.evidence.finalize(
+            b"unregistered Repair verification result"
+        )
+        unregistered_candidate = repair_candidate_fixture(
+            self.writer,
+            failure_observed_after_change=True,
+            changed_dimension="cause",
+            new_basis_hash=unregistered_basis.sha256,
+            new_evidence_hashes=(unregistered_basis.sha256,),
+            support_evidence_hashes=(unregistered_check.sha256,),
+            validator_id_override="validator:" + "f" * 64,
+        )
+        unregistered = self.writer.evaluate_repair_candidate(
+            candidate_hash=unregistered_candidate,
+            operation_id="observe-unregistered-repair-validator",
+        )
+        self.assertEqual(
+            unregistered.result["evaluation_mode"],
+            "validation_unavailable",
+        )
         failed_basis_one = self.writer.evidence.finalize(
             b"first failed basis in first Repair episode"
         )
         failed_verification_one = self.writer.evidence.finalize(
             b"first failed verification in first Repair episode"
         )
-        failed_attempt_one = self.writer.record_failed_repair_attempt(
-            attempt_proof_hash=repair_attempt_proof(
+        failed_attempt_one = self.writer.evaluate_repair_candidate(
+            candidate_hash=repair_candidate_fixture(
                 self.writer,
-                outcome="failed",
+                failure_observed_after_change=True,
                 changed_dimension="cause",
                 new_basis_hash=failed_basis_one.sha256,
                 new_evidence_hashes=(failed_basis_one.sha256,),
-                verification_evidence_hashes=(
-                    failed_verification_one.sha256,
-                ),
+                support_evidence_hashes=(failed_verification_one.sha256,),
+                repair_axis_id="first-episode-cause-axis",
             ),
             operation_id="record-first-episode-failed-attempt-one",
         )
@@ -6668,36 +6613,35 @@ class WriterTests(unittest.TestCase):
         failed_verification_two = self.writer.evidence.finalize(
             b"second failed verification in first Repair episode"
         )
-        failed_attempt_two = self.writer.record_failed_repair_attempt(
-            attempt_proof_hash=repair_attempt_proof(
+        failed_attempt_two = self.writer.evaluate_repair_candidate(
+            candidate_hash=repair_candidate_fixture(
                 self.writer,
-                outcome="failed",
+                failure_observed_after_change=True,
                 changed_dimension="information",
                 new_basis_hash=failed_basis_two.sha256,
                 new_evidence_hashes=(failed_basis_two.sha256,),
-                verification_evidence_hashes=(
-                    failed_verification_two.sha256,
-                ),
+                support_evidence_hashes=(failed_verification_two.sha256,),
+                repair_axis_id="first-episode-information-axis",
             ),
             operation_id="record-first-episode-failed-attempt-two",
         )
         repair_verification = self.writer.evidence.finalize(
             b"independent fixture parser Repair verification"
         )
-        changed_cause_proof_hash = repair_attempt_proof(
+        changed_cause_proof_hash = repair_candidate_fixture(
             self.writer,
-            outcome="repaired",
+            failure_observed_after_change=False,
             changed_dimension="cause",
             new_basis_hash=changed_cause.sha256,
             new_evidence_hashes=(changed_cause.sha256,),
-            verification_evidence_hashes=(repair_verification.sha256,),
+            support_evidence_hashes=(repair_verification.sha256,),
         )
-        first_repair_close = self.writer.close_repair(
-            changed_cause_proof_hash=changed_cause_proof_hash,
+        first_repair_close = self.writer.evaluate_repair_candidate(
+            candidate_hash=changed_cause_proof_hash,
             operation_id="close-repair",
         )
-        retried_repair_close = self.writer.close_repair(
-            changed_cause_proof_hash=changed_cause_proof_hash,
+        retried_repair_close = self.writer.evaluate_repair_candidate(
+            candidate_hash=changed_cause_proof_hash,
             operation_id="close-repair",
         )
         self.assertTrue(retried_repair_close.reused)
@@ -6771,22 +6715,25 @@ class WriterTests(unittest.TestCase):
             first_repair_open.result["repair_id"],
             repeated_cause_open.result["repair_id"],
         )
-        stale_exhaustion = engineering_failure_disposition(
-            self.writer,
-            job_id=job_id,
-            evidence_hashes=(reproduction.sha256,),
-            repair_attempt_record_ids=(
-                failed_attempt_one.result["attempt_record_id"],
-                failed_attempt_two.result["attempt_record_id"],
-            ),
-            disposition="repair_exhausted_changed_causes",
+        stale_exhaustion = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "prior_episode_attempts": sorted(
+                        (
+                            failed_attempt_one.result["attempt_record_id"],
+                            failed_attempt_two.result["attempt_record_id"],
+                        )
+                    ),
+                    "schema": "stale_repair_episode_fixture.v1",
+                }
+            )
         )
         with self.assertRaisesRegex(
             TransitionError,
-            "differs from exact failed Repair attempts",
+            "prepared validation capability",
         ):
             self.writer.conclude_repair_unrecovered(
-                disposition_hash=stale_exhaustion,
+                disposition_hash=stale_exhaustion.sha256,
                 operation_id="reject-prior-episode-exhaustion",
             )
         repeated_change = self.writer.evidence.finalize(
@@ -6795,36 +6742,32 @@ class WriterTests(unittest.TestCase):
         repeated_verification = self.writer.evidence.finalize(
             b"second independent verification for repeated parser cause"
         )
-        repeated_attempt = repair_attempt_proof(
+        repeated_attempt = repair_candidate_fixture(
             self.writer,
-            outcome="repaired",
+            failure_observed_after_change=False,
             changed_dimension="input",
             new_basis_hash=repeated_change.sha256,
             new_evidence_hashes=(repeated_change.sha256,),
-            verification_evidence_hashes=(
-                repeated_verification.sha256,
-            ),
+            support_evidence_hashes=(repeated_verification.sha256,),
         )
         with self.assertRaisesRegex(
             TransitionError,
             "changed Job input requires a new Job identity",
         ):
-            self.writer.close_repair(
-                changed_cause_proof_hash=repeated_attempt,
+            self.writer.evaluate_repair_candidate(
+                candidate_hash=repeated_attempt,
                 operation_id="reject-in-place-input-repair",
             )
-        repeated_attempt = repair_attempt_proof(
+        repeated_attempt = repair_candidate_fixture(
             self.writer,
-            outcome="repaired",
+            failure_observed_after_change=False,
             changed_dimension="cause",
             new_basis_hash=repeated_change.sha256,
             new_evidence_hashes=(repeated_change.sha256,),
-            verification_evidence_hashes=(
-                repeated_verification.sha256,
-            ),
+            support_evidence_hashes=(repeated_verification.sha256,),
         )
-        self.writer.close_repair(
-            changed_cause_proof_hash=repeated_attempt,
+        self.writer.evaluate_repair_candidate(
+            candidate_hash=repeated_attempt,
             operation_id="close-repeated-cause-repair",
         )
         resumed_second = self.writer.verify_running_job_execution(
@@ -6909,31 +6852,29 @@ class WriterTests(unittest.TestCase):
         implementation_verification = self.writer.evidence.finalize(
             b"independent running Job implementation Repair verification"
         )
-        incomplete_attempt = repair_attempt_proof(
+        incomplete_attempt = repair_candidate_fixture(
             self.writer,
-            outcome="repaired",
+            failure_observed_after_change=False,
             changed_dimension="implementation",
             new_basis_hash=changed_implementation.sha256,
             new_evidence_hashes=(
                 changed_implementation.sha256,
                 incomplete_proof.sha256,
             ),
-            verification_evidence_hashes=(
-                implementation_verification.sha256,
-            ),
+            support_evidence_hashes=(implementation_verification.sha256,),
             implementation_proof_hash=incomplete_proof.sha256,
         )
         with self.assertRaisesRegex(TransitionError, "omits source bytes"):
-            self.writer.close_repair(
-                changed_cause_proof_hash=incomplete_attempt,
+            self.writer.evaluate_repair_candidate(
+                candidate_hash=incomplete_attempt,
                 operation_id="reject-incomplete-implementation-repair",
             )
         changed_proof = self.writer.evidence.finalize(
             canonical_bytes(proof_manifest)
         )
-        changed_attempt = repair_attempt_proof(
+        changed_attempt = repair_candidate_fixture(
             self.writer,
-            outcome="repaired",
+            failure_observed_after_change=False,
             changed_dimension="implementation",
             new_basis_hash=changed_implementation.sha256,
             new_evidence_hashes=(
@@ -6941,13 +6882,11 @@ class WriterTests(unittest.TestCase):
                 changed_proof.sha256,
                 changed_source.sha256,
             ),
-            verification_evidence_hashes=(
-                implementation_verification.sha256,
-            ),
+            support_evidence_hashes=(implementation_verification.sha256,),
             implementation_proof_hash=changed_proof.sha256,
         )
-        repaired = self.writer.close_repair(
-            changed_cause_proof_hash=changed_attempt,
+        repaired = self.writer.evaluate_repair_candidate(
+            candidate_hash=changed_attempt,
             operation_id="close-implementation-repair",
         )
         self.assertEqual(
@@ -7083,20 +7022,21 @@ class WriterTests(unittest.TestCase):
         first_verification = self.writer.evidence.finalize(
             b"first independent Repair verification"
         )
-        first_proof = repair_attempt_proof(
+        first_proof = repair_candidate_fixture(
             self.writer,
-            outcome="failed",
+            failure_observed_after_change=True,
             changed_dimension="cause",
             new_basis_hash=first_basis.sha256,
             new_evidence_hashes=(first_basis.sha256,),
-            verification_evidence_hashes=(first_verification.sha256,),
+            support_evidence_hashes=(first_verification.sha256,),
+            repair_axis_id="cause-cycle-axis",
         )
-        first = self.writer.record_failed_repair_attempt(
-            attempt_proof_hash=first_proof,
+        first = self.writer.evaluate_repair_candidate(
+            candidate_hash=first_proof,
             operation_id="record-first-failed-repair-attempt",
         )
-        retried_first = self.writer.record_failed_repair_attempt(
-            attempt_proof_hash=first_proof,
+        retried_first = self.writer.evaluate_repair_candidate(
+            candidate_hash=first_proof,
             operation_id="record-first-failed-repair-attempt",
         )
         self.assertTrue(retried_first.reused)
@@ -7106,17 +7046,14 @@ class WriterTests(unittest.TestCase):
                 attempt_proof_hash=first_proof,
                 operation_id="reject-identical-failed-repair-attempt",
             )
-        one_attempt_disposition = engineering_failure_disposition(
-            self.writer,
-            job_id=job_id,
-            evidence_hashes=(first_verification.sha256,),
-            repair_attempt_record_ids=(first.result["attempt_record_id"],),
-            disposition="repair_exhausted_changed_causes",
-        )
-        with self.assertRaisesRegex(TransitionError, "one failed Repair attempt"):
-            self.writer.conclude_repair_unrecovered(
-                disposition_hash=one_attempt_disposition,
-                operation_id="reject-single-attempt-exhaustion",
+        with self.assertRaisesRegex(
+            ValueError,
+            "registered complete inventory",
+        ):
+            materialize_fixture_repair_inventory(
+                self.writer,
+                coverage_complete=False,
+                no_identity_preserving_repair_route_remaining=False,
             )
 
         second_basis = self.writer.evidence.finalize(
@@ -7125,30 +7062,65 @@ class WriterTests(unittest.TestCase):
         second_verification = self.writer.evidence.finalize(
             b"second independent Repair verification"
         )
-        second_proof = repair_attempt_proof(
+        second_proof = repair_candidate_fixture(
             self.writer,
-            outcome="failed",
+            failure_observed_after_change=True,
             changed_dimension="information",
             new_basis_hash=second_basis.sha256,
             new_evidence_hashes=(second_basis.sha256,),
-            verification_evidence_hashes=(second_verification.sha256,),
+            support_evidence_hashes=(second_verification.sha256,),
+            repair_axis_id="information-contrast-axis",
         )
-        second = self.writer.record_failed_repair_attempt(
-            attempt_proof_hash=second_proof,
+        second = self.writer.evaluate_repair_candidate(
+            candidate_hash=second_proof,
             operation_id="record-second-failed-repair-attempt",
         )
-        disposition_hash = engineering_failure_disposition(
+        cycle_verification = self.writer.evidence.finalize(
+            b"independent verification for an A-B-A basis cycle"
+        )
+        cycle_information = self.writer.evidence.finalize(
+            b"genuinely new information supporting an A-B-A revisit"
+        )
+        cycle_proof = repair_candidate_fixture(
             self.writer,
-            job_id=job_id,
-            evidence_hashes=(
-                first_verification.sha256,
-                second_verification.sha256,
+            failure_observed_after_change=True,
+            changed_dimension="cause",
+            new_basis_hash=first_basis.sha256,
+            new_evidence_hashes=(
+                first_basis.sha256,
+                cycle_information.sha256,
             ),
-            repair_attempt_record_ids=(
-                first.result["attempt_record_id"],
-                second.result["attempt_record_id"],
+            support_evidence_hashes=(cycle_verification.sha256,),
+            repair_axis_id="cause-cycle-axis",
+        )
+        cycle = self.writer.evaluate_repair_candidate(
+            candidate_hash=cycle_proof,
+            operation_id="record-a-b-a-with-new-verification",
+        )
+        exact_cycle_retry = repair_candidate_fixture(
+            self.writer,
+            failure_observed_after_change=True,
+            changed_dimension="cause",
+            new_basis_hash=first_basis.sha256,
+            new_evidence_hashes=(
+                first_basis.sha256,
+                cycle_information.sha256,
             ),
-            disposition="repair_exhausted_changed_causes",
+            support_evidence_hashes=(cycle_verification.sha256,),
+            repair_axis_id="cause-cycle-axis",
+        )
+        with self.assertRaisesRegex(
+            IdenticalFailedRetryError,
+            "reused Repair basis",
+        ):
+            self.writer.evaluate_repair_candidate(
+                candidate_hash=exact_cycle_retry,
+                operation_id="reject-exact-a-b-a-intervention-retry",
+            )
+        disposition_hash = materialize_fixture_repair_inventory(
+            self.writer,
+            coverage_complete=True,
+            no_identity_preserving_repair_route_remaining=True,
         )
         with patch.object(
             LocalIndex,
@@ -7176,10 +7148,14 @@ class WriterTests(unittest.TestCase):
             control["next_action"],
             {
                 "disposition_hash": disposition_hash,
+                "disposition_record_id": concluded.result[
+                    "repair_close_record_id"
+                ],
                 "job_id": job_id,
                 "kind": "complete_engineering_failure",
             },
         )
+        self.writer.validation_registry = EvidenceValidatorRegistry()
         completed = self.writer.complete_job(
             outcome="failed",
             output_manifest={},
@@ -8400,25 +8376,9 @@ class WriterTests(unittest.TestCase):
                 failure={**common, "failure_kind": "engineering"},
                 operation_id="reject-unexplained-engineering-abandonment",
             )
-        disposition_hash = engineering_failure_disposition(
-            self.writer,
-            job_id=declared.result["job_id"],
-            evidence_hashes=(reproduction.sha256,),
-            cause_hash=canonical_digest(
-                domain="repair-cause",
-                payload={
-                    "failure_kind": "engineering",
-                    "interrupted_action": spec["callable_identity"],
-                    "minimum_reproduction_evidence": [
-                        reproduction.sha256
-                    ],
-                    "root_cause": "fixture failure",
-                },
-            ),
-        )
         with self.assertRaisesRegex(
             TransitionError,
-            "exact durable disposition",
+            "exact durable disposition|engineering failure disposition",
         ):
             self.writer.complete_job(
                 outcome="failed",
@@ -8426,19 +8386,58 @@ class WriterTests(unittest.TestCase):
                 failure={
                     **common,
                     "failure_kind": "engineering",
-                    "repair_disposition_hash": disposition_hash,
+                    "repair_disposition_hash": reproduction.sha256,
                 },
                 operation_id="reject-unrecorded-engineering-disposition",
             )
-        self.writer.record_engineering_failure_disposition(
-            failure={
-                "failure_kind": "engineering",
-                "interrupted_action": spec["callable_identity"],
-                "minimum_reproduction_evidence": [reproduction.sha256],
-                "root_cause": "fixture failure",
-            },
+        failure = {
+            "failure_kind": "engineering",
+            "interrupted_action": spec["callable_identity"],
+            "minimum_reproduction_evidence": [reproduction.sha256],
+            "root_cause": "fixture failure",
+        }
+        with self.assertRaisesRegex(TransitionError, "must open Repair"):
+            self.writer.record_engineering_failure_disposition(
+                failure=failure,
+                disposition_hash=reproduction.sha256,
+                operation_id="reject-terminal-before-repair",
+            )
+        repair_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-generic-engineering-repair",
+        )
+        self.writer.open_repair(
+            permit=repair_permit,
+            failure=failure,
+            operation_id="open-generic-engineering-repair",
+        )
+        registered_validators = self.writer.validation_registry
+        self.writer.validation_registry = EvidenceValidatorRegistry()
+        with self.assertRaisesRegex(
+            EvidenceValidationError,
+            "no registered validator authorizes",
+        ):
+            materialize_fixture_repair_inventory(
+                self.writer,
+                coverage_complete=True,
+                no_identity_preserving_repair_route_remaining=True,
+            )
+        self.writer.validation_registry = registered_validators
+        disposition_hash = materialize_fixture_repair_inventory(
+            self.writer,
+            coverage_complete=True,
+            no_identity_preserving_repair_route_remaining=True,
+        )
+        self.writer.conclude_repair_unrecovered(
             disposition_hash=disposition_hash,
-            operation_id="record-generic-engineering-disposition",
+            operation_id="conclude-generic-engineering-repair",
         )
         completed = self.writer.complete_job(
             outcome="failed",
@@ -8967,21 +8966,30 @@ class WriterTests(unittest.TestCase):
             "root_cause": "fixture callable rejected its input",
             "interrupted_action": "fixture.callable",
         }
-        cause_hash = canonical_digest(
-            domain="repair-cause",
-            payload=cause_failure,
+        repair_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="structured-failure-repair-permit",
         )
-        disposition_hash = engineering_failure_disposition(
-            self.writer,
-            job_id=declared.result["job_id"],
-            evidence_hashes=(reproduction.sha256,),
-            disposition="repair_infeasible",
-            cause_hash=cause_hash,
-        )
-        self.writer.record_engineering_failure_disposition(
+        self.writer.open_repair(
+            permit=repair_permit,
             failure=cause_failure,
+            operation_id="open-structured-engineering-repair",
+        )
+        disposition_hash = materialize_fixture_repair_inventory(
+            self.writer,
+            coverage_complete=True,
+            no_identity_preserving_repair_route_remaining=True,
+        )
+        self.writer.conclude_repair_unrecovered(
             disposition_hash=disposition_hash,
-            operation_id="record-structured-engineering-disposition",
+            operation_id="conclude-structured-engineering-repair",
         )
         completed = self.writer.complete_job(
             outcome="failed",
@@ -11289,7 +11297,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                     evidence_modes=("ablation",),
                 )
 
-    def test_revealed_holdout_engineering_gap_disposes_without_scientific_loss(
+    def test_revealed_holdout_engineering_gap_enters_repair_without_scientific_loss(
         self,
     ) -> None:
         with TemporaryDirectory() as root:
@@ -11368,88 +11376,55 @@ class ScientificLifecycleTests(unittest.TestCase):
                 "root_cause": "holdout evaluator could not parse its sealed input",
                 "interrupted_action": spec["callable_identity"],
             }
-            cause_hash = canonical_digest(domain="repair-cause", payload=cause)
-            disposition_hash = engineering_failure_disposition(
-                writer,
-                job_id=declared.result["job_id"],
-                evidence_hashes=(reproduction.sha256,),
-                cause_hash=cause_hash,
+            repair_permit = writer.issue_permit(
+                kind=PermitKind.REPAIR,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("open_repair",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="engineering-gap-holdout-repair-permit",
             )
-            writer.record_engineering_failure_disposition(
+            opened_repair = writer.open_repair(
+                permit=repair_permit,
                 failure=cause,
-                disposition_hash=disposition_hash,
-                operation_id="engineering-gap-holdout-disposition",
+                operation_id="engineering-gap-holdout-open-repair",
             )
-            completed = writer.complete_job(
-                outcome="failed",
-                output_manifest={},
-                failure={
-                    **cause,
-                    "repair_disposition_hash": disposition_hash,
-                    "resume_action": spec["resume_action"],
-                },
-                operation_id="engineering-gap-holdout-complete",
-            )
-            completion_id = completed.result["completion_record_id"]
-            self.assertEqual(
-                writer.read_control()["next_action"],  # type: ignore[index]
-                {
-                    "completion_record_id": completion_id,
-                    "holdout_id": sealed.identity,
-                    "job_id": declared.result["job_id"],
-                    "kind": "dispose_revealed_holdout_engineering_gap",
-                },
-            )
-            disposed = writer.dispose_revealed_holdout_engineering_gap(
-                completion_record_id=completion_id,
-                operation_id="engineering-gap-holdout-terminal",
-            )
-            self.assertEqual(disposed.result["verdict"], "engineering_gap")
             control = writer.read_control()
             assert control is not None
-            self.assertIsNone(
+            repair = control["scientific"]["active_repair"]
+            self.assertIsInstance(repair, dict)
+            self.assertEqual(repair["id"], opened_repair.result["repair_id"])
+            self.assertEqual(
+                control["scientific"]["active_job"]["status"],
+                "interrupted_repair",
+            )
+            self.assertIsNotNone(
                 control["scientific"]["active_holdout_evaluation"]
             )
-            self.assertIsNone(control["scientific"]["active_executable"])
+            self.assertEqual(
+                control["scientific"]["active_executable"],
+                executable.identity,
+            )
+            self.assertEqual(control["scientific"]["holdout_reveals"], 1)
             self.assertEqual(
                 control["next_action"],
                 {
-                    "kind": "await_new_future_holdout_data",
-                    "predecessor_holdout_id": sealed.identity,
+                    "kind": "execute_repair",
+                    "repair_id": opened_repair.result["repair_id"],
                 },
             )
             with LocalIndex(writer.index_path) as index:
-                holdout_disposition = index.event_record(
-                    f"holdout-reveal:{sealed.identity}", 2
-                )
-                candidate_holdout = index.get(
-                    "candidate-holdout", candidate.result["candidate_id"]
-                )
-                candidate_head = index.event_head(
-                    f"candidate:{executable.identity}"
-                )
-                candidate_disposition = (
-                    None
-                    if candidate_head is None
-                    else index.get(
-                        candidate_head.record_kind,
-                        candidate_head.record_id,
-                    )
+                repair_open = index.get(
+                    "repair-open", opened_repair.result["repair_id"]
                 )
                 negative_memories = index.records_by_kind("negative-memory")
-            assert holdout_disposition is not None
-            assert candidate_holdout is not None
-            assert candidate_disposition is not None
-            self.assertEqual(holdout_disposition.status, "engineering_gap")
-            self.assertEqual(candidate_holdout.status, "engineering_gap")
-            self.assertEqual(candidate_disposition.status, "invalidated")
-            self.assertEqual(
-                candidate_disposition.payload["reason"],
-                "final_holdout_engineering_gap",
-            )
+            self.assertIsNotNone(repair_open)
             self.assertFalse(negative_memories)
 
-    def test_pre_reveal_holdout_scientific_change_invalidates_only_the_candidate(
+    def test_pre_reveal_caller_scientific_change_cannot_invalidate_candidate(
         self,
     ) -> None:
         with TemporaryDirectory() as root:
@@ -11478,61 +11453,40 @@ class ScientificLifecycleTests(unittest.TestCase):
                 "root_cause": "evaluator repair would change registered semantics",
                 "interrupted_action": spec["callable_identity"],
             }
-            cause_hash = canonical_digest(domain="repair-cause", payload=cause)
-            disposition_hash = engineering_failure_disposition(
-                writer,
-                job_id=declared.result["job_id"],
-                evidence_hashes=(reproduction.sha256,),
-                cause_hash=cause_hash,
+            with self.assertRaisesRegex(TransitionError, "must open Repair"):
+                writer.record_engineering_failure_disposition(
+                    failure=cause,
+                    disposition_hash=reproduction.sha256,
+                    operation_id=(
+                        "reject-caller-pre-reveal-scientific-change"
+                    ),
+                )
+            repair_permit = writer.issue_permit(
+                kind=PermitKind.REPAIR,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("open_repair",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="pre-reveal-scientific-change-repair-permit",
             )
-            writer.record_engineering_failure_disposition(
+            opened = writer.open_repair(
+                permit=repair_permit,
                 failure=cause,
-                disposition_hash=disposition_hash,
-                operation_id="pre-reveal-scientific-change-disposition",
-            )
-            completed = writer.complete_job(
-                outcome="failed",
-                output_manifest={},
-                failure={
-                    **cause,
-                    "repair_disposition_hash": disposition_hash,
-                    "resume_action": spec["resume_action"],
-                },
-                operation_id="pre-reveal-scientific-change-complete",
-            )
-            action = writer.read_control()["next_action"]  # type: ignore[index]
-            self.assertEqual(action["kind"], "resolve_candidate_engineering_gap")
-            self.assertEqual(action["work_context"], "pre_reveal_holdout")
-            self.assertEqual(action["target_id"], sealed.identity)
-            self.assertEqual(action["successor_scope"], "study")
-            self.assertEqual(
-                action["completion_record_id"],
-                completed.result["completion_record_id"],
+                operation_id="pre-reveal-scientific-change-open-repair",
             )
             control = writer.read_control()
             assert control is not None
             self.assertEqual(control["scientific"]["holdout_reveals"], 0)
-            self.assertIsNone(
-                control["scientific"]["active_holdout_evaluation"]
-            )
-            with self.assertRaises(TransitionError):
-                writer.declare_job(
-                    spec=spec,
-                    operation_id="reject-old-pre-reveal-retry-after-scientific-change",
-                )
-            with self.assertRaisesRegex(TransitionError, "must invalidate"):
-                writer.dispose_candidate(
-                    disposition="returned_to_library",
-                    reason="keep an invalid frozen identity",
-                    operation_id="reject-pre-reveal-noninvalidation",
-                )
-            disposed = writer.dispose_candidate(
-                disposition="invalidated",
-                reason="engineering_requires_scientific_change",
-                operation_id="invalidate-pre-reveal-candidate",
+            self.assertEqual(
+                control["scientific"]["active_job"]["status"],
+                "interrupted_repair",
             )
             self.assertEqual(
-                disposed.result["executable_id"], executable.identity
+                control["next_action"],
+                {"kind": "execute_repair", "repair_id": opened.result["repair_id"]},
             )
             with LocalIndex(writer.index_path) as index:
                 gap = index.records_by_kind(
@@ -11542,15 +11496,16 @@ class ScientificLifecycleTests(unittest.TestCase):
                     f"candidate:{executable.identity}"
                 )
                 negative_memories = index.records_by_kind("negative-memory")
-            self.assertEqual(len(gap), 1)
-            self.assertTrue(gap[0].payload["sealed_holdout_preserved"])
-            self.assertEqual(gap[0].payload["scientific_trial_delta"], 0)
+            self.assertFalse(gap)
             self.assertIsNotNone(candidate_head)
             assert candidate_head is not None
-            self.assertNotEqual(candidate_head.record_id, candidate.result["candidate_id"])
+            self.assertEqual(
+                candidate_head.record_id,
+                candidate.result["candidate_id"],
+            )
             self.assertFalse(negative_memories)
 
-    def test_pre_entry_runtime_engineering_gap_allows_only_same_depth_repair(
+    def test_pre_entry_runtime_gap_requires_registered_repair(
         self,
     ) -> None:
         with TemporaryDirectory() as root:
@@ -11559,6 +11514,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             )
             writer.validation_registry = EvidenceValidatorRegistry(
                 (
+                    EngineeringRepairBoundaryFixtureValidator(),
                     EngineeringRetryBoundaryFixtureValidator(),
                     ScientificFixtureValidator(),
                     RuntimeBoundaryFixtureValidator(),
@@ -11587,6 +11543,17 @@ class ScientificLifecycleTests(unittest.TestCase):
                 expires_at_utc=FIXED_EXPIRY,
                 one_shot=True,
                 operation_id="pre-entry-runtime-gap-job-permit",
+            )
+            repair_permit = writer.issue_permit(
+                kind=PermitKind.REPAIR,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("open_repair",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="pre-entry-runtime-gap-repair-permit",
             )
             runtime_permit = writer.issue_permit(
                 kind=PermitKind.RUNTIME,
@@ -11618,45 +11585,49 @@ class ScientificLifecycleTests(unittest.TestCase):
                 "root_cause": "runtime adapter initialization failed",
                 "interrupted_action": spec["callable_identity"],
             }
-            cause_hash = canonical_digest(domain="repair-cause", payload=cause)
-            disposition_hash = engineering_failure_disposition(
-                writer,
-                job_id=declared.result["job_id"],
-                evidence_hashes=(reproduction.sha256,),
-                disposition="repair_infeasible",
-                cause_hash=cause_hash,
-            )
-            writer.record_engineering_failure_disposition(
-                failure=cause,
-                disposition_hash=disposition_hash,
-                operation_id="pre-entry-runtime-gap-disposition",
-            )
-            completed = writer.complete_job(
-                outcome="failed",
-                output_manifest={},
-                failure={
-                    **cause,
-                    "repair_disposition_hash": disposition_hash,
-                    "resume_action": spec["resume_action"],
-                },
-                operation_id="pre-entry-runtime-gap-complete",
-            )
-            action = writer.read_control()["next_action"]  # type: ignore[index]
+            with self.assertRaisesRegex(
+                TransitionError,
+                "must open Repair",
+            ):
+                writer.record_engineering_failure_disposition(
+                    failure=cause,
+                    disposition_hash=reproduction.sha256,
+                    operation_id="reject-fixture-production-disposition",
+                )
+            control = writer.read_control()
+            assert control is not None
             self.assertEqual(
-                action,
-                {
-                    "completion_record_id": completed.result[
-                        "completion_record_id"
-                    ],
-                    "disposition": "repair_infeasible",
-                    "executable_id": executable.identity,
-                    "job_id": declared.result["job_id"],
-                    "kind": "resolve_candidate_engineering_gap",
-                    "resume_condition": "admit a new exact scientific work identity",
-                    "successor_scope": None,
-                    "target_id": "execution_proof",
-                    "work_context": "runtime",
-                },
+                control["scientific"]["active_job"]["status"],
+                "running",
+            )
+            self.assertIsNone(control["scientific"]["active_repair"])
+            self.assertEqual(control["scientific"]["holdout_reveals"], 0)
+            with LocalIndex(writer.index_path) as index:
+                self.assertFalse(
+                    index.records_by_kind("engineering-failure-disposition")
+                )
+
+            opened = writer.open_repair(
+                permit=repair_permit,
+                failure=cause,
+                operation_id="pre-entry-runtime-gap-open-repair",
+            )
+            control = writer.read_control()
+            assert control is not None
+            repair = control["scientific"]["active_repair"]
+            self.assertEqual(
+                control["scientific"]["active_job"]["status"],
+                "interrupted_repair",
+            )
+            self.assertEqual(repair["id"], opened.result["repair_id"])
+            self.assertEqual(
+                repair["repair_authority_schema"],
+                "registered_repair_authority.v2",
+            )
+            self.assertEqual(repair["repair_validation_scope"], "production")
+            self.assertEqual(
+                control["next_action"],
+                {"kind": "execute_repair", "repair_id": repair["id"]},
             )
             materialization_spec = runtime_job_spec(
                 writer=writer,
@@ -11672,143 +11643,14 @@ class ScientificLifecycleTests(unittest.TestCase):
                     spec=materialization_spec,
                     operation_id="reject-pre-entry-depth-skip",
                 )
-            repair_basis = writer.evidence.finalize(
-                b"bounded runtime adapter repair basis"
-            )
-            input_bypass_spec = dict(spec)
-            input_bypass_spec["input_hashes"] = [
-                *spec["input_hashes"],
-                repair_basis.sha256,
-            ]
-            with self.assertRaises(IdenticalFailedRetryError):
-                writer.declare_job(
-                    spec=input_bypass_spec,
-                    operation_id="reject-pre-entry-input-bypass",
-                )
-            completion_record_id = completed.result["completion_record_id"]
             with LocalIndex(writer.index_path) as index:
-                completion = index.get(
-                    "job-completed",
-                    completion_record_id,
+                repair_open = index.get("repair-open", repair["id"])
+                candidate_record = index.get(
+                    "candidate",
+                    candidate.result["candidate_id"],
                 )
-                declaration = index.get(
-                    "job-declared",
-                    declared.result["job_id"],
-                )
-                assert completion is not None and declaration is not None
-            failure = completion.payload["failure"]
-            disposition = completion.payload["engineering_disposition"]
-            retry_validation_binding = {
-                "authority_kind": "same_implementation_retry",
-                "changed_dimension": "cause",
-                "engineering_disposition_hash": failure[
-                    "repair_disposition_hash"
-                ],
-                "failure_signature": failure["failure_signature"],
-                "new_basis_hash": repair_basis.sha256,
-                "new_work_fingerprint": declaration.payload[
-                    "work_fingerprint"
-                ],
-                "previous_basis_hash": disposition["basis_manifest_hash"],
-                "prior_completion_record_id": completion.record_id,
-                "prior_job_hash": declaration.fingerprint,
-                "prior_job_id": declaration.record_id,
-                "prior_work_fingerprint": declaration.payload[
-                    "work_fingerprint"
-                ],
-                "resume_condition": disposition["resume_condition"],
-                "retry_family_fingerprint": declaration.payload[
-                    "retry_family_fingerprint"
-                ],
-                "schema": "engineering_retry_validation_binding.v1",
-                "scientific_semantics_changed": False,
-            }
-            check_plan_hash, check_result_hashes = (
-                engineering_retry_validation_artifacts(
-                    writer,
-                    binding=retry_validation_binding,
-                    validator_id=(
-                        EngineeringRetryBoundaryFixtureValidator.validator_id
-                    ),
-                )
-            )
-            verification = writer.evidence.finalize(
-                canonical_bytes(
-                    {
-                        "changed_dimension": "cause",
-                        "check_plan_hash": check_plan_hash,
-                        "engineering_disposition_hash": failure[
-                            "repair_disposition_hash"
-                        ],
-                        "failure_signature": failure["failure_signature"],
-                        "new_basis_hash": repair_basis.sha256,
-                        "new_work_fingerprint": declaration.payload[
-                            "work_fingerprint"
-                        ],
-                        "prior_completion_record_id": completion.record_id,
-                        "prior_job_hash": declaration.fingerprint,
-                        "prior_job_id": declaration.record_id,
-                        "result_artifact_hashes": check_result_hashes,
-                        "resume_condition": disposition["resume_condition"],
-                        "retry_family_fingerprint": declaration.payload[
-                            "retry_family_fingerprint"
-                        ],
-                        "schema": "job_retry_resume_verification.v1",
-                        "scientific_semantics_changed": False,
-                        "validator_id": (
-                            EngineeringRetryBoundaryFixtureValidator.validator_id
-                        ),
-                        "verdict": "passed",
-                        "verification_method": "independent fixture rerun",
-                    }
-                )
-            )
-            authority = writer.evidence.finalize(
-                canonical_bytes(
-                    {
-                        "changed_dimension": "cause",
-                        "engineering_disposition_hash": failure[
-                            "repair_disposition_hash"
-                        ],
-                        "failure_signature": failure["failure_signature"],
-                        "new_basis_hash": repair_basis.sha256,
-                        "new_evidence_hashes": [repair_basis.sha256],
-                        "new_work_fingerprint": declaration.payload[
-                            "work_fingerprint"
-                        ],
-                        "previous_basis_hash": disposition[
-                            "basis_manifest_hash"
-                        ],
-                        "prior_completion_record_id": completion.record_id,
-                        "prior_job_hash": declaration.fingerprint,
-                        "prior_job_id": declaration.record_id,
-                        "prior_work_fingerprint": declaration.payload[
-                            "work_fingerprint"
-                        ],
-                        "resume_condition": disposition["resume_condition"],
-                        "retry_family_fingerprint": declaration.payload[
-                            "retry_family_fingerprint"
-                        ],
-                        "schema": "job_retry_resume_authority.v1",
-                        "scientific_semantics_changed": False,
-                        "verification_receipt_hashes": [verification.sha256],
-                    }
-                )
-            )
-            retry_spec = dict(spec)
-            retry_spec["changed_cause_proof_hash"] = authority.sha256
-            retry = writer.declare_job(
-                spec=retry_spec,
-                operation_id="pre-entry-same-depth-retry",
-            )
-            self.assertNotEqual(retry.result["job_id"], declared.result["job_id"])
-            self.assertEqual(
-                writer.read_control()["next_action"],  # type: ignore[index]
-                {
-                    "job_id": retry.result["job_id"],
-                    "kind": "issue_job_permit",
-                },
-            )
+            self.assertIsNotNone(repair_open)
+            self.assertIsNotNone(candidate_record)
 
     def test_real_runtime_completion_reopens_the_second_release_depth(self) -> None:
         with TemporaryDirectory() as root:
@@ -11929,11 +11771,27 @@ class ScientificLifecycleTests(unittest.TestCase):
                 )
             )
             outputs[binding["result_manifest_output"]] = result.sha256
-            completed = writer.complete_job(
-                outcome="success",
-                output_manifest=outputs,
-                operation_id="real-runtime-execution-complete",
-            )
+            validator_calls = 0
+            registered_validator = writer._run_registered_validator
+
+            def validate_after_lock_release(**kwargs):
+                nonlocal validator_calls
+                with WriterLock(writer.lock_path, timeout_seconds=1):
+                    pass
+                validator_calls += 1
+                return registered_validator(**kwargs)
+
+            with patch.object(
+                writer,
+                "_run_registered_validator",
+                side_effect=validate_after_lock_release,
+            ):
+                completed = writer.complete_job(
+                    outcome="success",
+                    output_manifest=outputs,
+                    operation_id="real-runtime-execution-complete",
+                )
+            self.assertEqual(validator_calls, 1)
             self.assertEqual(
                 writer.read_control()["next_action"],  # type: ignore[index]
                 {
@@ -12498,7 +12356,7 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 },
             )
 
-    def test_external_local_engineering_gap_restores_without_blocker_credit(
+    def test_external_local_engineering_gap_requires_repair_without_blocker_credit(
         self,
     ) -> None:
         with TemporaryDirectory() as root:
@@ -12564,48 +12422,34 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 "root_cause": "local external probe parser failed",
                 "interrupted_action": spec["callable_identity"],
             }
-            disposition_hash = engineering_failure_disposition(
-                writer,
-                job_id=declared.result["job_id"],
-                evidence_hashes=(reproduction.sha256,),
-                disposition="repair_infeasible",
-                cause_hash=canonical_digest(
-                    domain="repair-cause",
-                    payload=cause,
-                ),
+            repair_permit = writer.issue_permit(
+                kind=PermitKind.REPAIR,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("open_repair",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="external-engineering-repair-permit",
             )
-            writer.record_engineering_failure_disposition(
+            opened = writer.open_repair(
+                permit=repair_permit,
                 failure=cause,
-                disposition_hash=disposition_hash,
-                operation_id="external-engineering-disposition",
+                operation_id="external-engineering-open-repair",
             )
-            completed = writer.complete_job(
-                outcome="failed",
-                output_manifest={},
-                failure={
-                    **cause,
-                    "repair_disposition_hash": disposition_hash,
-                    "resume_action": spec["resume_action"],
-                },
-                operation_id="external-engineering-complete",
-            )
-            completion_id = completed.result["completion_record_id"]
+            control = writer.read_control()
+            assert control is not None
             self.assertEqual(
-                writer.read_control()["next_action"],  # type: ignore[index]
+                control["next_action"],
                 {
-                    "completion_record_id": completion_id,
-                    "job_id": declared.result["job_id"],
-                    "kind": "judge_external_dependency_evidence",
+                    "kind": "execute_repair",
+                    "repair_id": opened.result["repair_id"],
                 },
             )
-            judged = writer.judge_external_dependency_evidence(
-                completion_record_id=completion_id,
-                operation_id="external-engineering-judge",
-            )
-            self.assertEqual(judged.result["verdict"], "engineering_gap")
             self.assertEqual(
-                writer.read_control()["next_action"],  # type: ignore[index]
-                recovery_plan.condition.resume_action.to_next_action(),
+                control["scientific"]["active_job"]["status"],
+                "interrupted_repair",
             )
             with LocalIndex(writer.index_path) as index:
                 attempts = index.records_by_kind(
@@ -12617,11 +12461,13 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 gaps = index.records_by_kind(
                     "external-dependency-operational-gap"
                 )
-            self.assertEqual(attempts[-1].status, "local_failure")
+                repair_open = index.get(
+                    "repair-open", opened.result["repair_id"]
+                )
+            self.assertFalse(attempts)
             self.assertFalse(decisions)
-            self.assertEqual(len(gaps), 1)
-            self.assertEqual(gaps[0].payload["scientific_trial_delta"], 0)
-            self.assertEqual(gaps[0].payload["scientific_failure_delta"], 0)
+            self.assertFalse(gaps)
+            self.assertIsNotNone(repair_open)
 
     def test_passed_and_not_evaluable_restore_the_exact_mission_action(self) -> None:
         for verdict in ("passed", "not_evaluable"):
@@ -12818,12 +12664,28 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                     evidence=stale_evidence,
                     operation_id="reject-stale-external-reentry",
                 )
-            resumed = writer.resume_blocked_mission(
-                basis_record_id=blocker.result["basis_record_id"],
-                mission_close_record_id=close_id,
-                evidence=evidence,
-                operation_id="accept-external-reentry",
-            )
+            validator_calls = 0
+            registered_validate = writer.validation_registry.validate
+
+            def validate_after_lock_release(request):
+                nonlocal validator_calls
+                with WriterLock(writer.lock_path, timeout_seconds=1):
+                    pass
+                validator_calls += 1
+                return registered_validate(request)
+
+            with patch.object(
+                writer.validation_registry,
+                "validate",
+                side_effect=validate_after_lock_release,
+            ):
+                resumed = writer.resume_blocked_mission(
+                    basis_record_id=blocker.result["basis_record_id"],
+                    mission_close_record_id=close_id,
+                    evidence=evidence,
+                    operation_id="accept-external-reentry",
+                )
+            self.assertEqual(validator_calls, 1)
             self.assertEqual(resumed.result["authorization_epoch"], 2)
             control = writer.read_control()
             assert control is not None

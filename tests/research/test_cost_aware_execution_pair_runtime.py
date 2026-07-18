@@ -9,6 +9,8 @@ import pytest
 from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.operations.running_job_context import (
     RunningJobFixedHoldReplayContext,
+    running_job_operational_identity_boundary_paths,
+    running_job_scientific_projection_dependency_paths,
 )
 from axiom_rift.operations.job_implementation_authority import (
     hardcoded_control_ids,
@@ -130,6 +132,14 @@ class _RuntimeWriter:
 
 
 def test_runtime_implementation_closure_is_current_and_complete() -> None:
+    dependencies = set(cost_aware_execution_pair_runtime_dependency_paths())
+    assert set(running_job_scientific_projection_dependency_paths()).issubset(
+        dependencies
+    )
+    assert set(running_job_operational_identity_boundary_paths()).isdisjoint(
+        dependencies
+    )
+    assert any(path.name == "validation_identity.py" for path in dependencies)
     writer = _ImplementationWriter()
     identity = materialize_cost_aware_execution_pair_job_implementation(writer)
     assert identity == cost_aware_execution_pair_job_implementation_sha256()

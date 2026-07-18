@@ -1216,9 +1216,10 @@ def _validate_engineering_failure(
     _exact(
         "engineering failure completion action",
         action,
-        {"disposition_hash", "job_id", "kind"},
+        {"disposition_hash", "disposition_record_id", "job_id", "kind"},
     )
     _digest("engineering disposition", action["disposition_hash"])
+    _digest("engineering disposition record", action["disposition_record_id"])
     _prefixed("engineering failure Job", action["job_id"], "job:")
 
 
@@ -1517,10 +1518,16 @@ def _cross_bind_active_job(
             disposition_hash = active_job.get(
                 "required_engineering_disposition_hash"
             )
+            disposition_record_id = active_job.get(
+                "required_engineering_disposition_record_id"
+            )
             cause_hash = active_job.get("required_engineering_failure_cause_hash")
             if (
                 active_job.get("status") != "running"
                 or action.get("disposition_hash") != disposition_hash
+                or action.get("disposition_record_id")
+                != disposition_record_id
+                or not isinstance(disposition_record_id, str)
                 or not isinstance(cause_hash, str)
                 or "required_engineering_repair_id" not in active_job
             ):

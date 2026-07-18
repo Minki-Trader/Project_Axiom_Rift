@@ -105,6 +105,24 @@ validators:
     caller_verdict_method_or_prose_is_authority: false
     cause_resolved_and_material_change_are_validator_derived: true
     engineering_evidence_has_scientific_candidate_or_release_credit: false
+  prospective_repair_candidate_validation:
+    candidate_schema: running_job_repair_candidate.v2
+    caller_authored_outcome_or_failure_observation_allowed: false
+    exact_registered_validator_plan_results_and_trace_required: true
+    accepted_attempt_modes: [failure_reproduced, repaired]
+    zero_credit_observation_modes:
+      - invalid_change
+      - new_failure
+      - not_evaluable
+      - validation_unavailable
+    accepted_attempt_and_observation_streams_are_distinct: true
+    observation_advances_attempt_basis_head_or_exhaustion_credit: false
+    observation_changes_scientific_claim_trial_candidate_holdout_or_release: false
+    disposition_binds_exact_accepted_attempts_and_observation_head_separately: true
+    requires_scientific_change_needs_positive_registered_semantic_change_fact: true
+    failed_partial_missing_or_unavailable_validation_is_semantic_change_proof: false
+    stored_projection_reexecutes_validator: false
+    engineering_evidence_has_scientific_candidate_or_release_credit: false
   implementation_repair_semantic_equivalence:
     existing_scientific_domain_is_used: true
     registered_validator_is_executed_not_caller_asserted: true

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 
@@ -8,6 +9,8 @@ from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.validation import (
     EngineeringEvidenceValidationRequest,
+    EngineeringRepairFixtureValidator,
+    EngineeringRepairValidationRequest,
     EvidenceValidationError,
     EvidenceValidationRequest,
     ValidatedEvidence,
@@ -110,6 +113,33 @@ class ScientificFixtureValidator:
             facts={"executed_evidence_modes": list(next(iter(executed_mode_sets)))},
             scientific_eligible=True,
             candidate_eligible=candidate_eligible,
+        )
+
+
+class EngineeringRepairBoundaryFixtureValidator:
+    """Isolated production-shape fixture for the registered Repair boundary."""
+
+    domains = frozenset({"engineering"})
+    implementation_path = IMPLEMENTATION_PATH
+    protocol = "engineering_repair_boundary_fixture.v1"
+    authority_scope = "fixture_only"
+    validator_id = validator_identity(
+        protocol=protocol,
+        domains=domains,
+        implementation_sha256=IMPLEMENTATION_HASH,
+    )
+
+    def validate(
+        self,
+        request: EngineeringRepairValidationRequest,
+    ) -> ValidatedEvidence:
+        if request.engineering_fixture:
+            raise EvidenceValidationError(
+                "Repair boundary fixture requires a production-shape request"
+            )
+        return EngineeringRepairFixtureValidator.validate(
+            self,
+            replace(request, engineering_fixture=True),
         )
 
 

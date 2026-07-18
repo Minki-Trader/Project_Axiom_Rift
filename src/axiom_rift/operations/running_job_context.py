@@ -66,7 +66,6 @@ from axiom_rift.research.replay_obligation import (
 )
 from axiom_rift.research.replay_member_assignment import (
     ReplayMemberAssignmentError,
-    ReplayMemberAssignmentSet,
     assignment_set_from_semantic_proposal,
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
@@ -2092,8 +2091,15 @@ class RunningJobExecutionContext:
         )
 
 
-def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
-    """Return the complete project-local source closure of this context."""
+def running_job_scientific_projection_dependency_paths() -> tuple[Path, ...]:
+    """Return source roots that can change a Job's scientific projection.
+
+    The running-Job authority is an admission gate, not part of the scientific
+    implementation executed after admission.  Keeping these roots separate
+    lets Job source closures bind the projection behavior without inheriting
+    Repair, permit, registry, or Journal-verification tooling.  The complete
+    execution-context identity below still binds both surfaces.
+    """
 
     return tuple(
         sorted(
@@ -2114,6 +2120,59 @@ def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
                 Path(recorded_transition_authority_module.__file__).resolve(),
                 Path(scientific_history_module.__file__).resolve(),
                 Path(trials_module.__file__).resolve(),
+            },
+            key=lambda path: path.as_posix(),
+        )
+    )
+
+
+def running_job_operational_identity_boundary_paths() -> tuple[Path, ...]:
+    """Return admission-only modules excluded from scientific Job identity.
+
+    These modules can admit, reject, or interrupt execution, but after a
+    successful admission they do not compute a scientific projection, trace,
+    measurement, or verdict.  Shared storage and projection infrastructure is
+    intentionally absent from this list and remains byte-bound by each Job.
+    """
+
+    source_root = _THIS_FILE.parents[2]
+    paths = {
+        (
+            source_root
+            / "axiom_rift"
+            / "operations"
+            / name
+        ).resolve()
+        for name in (
+            "completion_evidence_scope.py",
+            "permits.py",
+            "repair_protocol.py",
+            "repair_semantic_equivalence.py",
+            "repair_validation.py",
+            "running_job.py",
+            "running_job_repair_projection.py",
+            "validation.py",
+            "validation_integrity.py",
+        )
+    }
+    paths.add(
+        (
+            source_root
+            / "axiom_rift"
+            / "research"
+            / "effective_evidence_scope.py"
+        ).resolve()
+    )
+    return tuple(sorted(paths, key=lambda path: path.as_posix()))
+
+
+def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
+    """Return the complete project-local source closure of this context."""
+
+    return tuple(
+        sorted(
+            {
+                *running_job_scientific_projection_dependency_paths(),
                 *running_job_authority_dependency_paths(),
             },
             key=lambda path: path.as_posix(),
@@ -2170,4 +2229,6 @@ __all__ = [
     "running_job_execution_context_dependency_manifest",
     "running_job_execution_context_dependency_paths",
     "running_job_execution_context_implementation_sha256",
+    "running_job_operational_identity_boundary_paths",
+    "running_job_scientific_projection_dependency_paths",
 ]

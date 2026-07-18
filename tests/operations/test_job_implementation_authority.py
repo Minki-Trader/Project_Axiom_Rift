@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from hashlib import sha256
 import unittest
+from unittest.mock import patch
 
 from axiom_rift.core.canonical import canonical_bytes
+import axiom_rift.operations.job_implementation_authority as authority_module
 from axiom_rift.operations.job_implementation_authority import (
     HistoricalImplementationSourceAuthority,
     JobImplementationAuthorityError,
@@ -69,6 +71,23 @@ component = ComponentSpec(display_name="STU-0002 display", spec={})
 raise RuntimeError(f"STU-0003 failed for {component}")
 '''
         self.assertEqual(hardcoded_control_ids(source), ())
+
+    def test_content_addressed_scan_is_reused_without_retaining_source(self) -> None:
+        source = b'CACHE_PROBE = "STU-8765"\n# unique cache fixture\n'
+        digest = sha256(source).hexdigest()
+        authority_module._HARDCODED_CONTROL_ID_CACHE.pop(digest, None)
+        with patch.object(
+            authority_module,
+            "_scan_hardcoded_control_ids",
+            wraps=authority_module._scan_hardcoded_control_ids,
+        ) as scan:
+            self.assertEqual(hardcoded_control_ids(source), ("STU-8765",))
+            self.assertEqual(hardcoded_control_ids(bytes(source)), ("STU-8765",))
+        self.assertEqual(scan.call_count, 1)
+        self.assertEqual(
+            authority_module._HARDCODED_CONTROL_ID_CACHE[digest],
+            ("STU-8765",),
+        )
 
     def test_unavailable_non_replay_plan_claims_no_historical_authority(
         self,

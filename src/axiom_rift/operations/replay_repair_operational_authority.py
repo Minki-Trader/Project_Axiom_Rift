@@ -13,6 +13,13 @@ from collections.abc import Mapping
 from typing import Any
 
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.operations.repair_validation import (
+    REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+)
+from axiom_rift.operations.registered_repair_episode_authority import (
+    RegisteredRepairEpisodeAuthorityError,
+    require_registered_repair_episode,
+)
 from axiom_rift.operations.replay_repair_scientific_authority import (
     ReplayRepairScientificAuthorityError,
     require_implementation_repair_semantics,
@@ -84,6 +91,13 @@ _REPAIR_RESUME_KEYS = {
     "runtime_entry_record_id",
 }
 _REPAIR_CHANGED_DIMENSIONS = {"cause", "information", "input", "implementation"}
+_REPAIR_AUTHORITY_FIELD = "repair_authority_schema"
+_REPAIR_SCOPE_FIELD = "repair_validation_scope"
+_CANDIDATE_AUTHORITY_KEYS = {
+    "repair_candidate",
+    "repair_candidate_hash",
+    "repair_evaluation",
+}
 
 
 def _is_digest(value: object) -> bool:
@@ -92,6 +106,10 @@ def _is_digest(value: object) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _exact_zero(value: object) -> bool:
+    return type(value) is int and value == 0
 
 
 def _is_ascii(value: object) -> bool:
@@ -150,6 +168,9 @@ def _require_repair_attempt_chain(
             isinstance(payload, Mapping)
             and "semantic_equivalence_validation" in payload
         )
+        candidate_present = (
+            isinstance(payload, Mapping) and "repair_candidate" in payload
+        )
         semantic_required = terminal_attempt and dimension == "implementation"
         expected_keys = set(_REPAIR_ATTEMPT_KEYS)
         if semantic_required:
@@ -198,6 +219,7 @@ def _require_repair_attempt_chain(
             or not isinstance(payload, Mapping)
             or set(payload) != expected_keys
             or semantic_present is not semantic_required
+            or candidate_present
             or attempt.kind != "repair-attempt"
             or attempt.status != expected_outcome
             or attempt.subject != f"Repair:{repair_id}"
@@ -223,8 +245,8 @@ def _require_repair_attempt_chain(
             or not _is_digest(proof_hash)
             or not _is_ascii(payload.get("explanation"))
             or payload.get("scientific_semantics_changed") is not False
-            or payload.get("scientific_failure_delta") != 0
-            or payload.get("scientific_trial_delta") != 0
+            or not _exact_zero(payload.get("scientific_failure_delta"))
+            or not _exact_zero(payload.get("scientific_trial_delta"))
             or attempt_reproduction != reproduction
             or not _is_digest_list(attempt_reproduction)
             or not _is_digest_list(new_evidence)
@@ -271,6 +293,16 @@ def _require_repair_attempt_chain(
         != close_payload.get("verification_evidence_hashes")
         or terminal.payload.get("semantic_equivalence_validation")
         != close_payload.get("semantic_equivalence_validation")
+        or terminal.payload.get("repair_validation")
+        != close_payload.get("repair_validation")
+        or terminal.payload.get(_REPAIR_AUTHORITY_FIELD)
+        != close_payload.get(_REPAIR_AUTHORITY_FIELD)
+        or terminal.payload.get("repair_candidate")
+        != close_payload.get("repair_candidate")
+        or terminal.payload.get("repair_candidate_hash")
+        != close_payload.get("repair_candidate_hash")
+        or terminal.payload.get("repair_evaluation")
+        != close_payload.get("repair_evaluation")
     ):
         raise ReplayRepairOperationalAuthorityError(
             "implementation Repair terminal attempt differs from its close"
@@ -376,6 +408,8 @@ def require_repair_chain(
     prior_authority_sequence = declaration.authority_sequence
     implementation_changed = False
     prior_implementation_close: IndexRecord | None = None
+    registered_authority_latched = False
+    registered_scope: str | None = None
     for sequence in range(1, head.sequence + 1):
         close = index.event_record(stream, sequence)
         payload = None if close is None else close.payload
@@ -416,6 +450,11 @@ def require_repair_chain(
             else index.get("repair-open", repair_id)
         )
         opened_payload = None if opened is None else opened.payload
+        registered_authority = (
+            isinstance(opened_payload, Mapping)
+            and opened_payload.get(_REPAIR_AUTHORITY_FIELD)
+            == REGISTERED_REPAIR_AUTHORITY_SCHEMA
+        )
         cause_manifest = (
             None
             if not isinstance(opened_payload, Mapping)
@@ -457,9 +496,27 @@ def require_repair_chain(
             isinstance(payload, Mapping)
             and "semantic_equivalence_validation" in payload
         )
+        candidate_present = (
+            isinstance(payload, Mapping) and "repair_candidate" in payload
+        )
+        candidate_required = (
+            registered_authority
+            and isinstance(opened_payload, Mapping)
+            and opened_payload.get(_REPAIR_SCOPE_FIELD) == "production"
+        )
         expected_close_keys = set(_REPAIR_CLOSE_KEYS)
+        expected_open_keys = set(_REPAIR_OPEN_KEYS)
+        if registered_authority:
+            expected_open_keys.update(
+                {_REPAIR_AUTHORITY_FIELD, _REPAIR_SCOPE_FIELD}
+            )
+            expected_close_keys.update(
+                {_REPAIR_AUTHORITY_FIELD, "repair_validation"}
+            )
         if dimension == "implementation":
             expected_close_keys.add("semantic_equivalence_validation")
+        if candidate_required or candidate_present:
+            expected_close_keys.update(_CANDIDATE_AUTHORITY_KEYS)
         expected_close_id = None
         if isinstance(payload, Mapping) and type(repair_id) is str:
             close_identity_payload: dict[str, Any] = {
@@ -470,6 +527,16 @@ def require_repair_chain(
                 close_identity_payload["semantic_equivalence_validation"] = (
                     payload.get("semantic_equivalence_validation")
                 )
+            if registered_authority:
+                close_identity_payload[_REPAIR_AUTHORITY_FIELD] = payload.get(
+                    _REPAIR_AUTHORITY_FIELD
+                )
+                close_identity_payload["repair_validation"] = payload.get(
+                    "repair_validation"
+                )
+                if candidate_required or candidate_present:
+                    for key in _CANDIDATE_AUTHORITY_KEYS:
+                        close_identity_payload[key] = payload.get(key)
             expected_close_id = canonical_digest(
                 domain="repair-close",
                 payload=close_identity_payload,
@@ -480,6 +547,8 @@ def require_repair_chain(
             or not isinstance(payload, Mapping)
             or set(payload) != expected_close_keys
             or semantic_present is not (dimension == "implementation")
+            or (candidate_present and not registered_authority)
+            or (candidate_required and not candidate_present)
             or close.kind != "repair-close"
             or close.status != "repaired"
             or close.subject != f"Job:{job_id}"
@@ -492,7 +561,23 @@ def require_repair_chain(
             or repair_id != expected_repair_id
             or opened is None
             or not isinstance(opened_payload, Mapping)
-            or set(opened_payload) != _REPAIR_OPEN_KEYS
+            or set(opened_payload) != expected_open_keys
+            or (registered_authority_latched and not registered_authority)
+            or (
+                registered_scope is not None
+                and opened_payload.get(_REPAIR_SCOPE_FIELD) != registered_scope
+            )
+            or (
+                registered_authority
+                and (
+                    opened_payload.get(_REPAIR_AUTHORITY_FIELD)
+                    != REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                    or opened_payload.get(_REPAIR_SCOPE_FIELD)
+                    not in {"fixture_only", "production"}
+                    or payload.get(_REPAIR_AUTHORITY_FIELD)
+                    != REGISTERED_REPAIR_AUTHORITY_SCHEMA
+                )
+            )
             or opened.kind != "repair-open"
             or opened.record_id != repair_id
             or opened.status != "open"
@@ -504,7 +589,7 @@ def require_repair_chain(
             or opened_payload.get("failure_kind") != "engineering"
             or opened_payload.get("predecessor_repair_close_record_id")
             != predecessor_close_id
-            or opened_payload.get("scientific_trial_delta") != 0
+            or not _exact_zero(opened_payload.get("scientific_trial_delta"))
             or not isinstance(spec, Mapping)
             or opened_payload.get("interrupted_action")
             != spec.get("callable_identity")
@@ -533,20 +618,41 @@ def require_repair_chain(
                 else attempt.payload.get("prior_attempt_record_id")
             )
             or not _is_digest_list(payload.get("verification_evidence_hashes"))
-            or payload.get("scientific_failure_delta") != 0
-            or payload.get("scientific_trial_delta") != 0
+            or not _exact_zero(payload.get("scientific_failure_delta"))
+            or not _exact_zero(payload.get("scientific_trial_delta"))
         ):
             raise ReplayRepairOperationalAuthorityError(
                 "post-Repair admission has an invalid implementation Repair chain"
             )
-        attempt = _require_repair_attempt_chain(
-            index,
-            opened=opened,
-            close=close,
-            declaration=declaration,
-            job_id=job_id,
-            repair_id=repair_id,
+        registered_authority_latched = (
+            registered_authority_latched or registered_authority
         )
+        if registered_authority:
+            registered_scope = str(opened_payload[_REPAIR_SCOPE_FIELD])
+        if registered_authority:
+            try:
+                registered_episode = require_registered_repair_episode(
+                    index,
+                    opened=opened,
+                    close=close,
+                    declaration=declaration,
+                    job_id=job_id,
+                    episode=sequence,
+                    predecessor_repair_close_record_id=predecessor_close_id,
+                    prior_authority_sequence=prior_authority_sequence,
+                )
+            except RegisteredRepairEpisodeAuthorityError as exc:
+                raise ReplayRepairOperationalAuthorityError(str(exc)) from exc
+            attempt = registered_episode.terminal_attempt
+        else:
+            attempt = _require_repair_attempt_chain(
+                index,
+                opened=opened,
+                close=close,
+                declaration=declaration,
+                job_id=job_id,
+                repair_id=repair_id,
+            )
         if (
             attempt.payload.get("changed_dimension") != dimension
             or attempt.payload.get("attempt_proof_hash")
@@ -554,6 +660,16 @@ def require_repair_chain(
             or attempt.payload.get("resume_action")
             != payload.get("resume_action")
             or attempt.fingerprint != close.fingerprint
+            or attempt.payload.get("repair_validation")
+            != payload.get("repair_validation")
+            or attempt.payload.get(_REPAIR_AUTHORITY_FIELD)
+            != payload.get(_REPAIR_AUTHORITY_FIELD)
+            or attempt.payload.get("repair_candidate")
+            != payload.get("repair_candidate")
+            or attempt.payload.get("repair_candidate_hash")
+            != payload.get("repair_candidate_hash")
+            or attempt.payload.get("repair_evaluation")
+            != payload.get("repair_evaluation")
         ):
             raise ReplayRepairOperationalAuthorityError(
                 "post-Repair close differs from its terminal attempt"

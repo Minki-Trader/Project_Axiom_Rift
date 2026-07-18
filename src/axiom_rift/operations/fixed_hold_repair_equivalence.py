@@ -692,7 +692,14 @@ _COST_AWARE_CROSS_STUDY_ORIGIN_JOB_SOURCE_PATHS = tuple(
     sorted(
         set(_FIXED_HOLD_JOB_SOURCE_PATHS).difference(
             {
+                "axiom_rift/operations/completion_evidence_scope.py",
+                "axiom_rift/operations/permits.py",
+                "axiom_rift/operations/repair_semantic_equivalence.py",
+                "axiom_rift/operations/running_job.py",
+                "axiom_rift/operations/validation.py",
+                "axiom_rift/operations/validation_integrity.py",
                 "axiom_rift/research/completed_period_atomic_trace.py",
+                "axiom_rift/research/effective_evidence_scope.py",
                 "axiom_rift/research/fixed_hold_family_job.py",
                 "axiom_rift/research/fixed_hold_family_trace.py",
                 "axiom_rift/research/fixed_hold_historical_projection.py",
@@ -706,6 +713,10 @@ _COST_AWARE_CROSS_STUDY_ORIGIN_JOB_SOURCE_PATHS = tuple(
         )
         | {
             "axiom_rift/operations/historical_family_authority_reader.py",
+            "axiom_rift/operations/repair_disposition_case.py",
+            "axiom_rift/operations/repair_disposition_inventory.py",
+            "axiom_rift/operations/validation_identity.py",
+            "axiom_rift/operations/validation_semantic_dependencies.py",
             "axiom_rift/research/cost_aware_execution_pair.py",
             "axiom_rift/research/cost_aware_execution_pair_engine.py",
             "axiom_rift/research/cost_aware_execution_pair_job.py",
@@ -719,6 +730,7 @@ _COST_AWARE_CROSS_STUDY_ORIGIN_JOB_SOURCE_PATHS = tuple(
             "axiom_rift/research/event_label_discovery.py",
             "axiom_rift/research/replay_member_assignment.py",
             "axiom_rift/research/scientific_study.py",
+            "axiom_rift/storage/read_memo.py",
         }
     )
 )
@@ -779,6 +791,96 @@ _CORRECTION_PROFILES = {
     },
 }
 
+# A registered historical correction must keep producing the same engineering
+# claim after the worktree advances.  The scientific validator still opens and
+# compares every source byte from its explicitly bound source root; these
+# digests only make the Writer-side claim independent from ambient checkout
+# state.
+_REGISTERED_REQUIRED_NEW_SOURCE_ARTIFACTS = {
+    FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY: (
+        {
+            "relative_path": (
+                "axiom_rift/operations/repair_semantic_equivalence.py"
+            ),
+            "sha256": (
+                "2995216e7387e024c26abe88138fb72bf68120bfecafbec37b3d6f1b176d47ba"
+            ),
+        },
+        {
+            "relative_path": "axiom_rift/operations/running_job.py",
+            "sha256": (
+                "d637c16bd28350aa35b86b5fa2799e99459dbed59b167a39103b404416f4adfa"
+            ),
+        },
+        {
+            "relative_path": "axiom_rift/operations/running_job_context.py",
+            "sha256": (
+                "bfac030f525148f39024538ca28064dbd4113d77b482d51f76a8ee9431da833c"
+            ),
+        },
+        {
+            "relative_path": "axiom_rift/operations/validation.py",
+            "sha256": (
+                "0ba394dcacc1d3eafbc02cd3f797163fc491351781e33a9fc20aaad7e8b056a6"
+            ),
+        },
+        {
+            "relative_path": (
+                "axiom_rift/research/fixed_hold_replay_runtime.py"
+            ),
+            "sha256": (
+                "4b3cd0091cdc580b7e4b039bda2d029722d4b5dc42a722885fb97ce3b5971c9a"
+            ),
+        },
+        {
+            "relative_path": "axiom_rift/research/replay_obligation.py",
+            "sha256": (
+                "ffbd02b5ef14254cade174e6dec8d31066b8ec399cbec8b8fe6ae4a882436f8d"
+            ),
+        },
+        {
+            "relative_path": (
+                "axiom_rift/research/replay_satisfaction_invalidation.py"
+            ),
+            "sha256": (
+                "27b146c4cc0d48adc7ee9199cef8792e845b453e9cd946b0e250ab4c94945a45"
+            ),
+        },
+    ),
+    FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY: (
+        {
+            "relative_path": "axiom_rift/operations/running_job_context.py",
+            "sha256": (
+                "bf0b6fd357e9696badf323eb1a5e5c5c0c9a72e81edeeb80b2dcfa1c80431a7f"
+            ),
+        },
+    ),
+    FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY: (
+        {
+            "relative_path": "axiom_rift/operations/running_job_context.py",
+            "sha256": (
+                "b3554831acb8d451ee126c404978a8d02d5e94c54eb617005a2726374f9adb16"
+            ),
+        },
+    ),
+    FIXED_HOLD_COST_AWARE_CROSS_STUDY_ORIGIN_NEW_IMPLEMENTATION_IDENTITY: (
+        {
+            "relative_path": "axiom_rift/operations/running_job_context.py",
+            "sha256": (
+                "4e221cf9c81ef84a655ac4b8d0d6ff498f497f65b600e82c40db84407ad1ca1d"
+            ),
+        },
+    ),
+    FIXED_HOLD_COST_AWARE_PROPOSAL_ORIGIN_NEW_IMPLEMENTATION_IDENTITY: (
+        {
+            "relative_path": "axiom_rift/operations/running_job_context.py",
+            "sha256": (
+                "a06a06d3ec90ca9209877b894460a02603d5d70d48bc4eb66262b046b11d38dd"
+            ),
+        },
+    ),
+}
+
 
 def _correction_profile(
     *,
@@ -804,6 +906,89 @@ def _correction_profile(
             "fixed-hold implementation pair is not the registered correction"
         )
     return profile
+
+
+def _registered_verification_source_artifacts(
+    *,
+    new_implementation_identity: str,
+    profile: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    registered = _REGISTERED_REQUIRED_NEW_SOURCE_ARTIFACTS.get(
+        new_implementation_identity
+    )
+    if registered is None:
+        # Test-only or future provisional profiles remain usable without
+        # weakening registered historical pairs.  Admission of a production
+        # profile must add immutable source digests above.
+        return [
+            {
+                "relative_path": relative_path,
+                "sha256": sha256(
+                    (_SOURCE_ROOT / relative_path).read_bytes()
+                ).hexdigest(),
+            }
+            for relative_path in profile["required_changed_paths"]
+        ]
+    expected_paths = tuple(
+        artifact["relative_path"] for artifact in registered
+    )
+    if expected_paths != profile["required_changed_paths"]:
+        raise EvidenceValidationError(
+            "fixed-hold registered verification sources differ from the profile"
+        )
+    return [dict(artifact) for artifact in registered]
+
+
+def _path_is_link_like(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
+def _validated_source_root(source_root: str | Path) -> Path:
+    candidate = Path(source_root)
+    try:
+        if _path_is_link_like(candidate):
+            raise EvidenceValidationError(
+                "fixed-hold validator source root must not be a link"
+            )
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise EvidenceValidationError(
+            "fixed-hold validator source root is unavailable"
+        ) from exc
+    if not resolved.is_dir():
+        raise EvidenceValidationError(
+            "fixed-hold validator source root must be a directory"
+        )
+    return resolved
+
+
+def _source_file_under_root(source_root: Path, relative_path: str) -> Path:
+    candidate = source_root
+    for part in PurePosixPath(relative_path).parts:
+        candidate = candidate / part
+        try:
+            if _path_is_link_like(candidate):
+                raise EvidenceValidationError(
+                    "fixed-hold registered source must not traverse a link"
+                )
+        except OSError as exc:
+            raise EvidenceValidationError(
+                "fixed-hold registered source is unavailable"
+            ) from exc
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise EvidenceValidationError(
+            "fixed-hold registered source is unavailable"
+        ) from exc
+    if not resolved.is_relative_to(source_root) or not resolved.is_file():
+        raise EvidenceValidationError(
+            "fixed-hold registered source escapes the source root"
+        )
+    return resolved
 
 
 def _transition_records(record: Any, event_kind: str, result: Mapping[str, Any]):
@@ -1572,17 +1757,26 @@ def fixed_hold_authority_correction_verification_manifest(
 ) -> dict[str, Any]:
     """Recompute one typed engineering verification outside the Job closure."""
 
+    manifest = fixed_hold_authority_correction_verification_claim_manifest(
+        new_implementation_identity=new_implementation_identity,
+    )
+    manifest["conformance_case_ids"] = list(_run_correction_conformance())
+    return manifest
+
+
+def fixed_hold_authority_correction_verification_claim_manifest(
+    *,
+    new_implementation_identity: str,
+) -> dict[str, Any]:
+    """Materialize the deterministic claim; the scientific validator reruns it."""
+
     profile = _correction_profile(
         new_implementation_identity=new_implementation_identity,
     )
-    conformance = _run_correction_conformance()
-    source_artifacts = [
-        {
-            "relative_path": relative_path,
-            "sha256": sha256((_SOURCE_ROOT / relative_path).read_bytes()).hexdigest(),
-        }
-        for relative_path in profile["required_changed_paths"]
-    ]
+    source_artifacts = _registered_verification_source_artifacts(
+        new_implementation_identity=new_implementation_identity,
+        profile=profile,
+    )
     return {
         "authority_deltas": {
             "candidate": 0,
@@ -1591,7 +1785,9 @@ def fixed_hold_authority_correction_verification_manifest(
             "scientific_satisfaction": 0,
             "scientific_trial": 0,
         },
-        "conformance_case_ids": list(conformance),
+        "conformance_case_ids": list(
+            FIXED_HOLD_AUTHORITY_CORRECTION_CASE_IDS
+        ),
         "new_implementation_identity": new_implementation_identity,
         "protocol": FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL,
         "schema": FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA,
@@ -1599,6 +1795,33 @@ def fixed_hold_authority_correction_verification_manifest(
         "validator_id": FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID,
         "verdict": "passed",
     }
+
+
+def require_fixed_hold_authority_correction_verification_claim(
+    content: bytes,
+    *,
+    new_implementation_identity: str,
+) -> dict[str, Any]:
+    """Check the exact claim shape without duplicating the conformance run."""
+
+    try:
+        observed = parse_canonical(content)
+    except (TypeError, ValueError) as exc:
+        raise EvidenceValidationError(
+            "fixed-hold correction verification claim is not canonical"
+        ) from exc
+    expected = fixed_hold_authority_correction_verification_claim_manifest(
+        new_implementation_identity=new_implementation_identity,
+    )
+    if (
+        not isinstance(observed, dict)
+        or set(observed) != _VERIFICATION_FIELDS
+        or observed != expected
+    ):
+        raise EvidenceValidationError(
+            "fixed-hold correction verification claim is not exact"
+        )
+    return observed
 
 
 def require_fixed_hold_authority_correction_verification(
@@ -1631,11 +1854,22 @@ def require_fixed_hold_authority_correction_verification(
 class FixedHoldAuthorityCorrectionEquivalenceValidator:
     """Recompute the bounded authority correction from exact source bytes."""
 
+    __slots__ = ("_source_root",)
+
     validator_id = FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID
     domains = frozenset({"scientific"})
     implementation_path = _THIS_IMPLEMENTATION
     dependency_paths = FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_DEPENDENCIES
     protocol = FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL
+
+    def __init__(self, *, source_root: str | Path | None = None) -> None:
+        self._source_root = _validated_source_root(
+            _SOURCE_ROOT if source_root is None else source_root
+        )
+
+    @property
+    def source_root(self) -> Path:
+        return self._source_root
 
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
         if (
@@ -1884,7 +2118,7 @@ class FixedHoldAuthorityCorrectionEquivalenceValidator:
             raise EvidenceValidationError(
                 "fixed-hold correction source paths differ from the exact protocol"
             )
-        source_root = _SOURCE_ROOT.resolve()
+        source_root = self._source_root
         for source_binding in source_bindings:
             relative_path = _relative_source_path(
                 "fixed-hold registered source path",
@@ -1895,12 +2129,10 @@ class FixedHoldAuthorityCorrectionEquivalenceValidator:
                 source_binding.get("new_artifact_hash"),
             )
             expected_bytes = opened.get(new_artifact_hash)
-            current_path = (_SOURCE_ROOT / relative_path).resolve()
             try:
-                if not current_path.is_relative_to(source_root):
-                    raise EvidenceValidationError(
-                        "fixed-hold registered source escapes the source root"
-                    )
+                current_path = _source_file_under_root(
+                    source_root, relative_path
+                )
                 current_bytes = current_path.read_bytes()
             except OSError as exc:
                 raise EvidenceValidationError(
@@ -2074,5 +2306,7 @@ __all__ = [
     "FixedHoldAuthorityCorrectionEquivalenceValidator",
     "changed_source_symbols",
     "fixed_hold_authority_correction_verification_manifest",
+    "fixed_hold_authority_correction_verification_claim_manifest",
     "require_fixed_hold_authority_correction_verification",
+    "require_fixed_hold_authority_correction_verification_claim",
 ]

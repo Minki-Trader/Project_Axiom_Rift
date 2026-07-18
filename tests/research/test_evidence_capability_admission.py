@@ -101,6 +101,16 @@ def run():
     source = running_job_execution_context_dependency_paths()[0]
     return (source.parents[3] / 'state' / 'control.json').read_bytes()
 """,
+        """from axiom_rift.operations.running_job_context import running_job_scientific_projection_dependency_paths
+def run():
+    source = running_job_scientific_projection_dependency_paths()[0]
+    return (source.parents[3] / 'state' / 'control.json').read_bytes()
+""",
+        """from axiom_rift.operations.running_job_context import running_job_operational_identity_boundary_paths
+def run():
+    source = running_job_operational_identity_boundary_paths()[0]
+    return (source.parents[3] / 'state' / 'control.json').read_bytes()
+""",
         """from axiom_rift.research.fixed_hold_replay_runtime import fixed_hold_replay_runtime_dependency_paths
 def run(adapter):
     source = fixed_hold_replay_runtime_dependency_paths(adapter)[0]

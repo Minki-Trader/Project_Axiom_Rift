@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from hashlib import sha256
 import re
 from typing import Any
 
@@ -51,6 +52,8 @@ _CONTROL_ID_PATTERN = re.compile(r"\b(?:MIS|STU)-[0-9]{4}\b")
 _PRODUCTION_SUBJECT_KINDS = frozenset(
     {"Mission", "Initiative", "Study", "Executable", "Release"}
 )
+_HARDCODED_CONTROL_ID_CACHE_LIMIT = 4096
+_HARDCODED_CONTROL_ID_CACHE: dict[str, tuple[str, ...]] = {}
 
 
 def _static_string(node: ast.AST) -> str | None:
@@ -110,8 +113,8 @@ def _passive_static_string(
     return False
 
 
-def hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
-    """Find static Mission/Study IDs in Python or conservatively in other code."""
+def _scan_hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
+    """Perform one uncached static control-identity scan."""
 
     try:
         text = source.decode("utf-8")
@@ -156,6 +159,28 @@ def hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
         if value is not None:
             found.update(_CONTROL_ID_PATTERN.findall(value))
     return tuple(sorted(found))
+
+
+def hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
+    """Find static Mission/Study IDs once per content-addressed source.
+
+    Job implementation artifacts are already authenticated by SHA-256 before
+    this boundary.  Re-parsing the same immutable source closure at every
+    Writer transition added no authority while repeatedly walking millions of
+    AST nodes.  The bounded digest cache retains only the small derived result,
+    not source bytes.
+    """
+
+    source_digest = sha256(source).hexdigest()
+    cached = _HARDCODED_CONTROL_ID_CACHE.get(source_digest)
+    if cached is not None:
+        return cached
+    result = _scan_hardcoded_control_ids(source)
+    if len(_HARDCODED_CONTROL_ID_CACHE) >= _HARDCODED_CONTROL_ID_CACHE_LIMIT:
+        oldest = next(iter(_HARDCODED_CONTROL_ID_CACHE))
+        del _HARDCODED_CONTROL_ID_CACHE[oldest]
+    _HARDCODED_CONTROL_ID_CACHE[source_digest] = result
+    return result
 
 
 def implementation_source_closure_hashes(

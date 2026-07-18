@@ -13,7 +13,8 @@ from axiom_rift.operations.running_job_context import (
     RunningJobEvidence,
     RunningJobExecutionContext,
     RunningJobFixedHoldReplayContext,
-    running_job_execution_context_dependency_paths,
+    running_job_operational_identity_boundary_paths,
+    running_job_scientific_projection_dependency_paths,
 )
 from axiom_rift.operations.validation import (
     validator_execution_dependency_paths,
@@ -28,7 +29,6 @@ from axiom_rift.research.cost_aware_execution_pair_engine import (
 )
 from axiom_rift.research.cost_aware_execution_pair_job import (
     CostAwareExecutionPairJobPacket,
-    CostAwareExecutionPairJobPlan,
     build_cost_aware_execution_pair_cache_provenance,
     build_cost_aware_execution_pair_job_plan,
     cost_aware_execution_pair_cache,
@@ -79,10 +79,14 @@ class CostAwareExecutionImplementationContext(Protocol):
 def cost_aware_execution_pair_runtime_dependency_paths() -> tuple[Path, ...]:
     """Return the exact recursively imported source closure of this Job."""
 
-    return validator_execution_dependency_paths(
-        _THIS_FILE,
-        running_job_execution_context_dependency_paths(),
+    paths = set(
+        validator_execution_dependency_paths(
+            _THIS_FILE,
+            running_job_scientific_projection_dependency_paths(),
+        )
     )
+    paths.difference_update(running_job_operational_identity_boundary_paths())
+    return tuple(sorted(paths, key=lambda path: path.as_posix()))
 
 
 def _source_closure_artifact(

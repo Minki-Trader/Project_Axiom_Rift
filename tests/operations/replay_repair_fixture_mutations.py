@@ -4,6 +4,9 @@ from dataclasses import replace
 from typing import Any
 
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.operations.repair_validation import (
+    REGISTERED_REPAIR_AUTHORITY_SCHEMA,
+)
 from axiom_rift.operations.replay_implementation_repair_admission import (
     repair_admission_stream,
     repair_preflight_stream,
@@ -25,6 +28,7 @@ from replay_repair_fixture_records import (
     _event_id,
     _judgment_record,
     _repair_attempt_and_close_records,
+    _repair_attempt_fingerprint_record,
     _repair_open_record,
     _repair_semantic_validation,
     _request,
@@ -345,6 +349,10 @@ def _add_second_implementation_repair(
         predecessor_close_id=fixture.repair_close.record_id,
         authority_sequence=22,
         root_cause="second fixture implementation defect",
+        registered_authority=(
+            fixture.repair_open.payload.get("repair_authority_schema")
+            == REGISTERED_REPAIR_AUTHORITY_SCHEMA
+        ),
     )
     semantic_validation = _repair_semantic_validation(
         REGISTERED[0],
@@ -365,6 +373,7 @@ def _add_second_implementation_repair(
         authority_sequence=23,
         attempt_proof_hash="0" * 64,
     )
+    attempt_fingerprint_record = _repair_attempt_fingerprint_record(attempt)
     resume = _resume_record(
         close,
         event_sequence=2,
@@ -422,7 +431,15 @@ def _add_second_implementation_repair(
         event_sequence=fixture.admission.event_sequence,
         authority_sequence=27,
     )
-    fixture.records.extend((opened, attempt, close, resume))
+    fixture.records.extend(
+        (
+            opened,
+            *((attempt_fingerprint_record,) if attempt_fingerprint_record else ()),
+            attempt,
+            close,
+            resume,
+        )
+    )
     fixture.replace_records(
         (
             (fixture.completion, completion),

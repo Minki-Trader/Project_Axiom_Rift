@@ -70,6 +70,9 @@ from axiom_rift.storage.state import (
 
 _AUTHORITATIVE_EVENT_CACHE_SIZE = 64
 _THIS_FILE = Path(__file__).resolve()
+_REPAIR_PROJECTION_FILE = _THIS_FILE.with_name(
+    "running_job_repair_projection.py"
+)
 
 
 class RunningJobAuthorityError(RuntimeError):
@@ -178,6 +181,7 @@ def running_job_authority_dependency_paths() -> tuple[Path, ...]:
                 Path(journal_module.__file__).resolve(),
                 Path(path_boundary_module.__file__).resolve(),
                 Path(state_module.__file__).resolve(),
+                _REPAIR_PROJECTION_FILE,
             },
             key=lambda path: path.as_posix(),
         )
@@ -711,8 +715,15 @@ class RunningJobAuthority:
                     raise PermitError(
                         "running Job capability differs from engine entry"
                     )
+                # Import at engine admission, after this module is initialized.
+                # The projection module reuses the implementation-specific
+                # checker above, so a module-level import would form a cycle.
+                from axiom_rift.operations.running_job_repair_projection import (
+                    effective_repair_head_implementation,
+                )
+
                 effective_implementation, repair_record_id = (
-                    effective_running_job_implementation(
+                    effective_repair_head_implementation(
                         index,
                         job_id=execution.job_id,
                         declared_implementation_identity=spec[

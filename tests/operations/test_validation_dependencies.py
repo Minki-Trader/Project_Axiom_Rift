@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import axiom_rift.operations.validation as validation_module
 import axiom_rift.operations.validation_integrity as integrity_module
+import axiom_rift.operations.validation_semantic_dependencies as semantic_module
 from axiom_rift.operations.validation import (
     EvidenceValidationError,
     EvidenceValidationRequest,
@@ -101,6 +102,35 @@ class ValidatorDependencyIdentityTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(discovery.call_count, 1)
+
+    def test_distinct_validator_roots_reuse_shared_import_parses(self) -> None:
+        validation_path = Path(validation_module.__file__).resolve()
+        integrity_path = Path(integrity_module.__file__).resolve()
+        integrity_module._PROJECT_IMPORT_DEPENDENCY_CACHE.clear()
+        self.addCleanup(
+            integrity_module._PROJECT_IMPORT_DEPENDENCY_CACHE.clear
+        )
+        parse = integrity_module.ast.parse
+
+        with patch.object(
+            integrity_module.ast,
+            "parse",
+            wraps=parse,
+        ) as parser:
+            first = integrity_module._project_python_import_dependency_paths(
+                (validation_path,),
+                include_deferred_imports=True,
+            )
+            first_count = parser.call_count
+            second = integrity_module._project_python_import_dependency_paths(
+                (integrity_path,),
+                include_deferred_imports=True,
+            )
+
+        self.assertGreater(first_count, 0)
+        self.assertIn(integrity_path, first)
+        self.assertIn(integrity_path, second)
+        self.assertEqual(parser.call_count, first_count)
 
     def test_execution_closure_retries_importer_drift_after_ast_parse(
         self,
@@ -407,6 +437,35 @@ class MidTamperValidator:
             with self.assertRaises(EvidenceValidationError):
                 EvidenceValidatorRegistry((validator,))
 
+    def test_plannable_protocol_is_metadata_only_not_execution_authority(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as root:
+            dependency = Path(root) / "decision.py"
+            dependency.write_bytes(b"decision dependency")
+            validator = _DependencyBoundValidator(dependency)
+            registry = EvidenceValidatorRegistry((validator,))
+
+            with patch.object(
+                registry,
+                "_require_unchanged",
+                side_effect=AssertionError("full integrity boundary reached"),
+            ):
+                registry.require_plannable_protocol(
+                    validator_id=validator.validator_id,
+                    domain="scientific",
+                    protocol=validator.protocol,
+                )
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "full integrity boundary reached",
+                ):
+                    registry.require_registered_protocol(
+                        validator_id=validator.validator_id,
+                        domain="scientific",
+                        protocol=validator.protocol,
+                    )
+
     def test_missing_or_duplicate_dependency_fails_closed(self) -> None:
         with TemporaryDirectory() as root:
             dependency = Path(root) / "decision.py"
@@ -448,6 +507,306 @@ class MidTamperValidator:
             )
 
             self.assertNotEqual(forward, reverse)
+
+    def test_project_semantic_transitive_drift_reidentifies_after_cache_loss(
+        self,
+    ) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_semantic_restart_fixture_",
+        ) as root:
+            package = Path(root)
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            transitive = package / "thresholds.py"
+            initializer = package / "__init__.py"
+            initializer.write_text("PACKAGE_VERSION = 1\n", encoding="ascii")
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                "from . import thresholds\nDECISION = thresholds.LIMIT\n",
+                encoding="ascii",
+            )
+            transitive.write_text("LIMIT = 1\n", encoding="ascii")
+
+            initial = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+            semantic_module._IMPORT_ANALYSIS_CACHE.clear()
+            semantic_module._SEMANTIC_CLOSURE_CACHE.clear()
+            transitive.write_text("LIMIT = 2\n", encoding="ascii")
+            after_transitive_drift = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+            initializer.write_text("PACKAGE_VERSION = 2\n", encoding="ascii")
+            after_initializer_drift = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+
+            self.assertNotEqual(initial, after_transitive_drift)
+            self.assertNotEqual(
+                after_transitive_drift,
+                after_initializer_drift,
+            )
+
+    def test_implementation_only_import_drift_is_closure_only(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_closure_only_fixture_",
+        ) as root:
+            package = Path(root)
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            operational = package / "operational.py"
+            implementation.write_text(
+                "from . import operational\nVALIDATOR = operational.VALUE\n",
+                encoding="ascii",
+            )
+            semantic_root.write_text(
+                "from .validator import VALIDATOR\nDECISION = VALIDATOR\n",
+                encoding="ascii",
+            )
+            operational.write_text("VALUE = 1\n", encoding="ascii")
+
+            initial = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+            operational.write_text("VALUE = 2\n", encoding="ascii")
+            after_closure_only_drift = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+
+            self.assertEqual(initial, after_closure_only_drift)
+
+    def test_unclassified_dynamic_semantic_import_fails_closed(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_dynamic_fixture_",
+        ) as root:
+            package = Path(root)
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                """from importlib import import_module
+
+
+def load(module_name: str) -> object:
+    return import_module(module_name)
+""",
+                encoding="ascii",
+            )
+
+            with self.assertRaisesRegex(
+                EvidenceValidationError,
+                "dynamic import target is not statically classified",
+            ):
+                validator_implementation_sha256(
+                    implementation_path=implementation,
+                    dependency_paths=(semantic_root,),
+                )
+
+    def test_literal_dynamic_project_import_is_semantic(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_literal_dynamic_fixture_",
+        ) as root:
+            package = Path(root)
+            package_name = package.name
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            transitive = package / "dynamic_thresholds.py"
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                "from importlib import import_module\n"
+                f'MODULE = import_module("{package_name}.dynamic_thresholds")\n',
+                encoding="ascii",
+            )
+            transitive.write_text("LIMIT = 1\n", encoding="ascii")
+
+            initial = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+            transitive.write_text("LIMIT = 2\n", encoding="ascii")
+            changed = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+
+            self.assertNotEqual(initial, changed)
+
+    def test_dynamic_target_must_derive_from_its_route_table(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_dynamic_route_fixture_",
+        ) as root:
+            package = Path(root)
+            package_name = package.name
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            (package / "routed.py").write_text("VALUE = 1\n", encoding="ascii")
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                """from importlib import import_module
+
+_ROUTES = {"known": "%s.routed"}
+
+
+def load(module_name: str) -> object:
+    _ROUTES.get("known")
+    return import_module(module_name)
+"""
+                % package_name,
+                encoding="ascii",
+            )
+
+            with self.assertRaisesRegex(
+                EvidenceValidationError,
+                "dynamic import target is not statically classified",
+            ):
+                validator_implementation_sha256(
+                    implementation_path=implementation,
+                    dependency_paths=(semantic_root,),
+                )
+
+    def test_single_assignment_dynamic_route_is_semantic(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_sealed_route_fixture_",
+        ) as root:
+            package = Path(root)
+            package_name = package.name
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            routed = package / "routed.py"
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                """from importlib import import_module
+
+_ROUTES = {"known": "%s.routed"}
+
+
+def load(name: str) -> object:
+    module_name = _ROUTES.get(name)
+    return import_module(module_name)
+"""
+                % package_name,
+                encoding="ascii",
+            )
+            routed.write_text("VALUE = 1\n", encoding="ascii")
+
+            initial = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+            routed.write_text("VALUE = 2\n", encoding="ascii")
+            changed = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+
+            self.assertNotEqual(initial, changed)
+
+    def test_dynamic_import_function_alias_fails_closed(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_dynamic_alias_fixture_",
+        ) as root:
+            package = Path(root)
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                """from importlib import import_module
+
+loader = import_module
+
+
+def load(module_name: str) -> object:
+    return loader(module_name)
+""",
+                encoding="ascii",
+            )
+
+            with self.assertRaisesRegex(
+                EvidenceValidationError,
+                "dynamic import indirection",
+            ):
+                validator_implementation_sha256(
+                    implementation_path=implementation,
+                    dependency_paths=(semantic_root,),
+                )
+
+    def test_literal_relative_dynamic_project_import_is_semantic(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_relative_dynamic_fixture_",
+        ) as root:
+            package = Path(root)
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            transitive = package / "relative_thresholds.py"
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                "from importlib import import_module\n"
+                'MODULE = import_module(".relative_thresholds", __package__)\n',
+                encoding="ascii",
+            )
+            transitive.write_text("LIMIT = 1\n", encoding="ascii")
+
+            initial = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+            transitive.write_text("LIMIT = 2\n", encoding="ascii")
+            changed = validator_implementation_sha256(
+                implementation_path=implementation,
+                dependency_paths=(semantic_root,),
+            )
+
+            self.assertNotEqual(initial, changed)
+
+    def test_registry_rechecks_dynamic_semantic_transitive_bytes(self) -> None:
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_registry_dynamic_fixture_",
+        ) as root:
+            package = Path(root)
+            package_name = package.name
+            (package / "__init__.py").write_text("", encoding="ascii")
+            semantic_root = package / "decision.py"
+            transitive = package / "dynamic_thresholds.py"
+            semantic_root.write_text(
+                "from importlib import import_module\n"
+                f'MODULE = import_module("{package_name}.dynamic_thresholds")\n',
+                encoding="ascii",
+            )
+            transitive.write_text("LIMIT = 1\n", encoding="ascii")
+            validator = _DependencyBoundValidator(semantic_root)
+            registry = EvidenceValidatorRegistry((validator,))
+
+            transitive.write_text("LIMIT = 2\n", encoding="ascii")
+
+            with self.assertRaisesRegex(
+                EvidenceValidationError,
+                "registration changed after registration",
+            ):
+                registry.require_registered(
+                    validator_id=validator.validator_id,
+                    domain="scientific",
+                )
 
 
 if __name__ == "__main__":

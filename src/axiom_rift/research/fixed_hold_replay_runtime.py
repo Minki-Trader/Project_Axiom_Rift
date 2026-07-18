@@ -10,19 +10,24 @@ repository code and is selected by the callable entry point.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
 
+import axiom_rift.research.evidence_inputs as evidence_inputs_module
+import axiom_rift.research.evidence_proofs as evidence_proofs_module
+import axiom_rift.research.fixed_hold_family_job as fixed_hold_family_job_module
+import axiom_rift.research.fixed_hold_family_trace as fixed_hold_family_trace_module
+import axiom_rift.research.fixed_hold_shared_trace as fixed_hold_shared_trace_module
+import axiom_rift.research.historical_family_binding as historical_family_binding_module
+import axiom_rift.research.replay_coverage as replay_coverage_module
+import axiom_rift.research.replay_exposure as replay_exposure_module
+import axiom_rift.research.reproducible_cache as reproducible_cache_module
+import axiom_rift.research.scientific_trace as scientific_trace_module
+import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.research.validation_v2 as validation_v2_module
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations.repair_semantic_equivalence import (
-    IMPLEMENTATION_REPAIR_V2_SCHEMA,
-    fixed_hold_authority_correction_measurement,
-    semantic_equivalence_result_manifest,
-)
+from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.validation import (
     validator_execution_dependency_paths,
 )
@@ -33,7 +38,8 @@ from axiom_rift.operations.running_job_context import (
     RunningJobEvidence,
     RunningJobExecutionContext,
     RunningJobFixedHoldReplayContext,
-    running_job_execution_context_dependency_paths,
+    running_job_operational_identity_boundary_paths,
+    running_job_scientific_projection_dependency_paths,
 )
 from axiom_rift.research.fixed_hold_family_job import (
     FixedHoldFamilyJobPacket,
@@ -54,7 +60,6 @@ from axiom_rift.research.historical_family_binding import (
     HistoricalFamilySpec,
 )
 from axiom_rift.research.replay_exposure import FrozenFamilyExposureContext
-from axiom_rift.storage.index import LocalIndexView
 
 
 DefinitionBuilder = Callable[[int], FixedHoldProtocolDefinition]
@@ -80,6 +85,27 @@ BoundEvidenceTraceBuilder = Callable[
     tuple[dict[str, object], dict[str, dict[str, int]]],
 ]
 _THIS_FILE = Path(__file__).resolve()
+_SOURCE_ROOT = _THIS_FILE.parents[2]
+_RUNNING_JOB_CONTEXT_FILE = (
+    _SOURCE_ROOT / "axiom_rift" / "operations" / "running_job_context.py"
+).resolve()
+_FIXED_HOLD_FAMILY_JOB_FILE = Path(
+    fixed_hold_family_job_module.__file__
+).resolve()
+_RUNTIME_SCIENTIFIC_DEPENDENCY_ROOTS = (
+    Path(evidence_inputs_module.__file__).resolve(),
+    Path(evidence_proofs_module.__file__).resolve(),
+    _FIXED_HOLD_FAMILY_JOB_FILE,
+    Path(fixed_hold_family_trace_module.__file__).resolve(),
+    Path(fixed_hold_shared_trace_module.__file__).resolve(),
+    Path(historical_family_binding_module.__file__).resolve(),
+    Path(replay_coverage_module.__file__).resolve(),
+    Path(replay_exposure_module.__file__).resolve(),
+    Path(reproducible_cache_module.__file__).resolve(),
+    Path(scientific_trace_module.__file__).resolve(),
+    Path(selection_inference_module.__file__).resolve(),
+    Path(validation_v2_module.__file__).resolve(),
+)
 
 
 class FixedHoldRuntimeContext(Protocol):
@@ -113,31 +139,6 @@ class FixedHoldRuntimeContext(Protocol):
         producer: RunningJobExecution,
         **kwargs: Any,
     ) -> None: ...
-
-
-class FixedHoldRepairContext(Protocol):
-    """Management-only context for an interrupted implementation Repair."""
-
-    evidence: RunningJobEvidence
-
-    def open_stable_index(
-        self,
-    ) -> AbstractContextManager[
-        tuple[dict[str, Any], LocalIndexView]
-    ]: ...
-
-    def plan_fixed_hold_authority_correction_repair(
-        self,
-        *,
-        new_implementation_identity: str,
-    ) -> dict[str, Any]: ...
-
-    def resolve_fixed_hold_authority_correction_verification(
-        self,
-        *,
-        new_implementation_identity: str,
-        evidence_hashes: tuple[str, ...],
-    ) -> tuple[str, ...]: ...
 
 
 def _ascii(name: str, value: object) -> str:
@@ -346,15 +347,65 @@ class FixedHoldReplayRuntimeAdapter:
 def fixed_hold_replay_runtime_dependency_paths(
     adapter: FixedHoldReplayRuntimeAdapter,
 ) -> tuple[Path, ...]:
-    """Return the centrally inferred exact source closure for this runtime."""
+    """Return the scientific source closure behind the operational gate.
 
-    return validator_execution_dependency_paths(
+    Four bridge modules execute both admission and scientific behavior: this
+    runtime, its Job entry point, the fixed-hold family envelope, and the
+    running-Job projection context.  Their own bytes are scientific identity,
+    but recursively following their admission imports would make unrelated
+    Repair and validator-registry edits reidentify every fixed-hold Job.
+
+    The bridge bytes are therefore bound directly while recursive discovery
+    starts from their explicitly exposed scientific roots.  Operational gate
+    modules remain runtime-enforced and are deliberately absent from the
+    scientific implementation identity.
+    """
+
+    callable_parts = adapter.callable_identity.split(".")
+    if len(callable_parts) < 3:
+        raise RuntimeError("fixed-hold callable identity is invalid")
+    entrypoint = (
+        _SOURCE_ROOT / Path(*callable_parts[:-2])
+    ).with_suffix(".py").resolve()
+    declared = set(adapter.dependency_paths)
+    if entrypoint not in declared:
+        raise RuntimeError(
+            "fixed-hold adapter omits its callable entry-point source"
+        )
+    bridge_paths = {
         _THIS_FILE,
-        (
-            *running_job_execution_context_dependency_paths(),
-            *adapter.dependency_paths,
-        ),
+        _RUNNING_JOB_CONTEXT_FILE,
+        _FIXED_HOLD_FAMILY_JOB_FILE,
+        entrypoint,
+    }
+    scientific_roots = {
+        *declared,
+        *_RUNTIME_SCIENTIFIC_DEPENDENCY_ROOTS,
+        *running_job_scientific_projection_dependency_paths(),
+    }
+    inferred_roots = tuple(
+        sorted(
+            scientific_roots.difference(bridge_paths),
+            key=lambda path: path.as_posix(),
+        )
     )
+    if not inferred_roots:
+        raise RuntimeError("fixed-hold scientific dependency roots are absent")
+    inferred = validator_execution_dependency_paths(
+        inferred_roots[0],
+        inferred_roots[1:],
+    )
+    paths = {
+        *bridge_paths,
+        *inferred,
+    }.difference(running_job_operational_identity_boundary_paths())
+    missing_roots = scientific_roots.difference(paths)
+    if missing_roots:
+        raise RuntimeError(
+            "fixed-hold scientific dependency roots crossed the operational "
+            "identity boundary"
+        )
+    return tuple(sorted(paths, key=lambda path: path.as_posix()))
 
 
 def fixed_hold_replay_job_implementation_artifact(
@@ -468,241 +519,34 @@ def materialize_fixed_hold_replay_job_implementation(
 
 
 def materialize_running_job_implementation_repair_proof(
-    writer: FixedHoldRepairContext,
+    writer: Any,
     *,
     adapter: FixedHoldReplayRuntimeAdapter | None = None,
     callable_identity: str | None = None,
-    implementation_materializer: (
-        Callable[[FixedHoldRepairContext], str] | None
-    ) = None,
+    implementation_materializer: Callable[[Any], str] | None = None,
     explanation: str,
-    verification_evidence_hashes: tuple[str, ...],
+    verification_evidence_hashes: tuple[str, ...] = (),
 ) -> str:
-    """Bind a repaired closure and independent verification to one Job."""
+    """Compatibility bridge to the management-only Repair materializer.
 
-    reason = _ascii("running Job Repair explanation", explanation)
-    if adapter is not None:
-        if callable_identity is not None or implementation_materializer is not None:
-            raise ValueError(
-                "running Job Repair accepts an adapter or an explicit "
-                "implementation binding, not both"
-            )
-        resolved_callable_identity = adapter.callable_identity
+    Historical Job wrappers import this name from the runtime module, so the
+    bridge remains byte-stable at those call sites.  The operational Repair
+    implementation is imported only when management explicitly invokes it;
+    it is not part of the scientific runtime dependency graph.
+    """
 
-        def materialize_implementation(context: FixedHoldRepairContext) -> str:
-            return materialize_fixed_hold_replay_job_implementation(
-                context,
-                adapter=adapter,
-            )
+    from axiom_rift.operations.fixed_hold_repair_materializer import (
+        materialize_running_job_implementation_repair_proof as materialize,
+    )
 
-    else:
-        resolved_callable_identity = _ascii(
-            "running Job Repair callable identity",
-            callable_identity,
-        )
-        if not callable(implementation_materializer):
-            raise ValueError(
-                "running Job Repair implementation materializer is required"
-            )
-        materialize_implementation = implementation_materializer
-    with writer.open_stable_index() as (control, index):
-        science = control.get("scientific")
-        repair = None if not isinstance(science, Mapping) else science.get(
-            "active_repair"
-        )
-        job = (
-            None if not isinstance(science, Mapping) else science.get("active_job")
-        )
-        if (
-            not isinstance(repair, Mapping)
-            or not isinstance(job, Mapping)
-            or job.get("status") != "interrupted_repair"
-            or repair.get("job_id") != job.get("id")
-        ):
-            raise ValueError("implementation Repair requires one interrupted Job")
-        declaration = index.get("job-declared", str(job["id"]))
-        opened = index.get("repair-open", str(repair["id"]))
-        prior_head = index.event_head(f"job-repair:{job['id']}")
-        prior_close = (
-            None
-            if prior_head is None
-            else index.get(prior_head.record_kind, prior_head.record_id)
-        )
-    spec = None if declaration is None else declaration.payload.get("spec")
-    reproduction = (
-        None
-        if opened is None
-        else opened.payload.get("minimum_reproduction_evidence")
+    return materialize(
+        writer,
+        adapter=adapter,
+        callable_identity=callable_identity,
+        implementation_materializer=implementation_materializer,
+        explanation=explanation,
+        verification_evidence_hashes=verification_evidence_hashes,
     )
-    if not isinstance(spec, Mapping) or not isinstance(reproduction, list):
-        raise ValueError("implementation Repair provenance is unavailable")
-    requested_verification = tuple(
-        sorted(set(verification_evidence_hashes))
-    )
-    if len(requested_verification) != len(verification_evidence_hashes):
-        raise ValueError(
-            "implementation Repair verification evidence must be unique"
-        )
-    previous_identity = spec.get("implementation_identity")
-    if prior_close is not None:
-        previous_identity = prior_close.payload.get(
-            "effective_implementation_identity"
-        )
-    if not isinstance(previous_identity, str):
-        raise ValueError("previous implementation identity is unavailable")
-    new_identity = materialize_implementation(writer)
-    if new_identity == previous_identity:
-        raise ValueError("implementation Repair did not change source closure")
-    verification_results = (
-        writer.resolve_fixed_hold_authority_correction_verification(
-            new_implementation_identity=new_identity,
-            evidence_hashes=requested_verification,
-        )
-    )
-    manifest = parse_canonical(writer.evidence.read_verified(new_identity))
-    if (
-        not isinstance(manifest, dict)
-        or manifest.get("schema") != "job_implementation_evidence.v1"
-        or not isinstance(manifest.get("artifact_hashes"), list)
-    ):
-        raise ValueError("repaired implementation manifest is invalid")
-    plan = writer.plan_fixed_hold_authority_correction_repair(
-        new_implementation_identity=new_identity,
-    )
-    plan_artifact = writer.evidence.finalize(canonical_bytes(plan))
-    measurement_hashes: list[str] = []
-    for pair in plan["changed_source_pair_bindings"]:
-        measurement = writer.evidence.finalize(
-            canonical_bytes(
-                fixed_hold_authority_correction_measurement(
-                    validation_plan_hash=plan_artifact.sha256,
-                    relative_path=pair["relative_path"],
-                    old_artifact_hash=pair["old_artifact_hash"],
-                    new_artifact_hash=pair["new_artifact_hash"],
-                )
-            )
-        )
-        measurement_hashes.append(measurement.sha256)
-    measurements = tuple(sorted(measurement_hashes))
-    result = semantic_equivalence_result_manifest(
-        plan=plan,
-        validation_plan_hash=plan_artifact.sha256,
-        measurement_artifact_hashes=measurements,
-        surface_verdicts={
-            surface_id: "passed" for surface_id in plan["claims"]
-        },
-    )
-    result_artifact = writer.evidence.finalize(canonical_bytes(result))
-    new_evidence = sorted(
-        {
-            new_identity,
-            *manifest["artifact_hashes"],
-            plan_artifact.sha256,
-            result_artifact.sha256,
-            *measurements,
-        }
-    )
-    inner_proof = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "changed_dimension": "implementation",
-                "explanation": reason,
-                "job_hash": job["hash"],
-                "job_id": job["id"],
-                "new_evidence_hashes": new_evidence,
-                "new_implementation_identity": new_identity,
-                "previous_implementation_identity": previous_identity,
-                "repair_id": repair["id"],
-                "reproduction_evidence_hashes": sorted(reproduction),
-                "schema": IMPLEMENTATION_REPAIR_V2_SCHEMA,
-                "semantic_equivalence_measurement_artifact_hashes": list(
-                    measurements
-                ),
-                "semantic_equivalence_result_manifest_hash": (
-                    result_artifact.sha256
-                ),
-                "semantic_equivalence_validation_plan_hash": (
-                    plan_artifact.sha256
-                ),
-                "semantic_equivalence_validator_id": plan["validator_id"],
-            }
-        )
-    )
-    attempt_new_evidence = tuple(
-        sorted({inner_proof.sha256, *new_evidence})
-    )
-    check_plan = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "callable_identity": resolved_callable_identity,
-                "changed_dimension": "implementation",
-                "job_id": job["id"],
-                "new_basis_hash": new_identity,
-                "semantic_equivalence_validator_id": plan["validator_id"],
-                "schema": "fixed_hold_repair_check_plan.v1",
-            }
-        )
-    )
-    verification_receipt = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": repair["cause_hash"],
-                "changed_dimension": "implementation",
-                "check_plan_hash": check_plan.sha256,
-                "job_hash": job["hash"],
-                "job_id": job["id"],
-                "new_basis_hash": new_identity,
-                "outcome": "repaired",
-                "repair_id": repair["id"],
-                "result_artifact_hashes": list(verification_results),
-                "resume_action": repair["resume_action"],
-                "schema": "repair_verification_receipt.v1",
-                "scientific_semantics_changed": False,
-                "verdict": "passed",
-                "verification_method": (
-                    "fixed-hold affected-surface verification"
-                ),
-            }
-        )
-    )
-    verification = (verification_receipt.sha256,)
-    if set(reproduction).intersection(attempt_new_evidence) or set(
-        reproduction
-    ).intersection(
-        {check_plan.sha256, *verification_results, *verification}
-    ) or set(attempt_new_evidence).intersection(
-        {check_plan.sha256, *verification_results, *verification}
-    ):
-        raise ValueError(
-            "implementation Repair evidence surfaces must be distinct"
-        )
-    attempt = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "cause_hash": repair["cause_hash"],
-                "changed_dimension": "implementation",
-                "explanation": reason,
-                "failure_observation": None,
-                "implementation_proof_hash": inner_proof.sha256,
-                "job_hash": job["hash"],
-                "job_id": job["id"],
-                "new_basis_hash": new_identity,
-                "new_evidence_hashes": list(attempt_new_evidence),
-                "outcome": "repaired",
-                "previous_basis_hash": repair["latest_basis_hash"],
-                "prior_attempt_record_id": repair[
-                    "latest_attempt_record_id"
-                ],
-                "repair_id": repair["id"],
-                "reproduction_evidence_hashes": sorted(reproduction),
-                "resume_action": repair["resume_action"],
-                "schema": "running_job_repair_attempt.v1",
-                "scientific_semantics_changed": False,
-                "verification_evidence_hashes": list(verification),
-            }
-        )
-    )
-    return attempt.sha256
 
 
 def build_fixed_hold_replay_job_plan(
@@ -991,7 +835,6 @@ def execute_fixed_hold_replay_job(
 __all__ = [
     "BoundEvidenceTraceBuilder",
     "DefinitionBuilder",
-    "FixedHoldRepairContext",
     "FixedHoldReplayRuntimeAdapter",
     "FixedHoldRuntimeContext",
     "TraceBuilder",

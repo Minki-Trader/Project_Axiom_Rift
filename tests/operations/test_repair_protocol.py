@@ -31,9 +31,10 @@ class RepairProtocolTests(unittest.TestCase):
         self.disposition_attempts: tuple[dict[str, object], ...] = ()
 
     def attempt(self, **changes: object) -> bytes:
+        requested_new_basis = changes.get("new_basis_hash", self.new_basis)
         check_plan = canonical_bytes(
             {
-                "new_basis_hash": self.new_basis,
+                "new_basis_hash": requested_new_basis,
                 "schema": "fixture_repair_check_plan.v1",
             }
         )
@@ -46,7 +47,7 @@ class RepairProtocolTests(unittest.TestCase):
                 "check_plan_hash": check_plan_hash,
                 "job_hash": self.job_hash,
                 "job_id": self.job_id,
-                "new_basis_hash": self.new_basis,
+                "new_basis_hash": requested_new_basis,
                 "outcome": "repaired",
                 "repair_id": self.repair_id,
                 "result_artifact_hashes": [self.verification],
@@ -94,6 +95,7 @@ class RepairProtocolTests(unittest.TestCase):
             reproduction_evidence_hashes=(self.reproduction,),
             prior_attempt_record_id=None,
             previous_basis_hash=self.previous_basis,
+            used_basis_hashes=(self.previous_basis,),
             read_evidence=self.evidence.__getitem__,
             verify_evidence=self.verified.append,
         )
@@ -122,14 +124,14 @@ class RepairProtocolTests(unittest.TestCase):
                 )
             )
 
-    def test_attempt_rejects_unchanged_or_unlinked_basis(self) -> None:
-        with self.assertRaisesRegex(RepairProtocolError, "exact basis"):
-            self.parse_attempt(
-                self.attempt(
-                    new_basis_hash=self.previous_basis,
-                    new_evidence_hashes=[self.previous_basis],
-                )
+    def test_attempt_allows_reassessment_but_rejects_unlinked_basis(self) -> None:
+        reassessed = self.parse_attempt(
+            self.attempt(
+                new_basis_hash=self.previous_basis,
+                new_evidence_hashes=[self.previous_basis],
             )
+        )
+        self.assertEqual(reassessed.new_basis_hash, self.previous_basis)
         with self.assertRaisesRegex(RepairProtocolError, "changed evidence"):
             self.parse_attempt(
                 self.attempt(new_evidence_hashes=[digest("unrelated")])
@@ -332,6 +334,7 @@ class RepairProtocolTests(unittest.TestCase):
                 "changed_dimension": "cause",
                 "new_basis_hash": self.new_basis,
                 "repair_attempt_record_id": attempt_record_id,
+                "repair_axis_id": "axis:failed-attempt-cause",
                 "verification_receipt_hashes": [receipt_hash],
             },
         )

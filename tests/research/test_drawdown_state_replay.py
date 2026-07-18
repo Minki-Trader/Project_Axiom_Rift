@@ -13,7 +13,9 @@ from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 import axiom_rift.operations.writer as writer_module
 from axiom_rift.operations.running_job import (
     RunningJobExecution as BoundaryRunningJobExecution,
-    running_job_authority_dependency_paths,
+)
+from axiom_rift.operations.running_job_context import (
+    running_job_scientific_projection_dependency_paths,
 )
 from axiom_rift.research.drawdown_fixed_hold import (
     DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES,
@@ -239,15 +241,26 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
             transition,
         )
 
-    def test_runtime_closure_uses_the_narrow_running_job_authority(self) -> None:
+    def test_runtime_closure_separates_running_job_admission(self) -> None:
         dependencies = set(
             fixed_hold_replay_runtime_dependency_paths(RUNTIME_ADAPTER)
         )
         self.assertNotIn(Path(writer_module.__file__).resolve(), dependencies)
         self.assertTrue(
-            set(running_job_authority_dependency_paths()).issubset(
+            set(running_job_scientific_projection_dependency_paths()).issubset(
                 dependencies
             )
+        )
+        dependency_names = {path.name for path in dependencies}
+        self.assertTrue(
+            {
+                "repair_semantic_equivalence.py",
+                "repair_validation.py",
+                "running_job.py",
+                "running_job_repair_projection.py",
+                "validation.py",
+                "validation_integrity.py",
+            }.isdisjoint(dependency_names)
         )
         self.assertIs(RunningJobExecution, BoundaryRunningJobExecution)
         closure = parse_canonical(
@@ -261,7 +274,7 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
         source_root = Path(__file__).resolve().parents[2] / "src"
         expected_boundary_paths = {
             path.relative_to(source_root).as_posix()
-            for path in running_job_authority_dependency_paths()
+            for path in running_job_scientific_projection_dependency_paths()
         }
         self.assertTrue(expected_boundary_paths.issubset(bound_paths))
         self.assertNotIn("axiom_rift/operations/writer.py", bound_paths)

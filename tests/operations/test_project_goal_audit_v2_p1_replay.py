@@ -457,7 +457,7 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
                 .issubset(expected_paths)
             )
             self.assertTrue(
-                set(subject.running_job_execution_context_dependency_paths())
+                set(subject.running_job_scientific_projection_dependency_paths())
                 .issubset(expected_paths)
             )
             self.assertNotIn(
@@ -507,12 +507,12 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
             / "operations"
             / "writer.py"
         ).resolve()
-        running_job_path = (
+        running_job_context_path = (
             subject.ROOT
             / "src"
             / "axiom_rift"
             / "operations"
-            / "running_job.py"
+            / "running_job_context.py"
         ).resolve()
         original_read_bytes = Path.read_bytes
 
@@ -533,7 +533,7 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
 
         def perturb_context(path: Path) -> bytes:
             content = original_read_bytes(path)
-            if path.resolve() == running_job_path:
+            if path.resolve() == running_job_context_path:
                 return content + b"\n# running context perturbation"
             return content
 

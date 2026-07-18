@@ -25,6 +25,12 @@ from axiom_rift.operations.fixed_hold_repair_equivalence import (  # noqa: E402
     FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY,
     FixedHoldAuthorityCorrectionEquivalenceValidator,
 )
+from axiom_rift.operations.fixed_hold_repair_validation import (  # noqa: E402
+    FixedHoldRepairAttemptValidator,
+)
+from axiom_rift.operations.repair_disposition_validation import (  # noqa: E402
+    EngineeringSemanticChangeNecessityValidator,
+)
 from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     fixed_hold_replay_repair_operation_ids,
     require_stable_head,
@@ -67,6 +73,8 @@ def _writer() -> StateWriter:
         (
             ScientificAdjudicationValidatorV2(),
             FixedHoldAuthorityCorrectionEquivalenceValidator(),
+            FixedHoldRepairAttemptValidator(),
+            EngineeringSemanticChangeNecessityValidator(),
         )
     )
     writer = StateWriter(ROOT, validation_registry=registry)
@@ -306,12 +314,12 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
         if not isinstance(repair_id, str):
             raise RuntimeError("STU-0117 active Repair identity is absent")
 
-    proof_hash = materialize_gap_event_fixed_hold_v3_running_job_repair_proof(
+    candidate_hash = materialize_gap_event_fixed_hold_v3_running_job_repair_proof(
         writer,
         verification_evidence_hashes=(),
     )
-    closed = writer.close_repair(
-        changed_cause_proof_hash=proof_hash,
+    closed = writer.evaluate_repair_candidate(
+        candidate_hash=candidate_hash,
         operation_id=operation_ids.close,
     )
     control = writer.read_control()

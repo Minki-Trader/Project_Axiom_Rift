@@ -228,8 +228,12 @@ as implicit zero PnL.
   equality of the opened `.py` bytes. A caller observation, raw hash-set match,
   closure JSON comparison, path swap, non-Python change, or changed AST is not
   generic equivalence. Use a protocol-specific validator for a stronger proven
-  relation; otherwise preserve the failed Repair and register the required new
-  Executable or Study scope through `requires_scientific_change`.
+  relation. A missing, partial, failed, not-evaluable, or unavailable
+  equivalence result is a zero-credit Repair observation: keep Repair active
+  and do not infer scientific change. Register a new Executable or Study scope
+  through `requires_scientific_change` only after a separate registered
+  validator positively proves that preserving the scientific identity is
+  impossible.
 - Treat comparison state and scientific state separately. A metric comparison
   may pass, fail, or be not_evaluable while its claim contribution is supported,
   contradicted, unresolved, invalid, or diagnostic. Use only scientific state

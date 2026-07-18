@@ -21,6 +21,8 @@ from axiom_rift.operations.running_job_context import (
     running_job_execution_context_dependency_manifest,
     running_job_execution_context_dependency_paths,
     running_job_execution_context_implementation_sha256,
+    running_job_operational_identity_boundary_paths,
+    running_job_scientific_projection_dependency_paths,
 )
 from axiom_rift.operations.running_job import (
     RunningJobAuthority,
@@ -2610,3 +2612,30 @@ def test_context_digest_binds_only_its_exact_project_local_closure(
     monkeypatch.setattr(Path, "read_bytes", perturb_unrelated_writer)
     running_job_execution_context_implementation_sha256.cache_clear()
     assert running_job_execution_context_implementation_sha256() == baseline
+
+
+def test_scientific_projection_roots_exclude_operational_authority_tooling() -> None:
+    projection_paths = set(running_job_scientific_projection_dependency_paths())
+    operational_paths = set(running_job_operational_identity_boundary_paths())
+    complete_paths = set(running_job_execution_context_dependency_paths())
+    assert projection_paths < complete_paths
+    assert CONTEXT_PATH in projection_paths
+    assert COMPLETION_VALIDITY_PATH in projection_paths
+    assert HISTORICAL_SCIENTIFIC_VALIDITY_PATH in projection_paths
+    assert SEMANTIC_QUESTION_PATH in projection_paths
+    assert RUNNING_JOB_PATH not in projection_paths
+    assert projection_paths.isdisjoint(operational_paths)
+    assert RUNNING_JOB_PATH in operational_paths
+    assert {
+        "completion_evidence_scope.py",
+        "effective_evidence_scope.py",
+        "permits.py",
+        "repair_validation.py",
+        "validation.py",
+    }.issubset({path.name for path in operational_paths})
+    assert (
+        SOURCE_ROOT
+        / "axiom_rift"
+        / "operations"
+        / "running_job_repair_projection.py"
+    ).resolve() not in projection_paths

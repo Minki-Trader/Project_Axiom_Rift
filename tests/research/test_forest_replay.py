@@ -692,6 +692,8 @@ class ForestReplayTests(unittest.TestCase):
         self.assertTrue(
             {
                 "axiom_rift/operations/validation.py",
+                "axiom_rift/operations/repair_disposition_case.py",
+                "axiom_rift/operations/validation_identity.py",
                 "axiom_rift/research/analog_state_family.py",
                 "axiom_rift/research/analog_state_trace.py",
                 "axiom_rift/research/audit_integrity_proof.py",
@@ -726,6 +728,8 @@ class ForestReplayTests(unittest.TestCase):
         for target_name in (
             "analog_state_family.py",
             "p0_selection_inference.py",
+            "repair_disposition_case.py",
+            "validation_identity.py",
         ):
             with self.subTest(target_name=target_name):
                 original_manifest = forest_replay_implementation_manifest()
@@ -848,7 +852,11 @@ class ForestReplayTests(unittest.TestCase):
                 "durable_evidence output is outside its logical namespace",
             ):
                 StateWriter._validate_job_spec(legacy)
-            resolved = writer._require_job_implementation_evidence(spec)
+            with LocalIndex(writer.index_path) as index:
+                resolved = writer._require_job_implementation_evidence(
+                    spec,
+                    _index=index,
+                )
         self.assertEqual(
             resolved["artifact_hashes"], source_hashes
         )

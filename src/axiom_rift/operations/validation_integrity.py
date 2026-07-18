@@ -160,9 +160,12 @@ def _project_python_import_dependency_paths(
     *,
     include_deferred_imports: bool,
     observed_source_digests: dict[Path, str] | None = None,
+    inventory_digest: str | None = None,
 ) -> tuple[Path, ...]:
     """Return one recursive import closure for all project Python roots."""
 
+    if inventory_digest is None:
+        inventory_digest = _project_python_inventory_fingerprint()
     project_roots = tuple(
         path
         for path in root_paths
@@ -191,37 +194,71 @@ def _project_python_import_dependency_paths(
         _module_name, package = module_context
         try:
             source = path.read_bytes()
+            source_digest = sha256(source).hexdigest()
             if observed_source_digests is not None:
-                observed_source_digests[path] = sha256(source).hexdigest()
-            tree = ast.parse(source, filename=str(path))
-        except (OSError, SyntaxError, ValueError) as exc:
+                observed_source_digests[path] = source_digest
+        except OSError as exc:
             raise EvidenceValidationError(
-                "project validator dependency source cannot be parsed"
+                "project validator dependency source cannot be read"
             ) from exc
-        if include_deferred_imports:
-            import_nodes = ast.walk(tree)
-        else:
-            import_nodes = _module_execution_nodes(tree)
-        discovered_names: set[str] = set()
-        for node in import_nodes:
-            if isinstance(node, ast.Import):
-                discovered_names.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                base = _absolute_import_name(
-                    module=node.module,
-                    level=node.level,
-                    package=package,
+        cache_key = (
+            path,
+            source_digest,
+            include_deferred_imports,
+            inventory_digest,
+        )
+        dependencies = _PROJECT_IMPORT_DEPENDENCY_CACHE.get(cache_key)
+        if dependencies is None:
+            try:
+                tree = ast.parse(source, filename=str(path))
+            except (SyntaxError, ValueError) as exc:
+                raise EvidenceValidationError(
+                    "project validator dependency source cannot be parsed"
+                ) from exc
+            import_nodes = (
+                ast.walk(tree)
+                if include_deferred_imports
+                else _module_execution_nodes(tree)
+            )
+            discovered_names: set[str] = set()
+            for node in import_nodes:
+                if isinstance(node, ast.Import):
+                    discovered_names.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    base = _absolute_import_name(
+                        module=node.module,
+                        level=node.level,
+                        package=package,
+                    )
+                    if base:
+                        discovered_names.add(base)
+                        for alias in node.names:
+                            if alias.name != "*":
+                                discovered_names.add(f"{base}.{alias.name}")
+            dependencies = tuple(
+                sorted(
+                    {
+                        dependency
+                        for name in discovered_names
+                        for dependency in _project_module_paths(name)
+                    },
+                    key=lambda item: item.as_posix(),
                 )
-                if base:
-                    discovered_names.add(base)
-                    for alias in node.names:
-                        if alias.name != "*":
-                            discovered_names.add(f"{base}.{alias.name}")
-        for name in sorted(discovered_names):
-            for dependency in _project_module_paths(name):
-                closure.add(dependency)
-                if dependency not in visited:
-                    pending.append(dependency)
+            )
+            stale = tuple(
+                key
+                for key in _PROJECT_IMPORT_DEPENDENCY_CACHE
+                if key[0] == path
+                and key[2] == include_deferred_imports
+                and key != cache_key
+            )
+            for key in stale:
+                del _PROJECT_IMPORT_DEPENDENCY_CACHE[key]
+            _PROJECT_IMPORT_DEPENDENCY_CACHE[cache_key] = dependencies
+        for dependency in dependencies:
+            closure.add(dependency)
+            if dependency not in visited:
+                pending.append(dependency)
     return tuple(sorted(closure, key=lambda item: item.as_posix()))
 
 
@@ -281,6 +318,7 @@ def _infer_execution_dependency_paths(
     *,
     include_deferred_imports: bool,
     observed_source_digests: dict[Path, str] | None = None,
+    inventory_digest: str | None = None,
 ) -> tuple[Path, ...]:
     closure = set(roots)
     closure.update(
@@ -288,6 +326,7 @@ def _infer_execution_dependency_paths(
             roots,
             include_deferred_imports=include_deferred_imports,
             observed_source_digests=observed_source_digests,
+            inventory_digest=inventory_digest,
         )
     )
     return tuple(sorted(closure, key=lambda item: item.as_posix()))
@@ -361,6 +400,7 @@ def validator_execution_dependency_paths(
             ordered_roots,
             include_deferred_imports=include_deferred_imports,
             observed_source_digests=parsed_source_digests,
+            inventory_digest=inventory_digest,
         )
         try:
             binding = tuple(
@@ -462,6 +502,9 @@ _PROJECT_CLOSURE_CACHE: dict[
 _EXECUTION_DEPENDENCY_CACHE: dict[
     tuple[object, ...], tuple[tuple[Path, str], ...]
 ] = {}
+_PROJECT_IMPORT_DEPENDENCY_CACHE: dict[
+    tuple[Path, str, bool, str], tuple[Path, ...]
+] = {}
 
 
 def _project_closure_binding(
@@ -531,6 +574,7 @@ def _project_closure_binding(
             roots,
             include_deferred_imports=True,
             observed_source_digests=parsed_source_digests,
+            inventory_digest=inventory_digest,
         ):
             try:
                 digest = sha256(path.read_bytes()).hexdigest()
@@ -976,8 +1020,10 @@ class _ValidatorIntegritySnapshot:
     validator_id: str
     domains: frozenset[str]
     protocol: str
+    authority_scope: str
     implementation_path: Path
     dependency_paths: tuple[Path, ...]
+    semantic_boundary_paths: tuple[Path, ...]
     class_state: tuple[object, ...]
     instance_state: tuple[object, ...]
     validate_descriptor_id: int
@@ -1043,6 +1089,15 @@ def _capture_validator_integrity(
             name="protocol",
         ),
     )
+    raw_authority_scope = instance_values.get(
+        "authority_scope",
+        vars(validator_type).get("authority_scope", "production"),
+    )
+    if raw_authority_scope not in {"fixture_only", "production"}:
+        raise EvidenceValidationError(
+            "validator authority_scope must be fixture_only or production"
+        )
+    authority_scope = str(raw_authority_scope)
     implementation_path = _regular_file(
         _metadata_value(
             validator_type=validator_type,
@@ -1074,6 +1129,31 @@ def _capture_validator_integrity(
     ):
         raise EvidenceValidationError(
             "validator dependency paths must be unique"
+        )
+    raw_semantic_boundaries = instance_values.get(
+        "semantic_boundary_paths",
+        vars(validator_type).get("semantic_boundary_paths", ()),
+    )
+    if type(raw_semantic_boundaries) is not tuple:
+        raise EvidenceValidationError(
+            "validator semantic boundary paths must be a declared tuple"
+        )
+    semantic_boundary_paths = tuple(
+        _regular_file(
+            item,
+            label="validator semantic boundary",
+            python_source=True,
+        )
+        for item in raw_semantic_boundaries
+    )
+    if (
+        len(set(semantic_boundary_paths)) != len(semantic_boundary_paths)
+        or implementation_path in semantic_boundary_paths
+        or set(dependency_paths).intersection(semantic_boundary_paths)
+        or any(not _project_relative(path) for path in semantic_boundary_paths)
+    ):
+        raise EvidenceValidationError(
+            "validator semantic boundary paths must be unique, disjoint, and project-local"
         )
     module = sys.modules.get(validator_type.__module__)
     if module is None:
@@ -1134,8 +1214,10 @@ def _capture_validator_integrity(
         validator_id=validator_id,
         domains=domains,
         protocol=protocol,
+        authority_scope=authority_scope,
         implementation_path=implementation_path,
         dependency_paths=dependency_paths,
+        semantic_boundary_paths=semantic_boundary_paths,
         class_state=_class_state_snapshot(validator_type),
         instance_state=_instance_state_snapshot(instance_values),
         validate_descriptor_id=validate.descriptor_id,
@@ -1172,12 +1254,16 @@ def _build_validator_registration(validator: object) -> _ValidatorRegistration:
     )
     project_closure = _project_closure_binding(
         integrity.implementation_path,
-        dependency_paths=integrity.dependency_paths,
+        dependency_paths=(
+            *integrity.dependency_paths,
+            *integrity.semantic_boundary_paths,
+        ),
         require_stable_inventory=True,
     )
     implementation_hash = validator_implementation_sha256(
         implementation_path=integrity.implementation_path,
         dependency_paths=integrity.dependency_paths,
+        semantic_boundary_paths=integrity.semantic_boundary_paths,
     )
     expected_id = validator_identity(
         protocol=integrity.protocol,
@@ -1209,10 +1295,16 @@ def _require_validator_registration_unchanged(
         actual_hash = validator_implementation_sha256(
             implementation_path=registration.integrity.implementation_path,
             dependency_paths=registration.integrity.dependency_paths,
+            semantic_boundary_paths=(
+                registration.integrity.semantic_boundary_paths
+            ),
         )
         actual_closure = _project_closure_binding(
             registration.integrity.implementation_path,
-            dependency_paths=registration.integrity.dependency_paths,
+            dependency_paths=(
+                *registration.integrity.dependency_paths,
+                *registration.integrity.semantic_boundary_paths,
+            ),
         )
     except (EvidenceValidationError, OSError) as exc:
         raise EvidenceValidationError(

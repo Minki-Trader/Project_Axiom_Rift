@@ -319,6 +319,146 @@ repair:
   scientific_identity_frozen: true
   scientific_trial_delta: 0
   scientific_failure_delta: 0
+  prospective_attempt_validation:
+    candidate_schema: running_job_repair_candidate.v2
+    evaluation_schema: engineering_repair_evaluation.v2
+    accepted_attempt_schema: running_job_repair_attempt.v1
+    accepted_attempt_trace_schema: engineering_repair_attempt_validations.v2
+    new_failure_schema: repair_new_failure.v1
+    candidate_contains_caller_authored_outcome: false
+    candidate_contains_caller_authored_failure_observation: false
+    accepted_attempt_modes: [failure_reproduced, repaired]
+    zero_credit_observation_modes:
+      - invalid_change
+      - new_failure
+      - not_evaluable
+      - validation_unavailable
+    partial_is_an_evaluation_mode: false
+    partial_maps_to_validation_unavailable_reason: partial_validator_result
+    validator_domain: engineering
+    exact_registered_protocol_required: true
+    verification_method_is_protocol_identity_not_prose: true
+    production_registry_default_empty_and_fail_closed: true
+    fixture_validator_is_production_authority: false
+    writer_opens_exact_plan_and_every_declared_result_artifact: true
+    candidate_exact_active_context_binding_required:
+      - job_id
+      - job_hash
+      - repair_id
+      - cause_hash
+      - changed_dimension
+      - explanation
+      - prior_attempt_record_id
+      - previous_basis_hash
+      - new_basis_hash
+      - reproduction_evidence_hashes
+      - new_evidence_hashes
+      - implementation_proof_hash
+      - resume_action
+      - scientific_semantics_changed
+    evaluation_exact_dispatch_binding_required:
+      - candidate_hash
+      - validator_id
+      - validation_plan_hash
+      - registry_trace_hash
+    candidate_reproduction_change_and_verification_surfaces_are_distinct: true
+    validator_derived_facts_required:
+      - failure_reproduced
+      - cause_resolved
+      - material_change
+    strict_mode_matrix:
+      failure_reproduced:
+        cause_resolved: false
+        failure_reproduced: true
+        material_change: true
+        new_failure_manifest_hash: null
+      repaired:
+        cause_resolved: true
+        failure_reproduced: false
+        material_change: true
+        new_failure_manifest_hash: null
+      new_failure:
+        cause_resolved: null
+        failure_reproduced: null
+        material_change: true
+        typed_new_failure_manifest_hash_required: true
+        complete_registered_evaluation_required: true
+      invalid_change:
+        cause_resolved: null
+        failure_reproduced: null
+        material_change: false
+        typed_reason_required: true
+      not_evaluable:
+        cause_resolved: null
+        failure_reproduced: null
+        material_change: null
+        complete_registered_evaluation_and_reason_required: true
+      validation_unavailable:
+        cause_resolved: null
+        failure_reproduced: null
+        material_change: null
+        registry_trace_allowed: false
+        typed_unavailability_reason_required: true
+    accepted_attempt_authority:
+      only_failure_reproduced_and_repaired_are_accepted: true
+      failure_reproduced_requires_independent_material_change: true
+      failure_reproduced_advances_attempt_basis_and_head: true
+      repaired_creates_attempt_and_close_authority: true
+      caller_requested_mode_is_authority: false
+    zero_credit_validation_observations:
+      observation_record_schema: engineering_repair_validation_observation.v1
+      observation_stream: "repair-validation-observation:<repair_id>"
+      exact_candidate_evaluation_and_available_trace_bound: true
+      new_failure_requires_candidate_bound_typed_manifest: true
+      new_failure_is_an_accepted_failed_attempt: false
+      accepted_attempt_created: false
+      repair_basis_advanced: false
+      repair_attempt_head_advanced: false
+      repair_next_action_advanced_or_replaced: false
+      active_repair_closed_or_abandoned: false
+      scientific_trial_failure_claim_candidate_or_release_credit: false
+      later_candidate_extends_last_accepted_basis: true
+      observation_may_be_bound_as_new_information_evidence: true
+    caller_verdict_method_explanation_or_changed_bytes_are_authority: false
+    scientific_candidate_holdout_and_release_credit_allowed: false
+    durable_trace:
+      exact_receipt_order_and_count_required: true
+      exact_plan_result_roles_facts_protocol_and_registry_trace_required: true
+      attempt_record_identity_bound: true
+      repaired_attempt_and_close_must_carry_identical_trace: true
+      observation_record_identity_and_order_bound: true
+      projection_checks_shape_linkage_and_identity_without_validator_rerun: true
+    retry_identity:
+      exact_operation_replay_reuses_existing_result_without_new_attempt: true
+      exact_proof_basis_plan_result_or_receipt_as_new_attempt_allowed: false
+      full_prior_intervention_fingerprint_history_must_be_unique: true
+      a_b_a_basis_reuse_allowed_with_genuinely_new_material_evidence: true
+      reused_basis_without_new_information_allowed: false
+      same_dimension_with_genuinely_new_material_basis_and_evidence_allowed: true
+      evidence_identity_churn_without_validator_derived_material_change_allowed: false
+      arbitrary_numeric_attempt_cap: false
+    typed_failures:
+      - validator_absent_or_unregistered
+      - validator_protocol_or_identity_mismatch
+      - plan_or_context_binding_mismatch
+      - declared_artifact_absent_drifted_or_unopened
+      - failed_not_evaluable_or_partial_verdict
+      - facts_roles_or_registry_trace_mismatch
+    typed_failure_effect:
+      engineering_failure_only: true
+      scientific_rejection_or_axis_exhaustion: false
+      attempt_or_close_authority_created: false
+      active_repair_abandonment_authority: false
+      zero_credit_observation_only: true
+      narrow_validator_or_evidence_repair_remains_allowed: true
+  historical_attempt_compatibility:
+    pre_activation_v1_without_registered_trace_is_read_only: true
+    typed_protocol_activation_not_revision_guess_required: true
+    historical_record_rewrite_allowed: false
+    exact_pre_activation_projection_and_already_bound_replay_remain_readable: true
+    historical_row_can_be_upgraded_or_reused_as_prospective_validation_authority: false
+    historical_row_can_create_new_attempt_close_or_resume_authority: false
+    malformed_present_trace_may_be_ignored_as_legacy: false
   started_batch_exit:
     no_final_completion_outcomes: [budget_exhausted]
     exact_frozen_budget_exhaustion_is_writer_derived: true
@@ -345,6 +485,75 @@ repair:
     exact_attempt_verification_receipts_reopened: true
     independent_check_plan_and_result_artifacts_required: true
     artifact_existence_without_typed_observation_allowed: false
+  prospective_disposition_validation:
+    trace_schema: engineering_repair_disposition_validation.v2
+    applies_to:
+      - direct_engineering_failure_disposition
+      - unrecovered_repair_disposition
+    validator_domain: engineering
+    exact_registered_protocol_required: true
+    verification_method_is_protocol_identity_not_prose: true
+    production_registry_default_empty_and_fail_closed: true
+    fixture_validator_is_production_authority: false
+    writer_opens_exact_plan_and_every_declared_result_artifact: true
+    exact_context_binding_required:
+      - mission_id
+      - job_id
+      - job_hash
+      - repair_id
+      - cause_hash
+      - disposition
+      - successor_scope
+      - reproduction_evidence_hashes
+      - exact_accepted_repair_attempts
+      - exact_stored_accepted_attempt_validation_traces
+      - exact_zero_credit_validation_observations
+      - exact_validation_observation_stream_head
+      - expected_value
+      - remaining_changed_causes
+      - repairable_without_scientific_change
+      - scientific_semantics_change_required
+      - scientific_semantics_changed
+    accepted_attempt_and_observation_sets_remain_separate: true
+    observation_can_be_counted_as_failed_attempt_or_exhaustion_credit: false
+    requires_scientific_change_authority:
+      positive_registered_semantic_change_proof_required: true
+      candidate_rejection_or_observation_mode_is_sufficient: false
+      missing_failed_not_evaluable_partial_or_unregistered_proof_is_sufficient: false
+      one_failed_attempt_is_sufficient: false
+    exact_disposition_and_basis_facts_validator_derived: true
+    caller_rationale_verification_result_or_basis_assertion_is_authority: false
+    scientific_candidate_holdout_and_release_credit_allowed: false
+    durable_trace:
+      basis_and_observation_manifest_hashes_bound: true
+      exact_plan_result_roles_facts_protocol_and_registry_trace_required: true
+      disposition_record_identity_bound: true
+      disposition_consumes_stored_attempt_traces_without_attempt_validator_rerun: true
+      disposition_consumes_stored_observations_without_validator_rerun: true
+      job_completion_consumes_stored_disposition_trace_without_validator_rerun: true
+      replay_and_projection_require_no_current_registry_or_validator_execution: true
+      malformed_missing_or_mismatched_trace_cannot_close_or_complete: true
+    typed_failures:
+      - validator_absent_or_unregistered
+      - validator_protocol_or_identity_mismatch
+      - plan_or_context_binding_mismatch
+      - declared_artifact_absent_drifted_or_unopened
+      - failed_not_evaluable_or_partial_verdict
+      - attempt_set_basis_facts_or_registry_trace_mismatch
+    typed_failure_effect:
+      engineering_failure_only: true
+      scientific_rejection_or_axis_exhaustion: false
+      disposition_close_or_completion_authority_created: false
+      active_job_or_repair_abandonment_authority: false
+      narrow_validator_or_evidence_repair_remains_allowed: true
+    historical_compatibility:
+      pre_activation_disposition_without_registered_trace_is_read_only: true
+      typed_protocol_activation_not_revision_guess_required: true
+      historical_record_rewrite_allowed: false
+      exact_pre_activation_projection_completion_and_bound_replay_remain_readable: true
+      historical_row_can_be_upgraded_or_reused_as_prospective_validation_authority: false
+      historical_row_can_create_new_close_completion_or_resume_authority: false
+      malformed_present_trace_may_be_ignored_as_legacy: false
   implementation_semantic_equivalence:
     production_executable_bound_in_place_close_requires_v2: true
     schema: running_job_implementation_repair.v2
@@ -385,8 +594,10 @@ repair:
     scientific_candidate_and_release_eligibility: false
     caller_scientific_semantics_changed_false_is_authority: false
     missing_failed_not_evaluable_partial_or_self_authored_only_close_allowed: false
-    rejection_preserves_requires_scientific_change_disposition: true
-    engineering_fixture_and_non_implementation_paths_preserved: true
+    rejection_alone_authorizes_requires_scientific_change: false
+    positive_registered_semantic_change_proof_required_for_scientific_exit: true
+    nonpassed_or_unavailable_validation_is_zero_credit_observation: true
+    engineering_fixture_and_non_implementation_paths_preserved_under_registered_attempt_validation: true
   semantic_change_becomes_new_executable: true
 permit_matrix:
   source: [Study, Executable]

@@ -389,6 +389,7 @@ def validate_control(control: Mapping[str, Any]) -> None:
         "engine_entry_record_id",
         "last_repair_resume_record_id",
         "required_engineering_disposition_hash",
+        "required_engineering_disposition_record_id",
         "required_engineering_failure_cause_hash",
         "required_engineering_repair_id",
         "required_repair_resume_record_id",
@@ -421,6 +422,7 @@ def validate_control(control: Mapping[str, Any]) -> None:
             "engine_entry_record_id",
             "last_repair_resume_record_id",
             "required_engineering_disposition_hash",
+            "required_engineering_disposition_record_id",
             "required_engineering_failure_cause_hash",
             "required_repair_resume_record_id",
             "runtime_entry_record_id",
@@ -430,6 +432,7 @@ def validate_control(control: Mapping[str, Any]) -> None:
                 raise ControlStateError("active Job provenance is invalid")
         engineering_disposition_keys = {
             "required_engineering_disposition_hash",
+            "required_engineering_disposition_record_id",
             "required_engineering_failure_cause_hash",
             "required_engineering_repair_id",
         }
@@ -599,10 +602,12 @@ def validate_control(control: Mapping[str, Any]) -> None:
                 set(active_holdout) != base_holdout_keys
                 or not isinstance(active_job, dict)
                 or active_job.get("id") != active_holdout.get("job_id")
-                or active_job.get("status") != "running"
+                or active_job.get("status")
+                not in {"running", "interrupted_repair"}
             ):
                 raise ControlStateError(
-                    "revealed holdout must retain its active Job"
+                    "revealed holdout must retain its running or "
+                    "Repair-interrupted Job"
                 )
         elif holdout_status in {
             "evaluation_completed_pending_disposition",
@@ -642,6 +647,8 @@ def validate_control(control: Mapping[str, Any]) -> None:
             "latest_attempt_record_id",
             "latest_basis_hash",
             "predecessor_repair_close_record_id",
+            "repair_authority_schema",
+            "repair_validation_scope",
             "resume_action",
         }
         repair_id = active_repair.get("id")
@@ -662,6 +669,10 @@ def validate_control(control: Mapping[str, Any]) -> None:
             or type(episode) is not int
             or episode < 1
             or not _is_ascii_text(active_repair.get("resume_action"))
+            or active_repair.get("repair_authority_schema")
+            != "registered_repair_authority.v2"
+            or active_repair.get("repair_validation_scope")
+            not in {"fixture_only", "production"}
             or (
                 predecessor_id is not None
                 and not _is_digest(predecessor_id)

@@ -23,7 +23,10 @@ from axiom_rift.operations.replay_projection import (  # noqa: E402
 )
 from axiom_rift.operations.running_job import RunningJobExecution  # noqa: E402
 from axiom_rift.operations.running_job_context import (  # noqa: E402
-    running_job_execution_context_dependency_paths,
+    running_job_scientific_projection_dependency_paths,
+)
+from axiom_rift.operations import (  # noqa: E402
+    validation_identity as validation_identity_module,
 )
 from axiom_rift.operations.scientific_history import (  # noqa: E402
     HistoricalBatchFamilyObservation,
@@ -910,6 +913,7 @@ def _implementation_dependency_paths() -> tuple[Path, ...]:
         selection_module,
         trace_module,
         validation_v2_module,
+        validation_identity_module,
     )
     paths = tuple(
         sorted(
@@ -923,7 +927,7 @@ def _implementation_dependency_paths() -> tuple[Path, ...]:
             }
             | {
                 Path(path).resolve()
-                for path in running_job_execution_context_dependency_paths()
+                for path in running_job_scientific_projection_dependency_paths()
             }
         )
     )
@@ -2136,7 +2140,10 @@ def _validate_historical_completed_replay_chain(
             raise RuntimeError(
                 f"historical STU-0106 {stem} Job declaration is malformed"
             )
-        writer._require_job_implementation_evidence(declaration_spec)
+        writer._require_job_implementation_evidence(
+            declaration_spec,
+            _index=index,
+        )
 
         _permit_operation, permit_result = _historical_operation(
             index,
@@ -2507,7 +2514,7 @@ def validate_historical_replay_prefix_semantics(
 
     if prefix != len(tuple(steps)):
         raise RuntimeError("historical STU-0106 audit chain is not complete")
-    with LocalIndex.open_read_only(writer.index_path) as index:
+    with writer.open_stable_index() as (_control, index):
         _validate_historical_completed_replay_chain(
             writer,
             index,

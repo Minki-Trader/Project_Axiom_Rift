@@ -85,7 +85,11 @@ _RUNNING_JOB_CONTEXT_TYPE_EXPORTS = frozenset(
     {"RunningJobContext", "RunningJobExecutionContext"}
 )
 _RUNNING_JOB_CONTEXT_PATH_EXPORTS = frozenset(
-    {"running_job_execution_context_dependency_paths"}
+    {
+        "running_job_execution_context_dependency_paths",
+        "running_job_operational_identity_boundary_paths",
+        "running_job_scientific_projection_dependency_paths",
+    }
 )
 _RUNNING_JOB_CONTEXT_PATH_BUILDERS = MappingProxyType(
     {
@@ -1458,7 +1462,14 @@ def require_current_job_source_closure(
         raise ImplementationClosureError(
             "Job source closure omits its identity-derived callable module path"
         )
-    for dependency in normalized_dependencies:
+    validation_order = sorted(
+        normalized_dependencies,
+        key=lambda item: (
+            item["path"] != callable_path,
+            item["path"],
+        ),
+    )
+    for dependency in validation_order:
         relative_path = PurePosixPath(dependency["path"])
         if relative_path.parts[0] != "axiom_rift":
             raise ImplementationClosureError(

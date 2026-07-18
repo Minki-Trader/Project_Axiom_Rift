@@ -22,6 +22,12 @@ from axiom_rift.core.canonical import canonical_bytes  # noqa: E402
 from axiom_rift.operations.fixed_hold_repair_equivalence import (  # noqa: E402
     FixedHoldAuthorityCorrectionEquivalenceValidator,
 )
+from axiom_rift.operations.fixed_hold_repair_validation import (  # noqa: E402
+    FixedHoldRepairAttemptValidator,
+)
+from axiom_rift.operations.repair_disposition_validation import (  # noqa: E402
+    EngineeringSemanticChangeNecessityValidator,
+)
 from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     fixed_hold_replay_repair_operation_ids,
     require_stable_head,
@@ -45,7 +51,7 @@ from axiom_rift.research.cost_aware_execution_pair_runtime import (  # noqa: E40
     cost_aware_execution_pair_job_implementation_sha256,
     materialize_cost_aware_execution_pair_job_implementation,
 )
-from axiom_rift.research.fixed_hold_replay_runtime import (  # noqa: E402
+from axiom_rift.operations.fixed_hold_repair_materializer import (  # noqa: E402
     materialize_running_job_implementation_repair_proof,
 )
 from axiom_rift.research.validation_v2 import (  # noqa: E402
@@ -85,6 +91,8 @@ def _writer() -> StateWriter:
         (
             ScientificAdjudicationValidatorV2(),
             FixedHoldAuthorityCorrectionEquivalenceValidator(),
+            FixedHoldRepairAttemptValidator(),
+            EngineeringSemanticChangeNecessityValidator(),
         )
     )
     writer = StateWriter(ROOT, validation_registry=registry)
@@ -299,7 +307,7 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
         repair_id = open_result.get("repair_id")
         if not isinstance(repair_id, str):
             raise RuntimeError("STU-0121 active Repair identity is absent")
-    proof_hash = materialize_running_job_implementation_repair_proof(
+    candidate_hash = materialize_running_job_implementation_repair_proof(
         writer,
         callable_identity=CALLABLE_IDENTITY,
         implementation_materializer=(
@@ -308,8 +316,8 @@ def apply_repair(writer: StateWriter) -> dict[str, Any]:
         explanation=context["explanation"],
         verification_evidence_hashes=(),
     )
-    closed = writer.close_repair(
-        changed_cause_proof_hash=proof_hash,
+    closed = writer.evaluate_repair_candidate(
+        candidate_hash=candidate_hash,
         operation_id=operation_ids.close,
     )
     control = writer.read_control()

@@ -37,7 +37,6 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
 from axiom_rift.research.fixed_hold_replay_runtime import (
-    FixedHoldRepairContext,
     FixedHoldRuntimeContext,
     FixedHoldReplayRuntimeAdapter,
     build_fixed_hold_replay_job_plan,
@@ -45,7 +44,6 @@ from axiom_rift.research.fixed_hold_replay_runtime import (
     fixed_hold_replay_job_implementation_artifact,
     fixed_hold_replay_job_implementation_sha256,
     materialize_fixed_hold_replay_job_implementation,
-    materialize_running_job_implementation_repair_proof,
 )
 from axiom_rift.research.fixed_hold_trace_engine import (
     compute_fixed_hold_family_trace,
@@ -157,10 +155,14 @@ def materialize_distribution_asymmetry_replay_job_implementation(
 
 
 def materialize_distribution_asymmetry_running_job_repair_proof(
-    writer: FixedHoldRepairContext,
+    writer: object,
     *,
     verification_evidence_hashes: tuple[str, ...],
 ) -> str:
+    from axiom_rift.operations.fixed_hold_repair_materializer import (
+        materialize_running_job_implementation_repair_proof,
+    )
+
     return materialize_running_job_implementation_repair_proof(
         writer,
         adapter=RUNTIME_ADAPTER,

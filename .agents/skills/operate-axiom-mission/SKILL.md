@@ -161,8 +161,9 @@ unbound scientific work.
   can recompute the exact resolution instead of abandoning the family or using
   the fixture validator. Bind its facts and registry trace into one deterministic
   `job-retry-basis`, consume that basis in the same `job_declared` event, and
-  reject reuse or collision. Validator absence or failure remains engineering
-  Repair evidence, never scientific rejection or axis exhaustion.
+  reject reuse or collision. Validator absence, partial execution, or failure
+  remains a zero-credit engineering Repair observation, never an accepted
+  attempt, scientific rejection, or axis exhaustion.
   Operational resolution evidence never enters semantic Job inputs. A compute
   reestimate changes only compute and wall bounds, preserves trial and stop
   semantics, receives no refund, and remains inside the cumulative original
@@ -170,7 +171,8 @@ unbound scientific work.
   proof only when the Writer derives an unchanged Job spec and a fresh exact
   runtime-eligible source head replacing the failed state. A
   `requires_scientific_change` disposition leaves the family and creates
-  distinct scientific work.
+  distinct scientific work only when a registered validator positively proves
+  the semantic change; inability to validate is not that proof.
 - Keep operational Job outcome separate from scientific verdict. A Job that
   produced and validated its declared outputs is operationally `success` even
   when the scientific validator returns `failed` or `not_evaluable`. Reserve
@@ -366,24 +368,37 @@ failed Repair attempt does not abandon a feasible recovery: preserve it as
 engineering evidence and try another bounded Repair only when cause, input,
 implementation, or information state materially changed. If scientific
 semantics change, stop calling the work Repair and register a new Executable.
+Revisiting an earlier basis is not itself an identical retry: an A-B-A route is
+allowed only when the new candidate binds genuinely new material evidence that
+no accepted attempt already consumed. Reject the exact repeated intervention
+fingerprint and any reused basis supported only by old evidence.
 
-Use the typed attempt stream rather than treating an arbitrary artifact as a
-successful Repair. `open_repair` requires an exact engineering failure. Each
-`running_job_repair_attempt.v1` extends the active Repair's prior attempt and
-basis, names one changed dimension, binds the original reproduction, carries
-disjoint changed and verification evidence, and states `failed` or `repaired`
-without changing scientific semantics. Record a failed attempt with
-`record_failed_repair_attempt`; it keeps the Repair active. Close a successful
-attempt with `close_repair`. A non-production implementation attempt may carry
-the bounded `running_job_implementation_repair.v1` closure proof. A production
-Executable implementation attempt must use the v2 registered protocol below.
-Fixed-hold proof materializers must build that protocol-specific v2 packet,
-bind independent verification evidence, and return the exact outer attempt
-proof accepted by `close_repair`.
+Separate a proposed candidate, its independent evaluation, an accepted attempt,
+and a zero-credit observation. `open_repair` requires an exact engineering
+failure. A prospective `running_job_repair_candidate.v2` binds the active
+Repair, Job, cause, last accepted basis and attempt, original reproduction,
+changed evidence, verification receipts, implementation proof, explanation,
+and resume action with disjoint evidence surfaces and frozen scientific
+semantics. It contains neither a caller-authored outcome nor a caller-authored
+failure observation. The Writer binds that candidate to one exact registered
+validator, plan, and available registry trace through
+`engineering_repair_evaluation.v2`; caller prose, a requested mode, changed
+bytes, or a self-authored result is never evaluation authority.
+
+Only `repaired` and `failure_reproduced` are accepted evaluation modes. A
+`failure_reproduced` evaluation independently proves both the exact original
+failure and a material change, then enters the failed attempt stream and
+advances its accepted basis and head while keeping Repair active. A `repaired`
+evaluation independently proves resolution and material change, then creates
+the accepted attempt and close authority. The Writer may project these accepted
+results through the existing typed attempt and close records. Pre-activation v1
+attempts remain read-only history and cannot be upgraded into prospective
+authority. Fixed-hold materializers build the exact candidate and protocol
+artifacts; they never predeclare `failed`, `repaired`, or scientific change.
 
 For a production Executable-bound implementation Repair, a caller-authored
 `scientific_semantics_changed: false` is never closure authority. First use the
-writer's read-only semantic-equivalence plan. Close in place only through
+Writer's read-only semantic-equivalence plan. Close in place only through
 `running_job_implementation_repair.v2`, whose content-addressed plan, result,
 measurements, old and new implementation manifests, and complete artifact sets
 are opened by the dedicated registered scientific-domain validator. The writer
@@ -399,19 +414,38 @@ Python AST; it does not parse the changing closure JSON as source. Thus comments
 or layout may change, while changed syntax, a path swap, a hash-set-only
 manifest, missing or ambiguous path roles, or changed non-Python bytes cannot
 pass this generic route. Behavior-changing code needs a protocol-specific
-validator or a new scientific identity. Missing, failed, not-evaluable,
-partial, unregistered, mutable, or self-authored-only proof remains a failed
-Repair attempt and routes to `requires_scientific_change`; it never closes in
-place. Engineering fixtures and non-implementation Repairs retain their
-bounded existing path.
+validator or a new scientific identity.
+
+`new_failure`, `invalid_change`, `not_evaluable`, and
+`validation_unavailable` are zero-credit validation observations, not accepted
+attempts. A partial validator result is not another mode; record it as
+`validation_unavailable` with the typed `partial_validator_result` reason. A
+`new_failure` observation requires a complete registered evaluation and one
+candidate-bound `repair_new_failure.v1` manifest, but it still does not prove
+the original failure, advance the accepted basis or attempt head, or contribute
+exhaustion credit. An invalid, not-evaluable, unavailable, missing, mutable,
+unregistered, or self-authored-only evaluation likewise cannot change the
+Repair next action, close or abandon Repair, or change any scientific count,
+claim, candidate, holdout, or Release authority. A later candidate extends the
+last accepted basis and may bind the observation as genuinely new information.
+Only a separate positive registered semantic-change proof can authorize
+`requires_scientific_change` or creation of the corresponding new Executable;
+failed or unavailable validation is never such proof. Engineering fixtures
+remain non-production and have no scientific or prospective Repair authority.
 
 Do not impose a numeric Repair-attempt cap. End an unrecovered Repair only with
 `conclude_repair_unrecovered` and one evidence-backed
 `engineering_failure_disposition.v1`: `requires_scientific_change`,
 `repair_infeasible`, `repair_nonpositive_expected_value`, or
-`repair_exhausted_changed_causes`. The disposition lists every failed attempt
-for the Job and an exact resume condition; changed-cause exhaustion needs more
-than one attempt. Then complete the Job as `failed` with the same
+`repair_exhausted_changed_causes`. The disposition binds the exact accepted
+attempt stream and the exact zero-credit observation stream separately, with
+their stored traces and heads, and lists an exact resume condition. It cannot
+flatten an observation into a failed attempt or exhaustion credit. Changed-cause
+exhaustion requires independently validated material attempts over the exact
+typed cause inventory, not one failed attempt, an observation count, or a
+numeric cap. `requires_scientific_change` additionally requires the positive
+registered semantic-change proof described above. Then complete the Job as
+`failed` with the same
 `repair_disposition_hash`. In a fixed-hold strict chain, name failed attempt
 operations `<member-stem>-repair-attempt-<ordinal>` and an unrecovered terminal
 `<member-stem>-conclude-repair` so replay closeout preserves every attempt.

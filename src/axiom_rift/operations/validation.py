@@ -9,11 +9,21 @@ from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.operations.repair_disposition_case import (
+    RepairDispositionCaseError,
+    normalize_semantic_change_case,
+    semantic_change_facts,
+)
+from axiom_rift.operations.repair_disposition_inventory import (
+    RepairDispositionInventoryError,
+    normalize_repair_inventory_facts,
+)
 from axiom_rift.core.identity import canonical_digest
-
-
-class EvidenceValidationError(RuntimeError):
-    """Evidence could not be derived by a registered validator."""
+from axiom_rift.operations.validation_identity import (
+    EvidenceValidationError,
+    validator_identity,
+    validator_implementation_sha256,
+)
 
 
 def _ascii(name: str, value: object) -> str:
@@ -33,90 +43,6 @@ def _digest(name: str, value: object) -> str:
     return text
 
 
-def validator_implementation_sha256(
-    *,
-    implementation_path: str | Path,
-    dependency_paths: tuple[str | Path, ...] = (),
-) -> str:
-    """Bind one implementation and its ordered, declared dependency bytes."""
-
-    if type(dependency_paths) is not tuple:
-        raise EvidenceValidationError(
-            "validator dependency paths must be a declared tuple"
-        )
-
-    def regular_file(value: str | Path, *, label: str) -> Path:
-        try:
-            raw = Path(value)
-            if raw.is_symlink():
-                raise EvidenceValidationError(f"{label} must not be a symlink")
-            path = raw.resolve(strict=True)
-        except (OSError, TypeError, ValueError) as exc:
-            raise EvidenceValidationError(f"{label} is invalid or absent") from exc
-        if not path.is_file():
-            raise EvidenceValidationError(f"{label} must be a regular file")
-        return path
-
-    implementation = regular_file(
-        implementation_path,
-        label="validator implementation",
-    )
-    dependencies = tuple(
-        regular_file(item, label="validator dependency")
-        for item in dependency_paths
-    )
-    if (
-        len(set(dependencies)) != len(dependencies)
-        or implementation in dependencies
-    ):
-        raise EvidenceValidationError(
-            "validator dependency paths must be unique"
-        )
-
-    def content_digest(path: Path, *, dependency: bool) -> str:
-        try:
-            content = path.read_bytes()
-        except OSError as exc:
-            label = "dependency" if dependency else "implementation"
-            raise EvidenceValidationError(
-                f"validator {label} file is absent"
-            ) from exc
-        return sha256(content).hexdigest()
-
-    implementation_digest = content_digest(implementation, dependency=False)
-    if not dependencies:
-        return implementation_digest
-    dependency_digests = [
-        content_digest(path, dependency=True) for path in dependencies
-    ]
-    return canonical_digest(
-        domain="evidence-validator-implementation-bundle",
-        payload={
-            "dependency_sha256s": dependency_digests,
-            "implementation_sha256": implementation_digest,
-            "schema": "evidence_validator_implementation_bundle.v1",
-        },
-    )
-
-
-def validator_identity(
-    *,
-    protocol: str,
-    domains: frozenset[str],
-    implementation_sha256: str,
-) -> str:
-    _ascii("validator protocol", protocol)
-    _digest("validator implementation", implementation_sha256)
-    return "validator:" + canonical_digest(
-        domain="evidence-validator",
-        payload={
-            "domains": sorted(domains),
-            "implementation_sha256": implementation_sha256,
-            "protocol": protocol,
-        },
-    )
-
-
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ValidationArtifact:
     output_name: str
@@ -131,10 +57,14 @@ class ValidationArtifact:
         try:
             content = self._source.read_bytes()
         except OSError as exc:
-            raise EvidenceValidationError("validation artifact is absent") from exc
+            raise EvidenceValidationError(
+                "validation artifact is absent",
+                reason_code="declared_artifact_absent_drifted_or_unopened",
+            ) from exc
         if sha256(content).hexdigest() != self.sha256:
             raise EvidenceValidationError(
-                "validation artifact changed before dispatch"
+                "validation artifact changed before dispatch",
+                reason_code="declared_artifact_absent_drifted_or_unopened",
             )
         object.__setattr__(self, "_content", content)
 
@@ -147,11 +77,13 @@ class ValidationArtifact:
             content = self._source.read_bytes()
         except OSError as exc:
             raise EvidenceValidationError(
-                "validation artifact disappeared during validation"
+                "validation artifact disappeared during validation",
+                reason_code="declared_artifact_absent_drifted_or_unopened",
             ) from exc
         if sha256(content).hexdigest() != self.sha256:
             raise EvidenceValidationError(
-                "validation artifact changed during validation"
+                "validation artifact changed during validation",
+                reason_code="declared_artifact_absent_drifted_or_unopened",
             )
 
     @property
@@ -186,7 +118,8 @@ class EvidenceValidationRequest:
             _ascii(name, getattr(self, name))
         if not self.artifacts:
             raise EvidenceValidationError(
-                "validator requires declared durable artifacts"
+                "validator requires declared durable artifacts",
+                reason_code="declared_artifact_absent_drifted_or_unopened",
             )
         object.__setattr__(
             self,
@@ -266,6 +199,85 @@ class EngineeringEvidenceValidationRequest:
             )
         _ascii("evidence subject kind", self.evidence_subject.get("kind"))
         _ascii("evidence subject id", self.evidence_subject.get("id"))
+        object.__setattr__(
+            self,
+            "evidence_subject",
+            _freeze_canonical(self.evidence_subject),
+        )
+        object.__setattr__(self, "binding", _freeze_canonical(self.binding))
+        object.__setattr__(
+            self,
+            "result_manifest",
+            _freeze_canonical(self.result_manifest),
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EngineeringRepairValidationRequest:
+    """Independent validation of one Repair attempt or terminal disposition."""
+
+    validator_id: str
+    validation_plan_hash: str
+    mission_id: str
+    job_id: str
+    job_hash: str
+    repair_id: str | None
+    verification_kind: str
+    evidence_subject: Mapping[str, str]
+    binding: Mapping[str, Any]
+    result_manifest: Mapping[str, Any]
+    artifacts: tuple[ValidationArtifact, ...]
+    engineering_fixture: bool = False
+    domain: str = field(default="engineering", init=False)
+
+    def __post_init__(self) -> None:
+        validator_digest = _ascii(
+            "validator_id",
+            self.validator_id,
+        ).removeprefix("validator:")
+        _digest("validator identity", validator_digest)
+        _digest("validation_plan_hash", self.validation_plan_hash)
+        _ascii("mission_id", self.mission_id)
+        job_id = _ascii("Repair validation Job", self.job_id)
+        if not job_id.startswith("job:"):
+            raise EvidenceValidationError(
+                "Repair validation Job identity prefix is invalid"
+            )
+        _digest("Repair validation Job identity", job_id.removeprefix("job:"))
+        _digest("Repair validation Job hash", self.job_hash)
+        if self.repair_id is not None:
+            repair_id = _ascii("Repair validation Repair", self.repair_id)
+            if not repair_id.startswith("repair:"):
+                raise EvidenceValidationError(
+                    "Repair validation identity prefix is invalid"
+                )
+            _digest(
+                "Repair validation identity",
+                repair_id.removeprefix("repair:"),
+            )
+        if self.verification_kind not in {
+            "attempt",
+            "candidate",
+            "disposition",
+            "inventory",
+            "semantic_change",
+        }:
+            raise EvidenceValidationError(
+                "Repair validation kind is invalid"
+            )
+        if not self.artifacts:
+            raise EvidenceValidationError(
+                "Repair validator requires durable artifacts"
+            )
+        if (
+            not isinstance(self.evidence_subject, Mapping)
+            or set(self.evidence_subject) != {"id", "kind"}
+        ):
+            raise EvidenceValidationError(
+                "Repair validation evidence subject is invalid"
+            )
+        _ascii("Repair evidence subject kind", self.evidence_subject.get("kind"))
+        _ascii("Repair evidence subject id", self.evidence_subject.get("id"))
         object.__setattr__(
             self,
             "evidence_subject",
@@ -398,11 +410,13 @@ class EvidenceValidator(Protocol):
     domains: frozenset[str]
     implementation_path: Path
     protocol: str
+    authority_scope: str
 
     def validate(
         self,
         request: (
             EngineeringEvidenceValidationRequest
+            | EngineeringRepairValidationRequest
             | EvidenceValidationRequest
             | ExternalChangeValidationRequest
         ),
@@ -448,9 +462,31 @@ class EvidenceValidatorRegistry:
         self._registrations = MappingProxyType(registrations)
 
     def _require_unchanged(self, registration: object) -> None:
-        _require_validator_registration_unchanged(registration)
+        try:
+            _require_validator_registration_unchanged(registration)
+        except EvidenceValidationError as exc:
+            raise EvidenceValidationError(
+                str(exc),
+                reason_code=(
+                    exc.reason_code
+                    or "validator_protocol_or_identity_mismatch"
+                ),
+            ) from exc
 
     def _authorized_registration(
+        self,
+        *,
+        validator_id: str,
+        domain: str,
+    ) -> Any:
+        registration = self._sealed_registration(
+            validator_id=validator_id,
+            domain=domain,
+        )
+        self._require_unchanged(registration)
+        return registration
+
+    def _sealed_registration(
         self,
         *,
         validator_id: str,
@@ -462,15 +498,16 @@ class EvidenceValidatorRegistry:
             or domain not in registration.integrity.domains
         ):
             raise EvidenceValidationError(
-                "no registered validator authorizes this evidence domain"
+                "no registered validator authorizes this evidence domain",
+                reason_code="validator_absent_or_unregistered",
             )
-        self._require_unchanged(registration)
         return registration
 
     def validate(
         self,
         request: (
             EngineeringEvidenceValidationRequest
+            | EngineeringRepairValidationRequest
             | EvidenceValidationRequest
             | ExternalChangeValidationRequest
         ),
@@ -479,16 +516,37 @@ class EvidenceValidatorRegistry:
             validator_id=request.validator_id,
             domain=request.domain,
         )
+        if isinstance(request, EngineeringRepairValidationRequest):
+            expected_scope = (
+                "fixture_only" if request.engineering_fixture else "production"
+            )
+            implementation_path = registration.integrity.implementation_path
+            production_root = Path(__file__).resolve().parents[1]
+            try:
+                implementation_path.relative_to(production_root)
+                production_path = True
+            except ValueError:
+                production_path = False
+            if (
+                registration.integrity.authority_scope != expected_scope
+                or (expected_scope == "production" and not production_path)
+            ):
+                raise EvidenceValidationError(
+                    "Repair validator authority scope differs from the request",
+                    reason_code="validator_protocol_or_identity_mismatch",
+                )
         try:
             result = registration.validate(request)
             if not isinstance(result, ValidatedEvidence):
                 raise EvidenceValidationError(
-                    "validator returned an untyped result"
+                    "validator returned an untyped result",
+                    reason_code="partial_validator_result",
                 )
             opened = sum(artifact.was_read for artifact in request.artifacts)
             if opened != len(request.artifacts):
                 raise EvidenceValidationError(
-                    "validator did not inspect every declared artifact"
+                    "validator did not inspect every declared artifact",
+                    reason_code="declared_artifact_absent_drifted_or_unopened",
                 )
             for artifact in request.artifacts:
                 artifact.require_source_unchanged()
@@ -521,7 +579,8 @@ class EvidenceValidatorRegistry:
 
         if type(protocol) is not str or not protocol or not protocol.isascii():
             raise EvidenceValidationError(
-                "validator protocol requirement is invalid"
+                "validator protocol requirement is invalid",
+                reason_code="validator_protocol_or_identity_mismatch",
             )
         registration = self._authorized_registration(
             validator_id=validator_id,
@@ -529,7 +588,38 @@ class EvidenceValidatorRegistry:
         )
         if registration.integrity.protocol != protocol:
             raise EvidenceValidationError(
-                "registered validator protocol differs from the required capability"
+                "registered validator protocol differs from the required capability",
+                reason_code="validator_protocol_or_identity_mismatch",
+            )
+
+    def require_plannable_protocol(
+        self,
+        *,
+        validator_id: str,
+        domain: str,
+        protocol: str,
+    ) -> None:
+        """Check immutable registration metadata without granting execution.
+
+        Two-phase workflows use this only to construct a validation plan.  A
+        later ``validate`` call still performs the full implementation and
+        transitive-closure check both before and after dispatch.  This method
+        therefore cannot authorize evidence or replace that boundary.
+        """
+
+        if type(protocol) is not str or not protocol or not protocol.isascii():
+            raise EvidenceValidationError(
+                "validator protocol requirement is invalid",
+                reason_code="validator_protocol_or_identity_mismatch",
+            )
+        registration = self._sealed_registration(
+            validator_id=validator_id,
+            domain=domain,
+        )
+        if registration.integrity.protocol != protocol:
+            raise EvidenceValidationError(
+                "registered validator protocol differs from the required capability",
+                reason_code="validator_protocol_or_identity_mismatch",
             )
 
     def preflight_binding(
@@ -845,6 +935,356 @@ class EngineeringRetryFixtureValidator:
         )
 
 
+ENGINEERING_REPAIR_FIXTURE_PROTOCOL = "engineering_repair_fixture.v1"
+ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID = validator_identity(
+    protocol=ENGINEERING_REPAIR_FIXTURE_PROTOCOL,
+    domains=frozenset({"engineering"}),
+    implementation_sha256=validator_implementation_sha256(
+        implementation_path=_THIS_IMPLEMENTATION
+    ),
+)
+
+
+class EngineeringRepairFixtureValidator:
+    """Fixture-only validator for independently dispatched Repair evidence."""
+
+    validator_id = ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID
+    domains = frozenset({"engineering"})
+    implementation_path = _THIS_IMPLEMENTATION
+    protocol = ENGINEERING_REPAIR_FIXTURE_PROTOCOL
+    authority_scope = "fixture_only"
+
+    def validate(
+        self,
+        request: EngineeringRepairValidationRequest,
+    ) -> ValidatedEvidence:
+        if (
+            not isinstance(request, EngineeringRepairValidationRequest)
+            or not request.engineering_fixture
+            or request.domain != "engineering"
+        ):
+            raise EvidenceValidationError(
+                "engineering Repair validator is fixture-only"
+            )
+        by_name = {artifact.output_name: artifact for artifact in request.artifacts}
+        if len(by_name) != len(request.artifacts):
+            raise EvidenceValidationError(
+                "engineering Repair artifact roles are duplicated"
+            )
+        plan_artifact = by_name.get("validation_plan")
+        result_name = (
+            "semantic_change_case"
+            if request.verification_kind == "semantic_change"
+            else "validation_result"
+        )
+        result_artifact = by_name.get(result_name)
+        if plan_artifact is None or result_artifact is None:
+            raise EvidenceValidationError(
+                "engineering Repair plan or result is absent"
+            )
+        try:
+            plan = parse_canonical(plan_artifact.read_bytes())
+            result = parse_canonical(result_artifact.read_bytes())
+        except (TypeError, ValueError) as exc:
+            raise EvidenceValidationError(
+                "engineering Repair fixture evidence is not canonical"
+            ) from exc
+        binding = _thaw_canonical(request.binding)
+        roles = None if not isinstance(plan, Mapping) else plan.get("artifact_roles")
+        expected_roles = [
+            {"output_name": name, "sha256": artifact.sha256}
+            for name, artifact in sorted(by_name.items())
+            if name != "validation_plan"
+        ]
+        if (
+            not isinstance(plan, Mapping)
+            or set(plan)
+            != {
+                "artifact_roles",
+                "binding_sha256",
+                "protocol",
+                "schema",
+                "validator_id",
+                "verification_kind",
+            }
+            or plan.get("schema") != "engineering_repair_validation_plan.v1"
+            or plan.get("validator_id") != self.validator_id
+            or plan.get("protocol") != self.protocol
+            or plan.get("verification_kind") != request.verification_kind
+            or plan.get("binding_sha256")
+            != sha256(canonical_bytes(binding)).hexdigest()
+            or roles != expected_roles
+        ):
+            raise EvidenceValidationError(
+                "engineering Repair fixture plan differs from its request"
+            )
+        if request.verification_kind == "inventory":
+            context = binding.get("context")
+            if not isinstance(context, Mapping):
+                raise EvidenceValidationError(
+                    "engineering Repair fixture inventory context is absent"
+                )
+            try:
+                inventory = normalize_repair_inventory_facts(
+                    result,
+                    accepted_attempts=context.get("repair_attempts", ()),
+                    current_basis_hash=str(
+                        context.get("current_basis_hash")
+                    ),
+                    information_set_hash=str(
+                        context.get("information_set_hash")
+                    ),
+                    opened_result_artifact_hashes=tuple(
+                        sorted(
+                            artifact.sha256
+                            for name, artifact in by_name.items()
+                            if name != "validation_plan"
+                        )
+                    ),
+                )
+            except (
+                RepairDispositionInventoryError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                raise EvidenceValidationError(str(exc)) from exc
+            for artifact in by_name.values():
+                artifact.read_bytes()
+            return ValidatedEvidence(
+                verdict="passed",
+                measurement_artifact_hashes=tuple(
+                    sorted(
+                        artifact.sha256
+                        for name, artifact in by_name.items()
+                        if name != "validation_plan"
+                    )
+                ),
+                artifact_roles=tuple(
+                    (name, artifact.sha256)
+                    for name, artifact in by_name.items()
+                ),
+                facts={"binding": binding, **inventory},
+                scientific_eligible=False,
+                candidate_eligible=False,
+                release_eligible=False,
+            )
+        if request.verification_kind == "semantic_change":
+            binding_context = binding.get("context")
+            try:
+                semantic_case = normalize_semantic_change_case(result)
+                if not isinstance(binding_context, Mapping):
+                    raise RepairDispositionCaseError(
+                        "semantic-change fixture context is absent"
+                    )
+                expected_facts = semantic_change_facts(
+                    semantic_case,
+                    current_basis_hash=str(
+                        binding_context.get("current_basis_hash")
+                    ),
+                    accepted_attempt_head_record_id=binding_context.get(
+                        "accepted_attempt_head_record_id"
+                    ),
+                    repair_validation_observation_head=binding_context.get(
+                        "repair_validation_observation_head"
+                    ),
+                )
+            except (RepairDispositionCaseError, TypeError, ValueError) as exc:
+                raise EvidenceValidationError(str(exc)) from exc
+            expected_context_case = {
+                "changed_dimensions": binding_context.get(
+                    "changed_dimensions"
+                ),
+                "correction_artifact_hashes": binding_context.get(
+                    "correction_artifact_hashes"
+                ),
+                "protected_semantic_dimensions": binding_context.get(
+                    "protected_semantic_dimensions"
+                ),
+                "rationale_evidence_hashes": binding_context.get(
+                    "rationale_evidence_hashes"
+                ),
+                "schema": "engineering_semantic_change_case.v1",
+            }
+            if semantic_case != expected_context_case:
+                raise EvidenceValidationError(
+                    "semantic-change fixture case differs from authority"
+                )
+            role_pairs = tuple(
+                (name, artifact.sha256) for name, artifact in by_name.items()
+            )
+            for artifact in by_name.values():
+                artifact.read_bytes()
+            return ValidatedEvidence(
+                verdict="passed",
+                measurement_artifact_hashes=tuple(
+                    artifact.sha256
+                    for name, artifact in by_name.items()
+                    if name != "validation_plan"
+                ),
+                artifact_roles=role_pairs,
+                facts={"binding": binding, **expected_facts},
+                scientific_eligible=False,
+                candidate_eligible=False,
+                release_eligible=False,
+            )
+        if request.verification_kind == "candidate":
+            if (
+                not isinstance(result, Mapping)
+                or set(result)
+                != {
+                    "failure_observed_after_change",
+                    "material_change_observed",
+                    "measurement_complete",
+                    "observed_context",
+                    "schema",
+                    "support_artifact_hashes",
+                }
+                or result.get("schema")
+                != "engineering_repair_candidate_fixture_measurement.v1"
+                or result.get("observed_context") != binding.get("context")
+                or type(result.get("failure_observed_after_change")) is not bool
+                or type(result.get("material_change_observed")) is not bool
+                or type(result.get("measurement_complete")) is not bool
+            ):
+                raise EvidenceValidationError(
+                    "engineering Repair candidate fixture measurement is invalid"
+                )
+            support_hashes = sorted(
+                artifact.sha256
+                for name, artifact in by_name.items()
+                if name.startswith("support:")
+            )
+            if result.get("support_artifact_hashes") != support_hashes:
+                raise EvidenceValidationError(
+                    "engineering Repair candidate fixture support differs"
+                )
+            for name, artifact in by_name.items():
+                if name not in {"validation_plan", "validation_result"}:
+                    artifact.read_bytes()
+            if not result["measurement_complete"]:
+                verdict = "not_evaluable"
+                facts = {
+                    "cause_resolved": None,
+                    "failure_reproduced": None,
+                    "material_change": None,
+                    "mode": "not_evaluable",
+                    "new_failure_manifest_hash": None,
+                    "reason_code": "fixture_measurement_inconclusive",
+                }
+            elif not result["material_change_observed"]:
+                verdict = "failed"
+                facts = {
+                    "cause_resolved": None,
+                    "failure_reproduced": None,
+                    "material_change": False,
+                    "mode": "invalid_change",
+                    "new_failure_manifest_hash": None,
+                    "reason_code": "fixture_no_material_change",
+                }
+            elif result["failure_observed_after_change"]:
+                verdict = "passed"
+                facts = {
+                    "cause_resolved": False,
+                    "failure_reproduced": True,
+                    "material_change": True,
+                    "mode": "failure_reproduced",
+                    "new_failure_manifest_hash": None,
+                    "reason_code": None,
+                }
+            else:
+                verdict = "passed"
+                facts = {
+                    "cause_resolved": True,
+                    "failure_reproduced": False,
+                    "material_change": True,
+                    "mode": "repaired",
+                    "new_failure_manifest_hash": None,
+                    "reason_code": None,
+                }
+            return ValidatedEvidence(
+                verdict=verdict,
+                measurement_artifact_hashes=tuple(
+                    artifact.sha256
+                    for name, artifact in by_name.items()
+                    if name != "validation_plan"
+                ),
+                artifact_roles=tuple(
+                    (name, artifact.sha256) for name, artifact in by_name.items()
+                ),
+                facts={"binding": binding, **facts},
+                scientific_eligible=False,
+                candidate_eligible=False,
+                release_eligible=False,
+            )
+        if (
+            not isinstance(result, Mapping)
+            or set(result)
+            != {
+                "disposition_case",
+                "facts",
+                "observed_context",
+                "schema",
+                "semantic_change_receipt_hash",
+                "support_artifact_hashes",
+                "verification_kind",
+            }
+            or result.get("schema") != "engineering_repair_fixture_result.v1"
+            or result.get("verification_kind") != request.verification_kind
+            or result.get("observed_context") != binding.get("context")
+        ):
+            raise EvidenceValidationError(
+                "engineering Repair fixture result differs from authority"
+            )
+        support_hashes = sorted(
+            artifact.sha256
+            for name, artifact in by_name.items()
+            if name.startswith("support:")
+        )
+        if result.get("support_artifact_hashes") != support_hashes:
+            raise EvidenceValidationError(
+                "engineering Repair fixture support differs"
+            )
+        for name, artifact in by_name.items():
+            if name not in {"validation_plan", "validation_result"}:
+                artifact.read_bytes()
+        context = binding.get("context")
+        facts = result.get("facts")
+        if not isinstance(context, dict) or not isinstance(facts, Mapping):
+            raise EvidenceValidationError(
+                "engineering Repair fixture context is invalid"
+            )
+        if request.verification_kind != "attempt":
+            raise EvidenceValidationError(
+                "engineering Repair fixture has no generic terminal authority"
+            )
+        outcome = context.get("outcome")
+        expected_facts = {
+            "cause_resolved": outcome == "repaired",
+            "failure_reproduced": outcome == "failed",
+            "material_change": True,
+        }
+        if dict(facts) != expected_facts:
+            raise EvidenceValidationError(
+                "engineering Repair fixture facts were not recomputed"
+            )
+        role_pairs = tuple(
+            (name, artifact.sha256) for name, artifact in by_name.items()
+        )
+        return ValidatedEvidence(
+            verdict="passed",
+            measurement_artifact_hashes=tuple(
+                artifact.sha256
+                for name, artifact in by_name.items()
+                if name != "validation_plan"
+            ),
+            artifact_roles=role_pairs,
+            facts={"binding": binding, **expected_facts},
+            scientific_eligible=False,
+            candidate_eligible=False,
+            release_eligible=False,
+        )
+
+
 def __getattr__(name: str) -> Any:
     if name in {
         "validator_execution_dependency_paths",
@@ -861,9 +1301,13 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "ENGINEERING_RETRY_FIXTURE_PROTOCOL",
     "ENGINEERING_RETRY_VALIDATOR_ID",
+    "ENGINEERING_REPAIR_FIXTURE_PROTOCOL",
+    "ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID",
     "ENGINEERING_RUNTIME_PLAN_HASH",
     "ENGINEERING_VALIDATOR_ID",
     "EngineeringFixtureValidator",
+    "EngineeringRepairFixtureValidator",
+    "EngineeringRepairValidationRequest",
     "EngineeringRetryFixtureValidator",
     "EngineeringEvidenceValidationRequest",
     "ExternalChangeValidationRequest",

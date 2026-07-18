@@ -13,6 +13,10 @@ class ComponentManifestError(ValueError):
     """Raised when a Component manifest or semantic surface is invalid."""
 
 
+class ComponentOutsideArchitectureError(ComponentManifestError):
+    """A valid component has no prediction-to-position architecture role."""
+
+
 COMPONENT_SURFACE_DOMAIN_AWARE = "domain_aware"
 COMPONENT_SURFACE_PROTOCOL_NEUTRAL = "protocol_neutral"
 COMPONENT_SURFACE_ARCHITECTURE_ROLE = "architecture_role"
@@ -85,7 +89,7 @@ class ComponentSurfaceIdentities:
             return self.protocol_neutral
         if surface_kind == COMPONENT_SURFACE_ARCHITECTURE_ROLE:
             if self.architecture_role_surface is None:
-                raise ComponentManifestError(
+                raise ComponentOutsideArchitectureError(
                     "component domain is outside the prediction-to-position architecture"
                 )
             return self.architecture_role_surface
@@ -250,7 +254,7 @@ def architecture_component_surface_identity(
 ) -> str:
     surfaces = component_manifest_surfaces(value)
     if surfaces.architecture_role_surface is None:
-        raise ComponentManifestError(
+        raise ComponentOutsideArchitectureError(
             "component domain is outside the prediction-to-position architecture"
         )
     if role is not None and surfaces.architecture_role != role:
@@ -269,6 +273,7 @@ __all__ = [
     "COMPONENT_SURFACE_KINDS",
     "COMPONENT_SURFACE_PROTOCOL_NEUTRAL",
     "ComponentManifestError",
+    "ComponentOutsideArchitectureError",
     "ComponentSurfaceIdentities",
     "architecture_component_surface_identity",
     "component_manifest_domain",

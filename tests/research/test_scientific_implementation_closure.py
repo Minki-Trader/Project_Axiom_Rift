@@ -143,6 +143,11 @@ def test_scientific_validator_separates_semantic_identity_from_execution_closure
         implementation_sha256=validator_implementation_sha256(
             implementation_path=validator.implementation_path,
             dependency_paths=declared_dependencies,
+            semantic_boundary_paths=getattr(
+                validator,
+                "semantic_boundary_paths",
+                (),
+            ),
         ),
     )
     assert changed_id == expected_id
@@ -522,6 +527,15 @@ declared = set(fixed_hold_replay_runtime_dependency_paths(job.RUNTIME_ADAPTER))
 incidental_imports = {
     source_root / "axiom_rift/research/audit_integrity_proof.py",
 }
+operational_gate_imports = {
+    source_root / "axiom_rift/operations/completion_evidence_scope.py",
+    source_root / "axiom_rift/operations/permits.py",
+    source_root / "axiom_rift/operations/repair_semantic_equivalence.py",
+    source_root / "axiom_rift/operations/running_job.py",
+    source_root / "axiom_rift/operations/validation.py",
+    source_root / "axiom_rift/operations/validation_integrity.py",
+    source_root / "axiom_rift/research/effective_evidence_scope.py",
+}
 foreign_validator_only = {
     source_root / "axiom_rift/research/historical_family_stu0017.py",
     source_root / "axiom_rift/research/historical_family_stu0032.py",
@@ -532,7 +546,8 @@ p0_only = {
 }
 print(json.dumps({
     "foreign_declared": sorted(path.relative_to(source_root).as_posix() for path in declared & foreign_validator_only),
-    "missing": sorted(path.relative_to(source_root).as_posix() for path in loaded - declared - incidental_imports),
+    "missing": sorted(path.relative_to(source_root).as_posix() for path in loaded - declared - incidental_imports - operational_gate_imports),
+    "operational_declared": sorted(path.relative_to(source_root).as_posix() for path in declared & operational_gate_imports),
     "p0_declared": sorted(path.relative_to(source_root).as_posix() for path in declared & p0_only),
     "p0_loaded": sorted(path.relative_to(source_root).as_posix() for path in loaded & p0_only),
     "writer_loaded": "axiom_rift.operations.writer" in sys.modules,
@@ -542,6 +557,7 @@ print(json.dumps({
     assert observed == {
         "foreign_declared": [],
         "missing": [],
+        "operational_declared": [],
         "p0_declared": [],
         "p0_loaded": [],
         "writer_loaded": False,
@@ -612,22 +628,28 @@ def test_numerical_environment_remains_typed_and_definition_identity_bound(
 
 
 @pytest.mark.parametrize(
-    ("relative_path", "semantic_identity_changes"),
     (
-        ("axiom_rift/research/analog_fixed_hold_replay.py", False),
-        ("axiom_rift/research/analog_state_replay_v2.py", True),
-        ("axiom_rift/research/adjudication.py", True),
-        ("axiom_rift/research/completed_period_atomic_trace.py", True),
-        ("axiom_rift/research/fixed_hold_historical_projection.py", True),
-        ("axiom_rift/research/historical_semantic_transition.py", True),
-        ("axiom_rift/operations/validation.py", False),
-        ("axiom_rift/storage/atomic_file.py", False),
-        ("axiom_rift/research/__init__.py", False),
+        "relative_path",
+        "semantic_identity_changes",
+        "job_identity_changes",
+    ),
+    (
+        ("axiom_rift/research/analog_fixed_hold_replay.py", False, True),
+        ("axiom_rift/research/analog_state_replay_v2.py", True, True),
+        ("axiom_rift/research/adjudication.py", True, True),
+        ("axiom_rift/research/completed_period_atomic_trace.py", True, True),
+        ("axiom_rift/research/fixed_hold_historical_projection.py", True, True),
+        ("axiom_rift/research/historical_semantic_transition.py", True, True),
+        ("axiom_rift/operations/validation_identity.py", False, True),
+        ("axiom_rift/operations/validation.py", False, False),
+        ("axiom_rift/storage/atomic_file.py", False, True),
+        ("axiom_rift/research/__init__.py", False, True),
     ),
 )
 def test_validator_semantics_and_job_execution_bind_their_own_closures(
     relative_path: str,
     semantic_identity_changes: bool,
+    job_identity_changes: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = (SOURCE_ROOT / relative_path).resolve()
@@ -636,7 +658,7 @@ def test_validator_semantics_and_job_execution_bind_their_own_closures(
         fixed_hold_replay_runtime_dependency_paths(RUNTIME_ADAPTER)
     )
     assert (target in validation_dependencies) is semantic_identity_changes
-    assert target in job_dependencies
+    assert (target in job_dependencies) is job_identity_changes
 
     baseline_job_identity = fixed_hold_replay_job_implementation_sha256(
         RUNTIME_ADAPTER
@@ -657,6 +679,11 @@ def test_validator_semantics_and_job_execution_bind_their_own_closures(
         implementation_sha256=validator_implementation_sha256(
             implementation_path=validator.implementation_path,
             dependency_paths=SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+            semantic_boundary_paths=getattr(
+                validator,
+                "semantic_boundary_paths",
+                (),
+            ),
         ),
     )
     changed_job_identity = fixed_hold_replay_job_implementation_sha256(
@@ -665,4 +692,6 @@ def test_validator_semantics_and_job_execution_bind_their_own_closures(
     assert (
         changed_validator_id != SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
     ) is semantic_identity_changes
-    assert changed_job_identity != baseline_job_identity
+    assert (
+        changed_job_identity != baseline_job_identity
+    ) is job_identity_changes

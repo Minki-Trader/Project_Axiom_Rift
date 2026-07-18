@@ -1086,12 +1086,26 @@ SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = tuple(
         key=lambda path: path.as_posix(),
     )
 )
+SCIENTIFIC_VALIDATION_V2_SEMANTIC_BOUNDARIES = tuple(
+    sorted(
+        {
+            _AXIOM_PACKAGE_ROOT / "operations" / "validation.py",
+            _AXIOM_PACKAGE_ROOT / "operations" / "validation_identity.py",
+            _AXIOM_PACKAGE_ROOT / "storage" / "atomic_file.py",
+            _RESEARCH_ROOT / "__init__.py",
+        },
+        key=lambda path: path.as_posix(),
+    )
+)
 SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID = validator_identity(
     protocol=SCIENTIFIC_VALIDATION_V2_PROTOCOL,
     domains=SCIENTIFIC_VALIDATION_V2_DOMAINS,
     implementation_sha256=validator_implementation_sha256(
         implementation_path=_THIS_IMPLEMENTATION,
         dependency_paths=SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+        semantic_boundary_paths=(
+            SCIENTIFIC_VALIDATION_V2_SEMANTIC_BOUNDARIES
+        ),
     ),
 )
 
@@ -1103,6 +1117,7 @@ class ScientificAdjudicationValidatorV2:
     domains = SCIENTIFIC_VALIDATION_V2_DOMAINS
     implementation_path = _THIS_IMPLEMENTATION
     dependency_paths = SCIENTIFIC_VALIDATION_V2_DEPENDENCIES
+    semantic_boundary_paths = SCIENTIFIC_VALIDATION_V2_SEMANTIC_BOUNDARIES
     protocol = SCIENTIFIC_VALIDATION_V2_PROTOCOL
 
     def preflight_binding(
@@ -1414,6 +1429,7 @@ __all__ = [
     "SCIENTIFIC_RESULT_SCHEMA",
     "SCIENTIFIC_VALIDATION_PLAN_V2_SCHEMA",
     "SCIENTIFIC_VALIDATION_V2_DEPENDENCIES",
+    "SCIENTIFIC_VALIDATION_V2_SEMANTIC_BOUNDARIES",
     "SCIENTIFIC_VALIDATION_V2_DOMAINS",
     "SCIENTIFIC_VALIDATION_V2_PROTOCOL",
     "SCIENTIFIC_V2_CRITERION_OPERATORS",

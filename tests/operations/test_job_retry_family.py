@@ -15,8 +15,10 @@ from axiom_rift.operations.permits import (
 )
 from axiom_rift.operations.job_contract import build_job_identity_plan
 from axiom_rift.operations.job_retry_family import (
+    JobRetryFamilyError,
     derive_job_retry_family,
     derive_runtime_source_retry_resolution,
+    parse_job_retry_resume_authority,
     retry_family_attempt_identity,
     retry_family_attempt_payload,
 )
@@ -32,9 +34,14 @@ from axiom_rift.operations.job_retry_admission import (
     build_retry_family_declaration_record,
 )
 from axiom_rift.operations.validation import (
+    ENGINEERING_REPAIR_FIXTURE_PROTOCOL,
+    ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID,
     ENGINEERING_RETRY_VALIDATOR_ID,
     EvidenceValidationError,
     EvidenceValidatorRegistry,
+)
+from axiom_rift.operations.repair_disposition_materializer import (
+    materialize_engineering_repair_disposition,
 )
 from axiom_rift.operations.writer import (
     IdenticalFailedRetryError,
@@ -43,13 +50,13 @@ from axiom_rift.operations.writer import (
     TransitionError,
 )
 from axiom_rift.storage.index import EventHead, IndexRecord, LocalIndex
+from axiom_rift.storage.state import WriterLock
 from tests.operations.test_writer import (
     FIXED_EXPIRY,
     FIXED_NOW,
     OBSERVED_MATERIAL_ID,
     REPO_ROOT,
     batch_spec,
-    engineering_failure_disposition,
     initiative_objective,
     job_spec,
     mission_goal,
@@ -306,18 +313,63 @@ class JobRetryFamilyWriterTests(unittest.TestCase):
             "root_cause": "fixture operational cause remained unresolved",
             "interrupted_action": spec["callable_identity"],
         }
-        cause_hash = canonical_digest(domain="repair-cause", payload=cause)
-        disposition_hash = engineering_failure_disposition(
-            self.writer,
-            job_id=declared.result["job_id"],
-            evidence_hashes=(reproduction.sha256,),
-            disposition=disposition,
-            cause_hash=cause_hash,
+        if disposition != "repair_infeasible":
+            raise AssertionError(
+                "the current fixture helper supports only registered "
+                "repair_infeasible inventory"
+            )
+        repair_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id=f"{tag}-repair-permit",
         )
-        self.writer.record_engineering_failure_disposition(
+        self.writer.open_repair(
+            permit=repair_permit,
             failure=cause,
+            operation_id=f"{tag}-repair-open",
+        )
+        support = self.writer.evidence.finalize(
+            f"{tag} complete registered route inventory".encode("ascii")
+        )
+        inventory = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "axes": [
+                        {
+                            "accepted_attempt_record_ids": [],
+                            "axis_id": "fixture-bounded-route",
+                            "changed_dimension": "implementation",
+                            "state": "infeasible",
+                            "support_evidence_hashes": [support.sha256],
+                            "value_assessment": None,
+                        }
+                    ],
+                    "coverage_complete": True,
+                    "no_identity_preserving_repair_route_remaining": True,
+                    "schema": "engineering_repair_inventory_facts.v1",
+                }
+            )
+        )
+        disposition_hash = materialize_engineering_repair_disposition(
+            self.writer,
+            inventory_validator_id=ENGINEERING_REPAIR_FIXTURE_VALIDATOR_ID,
+            inventory_protocol=ENGINEERING_REPAIR_FIXTURE_PROTOCOL,
+            inventory_result_artifacts={
+                "support:0000": support.sha256,
+                "validation_result": inventory.sha256,
+            },
+            rationale="complete fixture route inventory is infeasible",
+            resume_condition="complete the typed fixture engineering failure",
+        )
+        self.writer.conclude_repair_unrecovered(
             disposition_hash=disposition_hash,
-            operation_id=f"{tag}-disposition",
+            operation_id=f"{tag}-repair-conclude",
         )
         completed = self.writer.complete_job(
             outcome="failed",
@@ -1259,10 +1311,26 @@ class JobRetryFamilyWriterTests(unittest.TestCase):
             tag="measured-cause-resolution",
         )
         retry["changed_cause_proof_hash"] = resolved_proof
-        retried = self.writer.declare_job(
-            spec=retry,
-            operation_id="allow-validated-implementation-retry",
-        )
+        validator_calls = 0
+        registered_validate = self.writer.validation_registry.validate
+
+        def validate_after_lock_release(request):
+            nonlocal validator_calls
+            with WriterLock(self.writer.lock_path, timeout_seconds=1):
+                pass
+            validator_calls += 1
+            return registered_validate(request)
+
+        with patch.object(
+            self.writer.validation_registry,
+            "validate",
+            side_effect=validate_after_lock_release,
+        ):
+            retried = self.writer.declare_job(
+                spec=retry,
+                operation_id="allow-validated-implementation-retry",
+            )
+        self.assertEqual(validator_calls, 1)
         with LocalIndex(self.writer.index_path) as index:
             declaration = index.get(
                 "job-declared",
@@ -1525,18 +1593,24 @@ class JobRetryFamilyWriterTests(unittest.TestCase):
         )
         self.assertEqual(retry_bases, ())
 
-    def test_scientific_change_disposition_cannot_release_same_family(self) -> None:
+    def test_historical_scientific_change_terminal_cannot_release_same_family(
+        self,
+    ) -> None:
         self._open_mission("MIS-RETRY-SCIENCE")
         subject = {"kind": "Mission", "id": "MIS-RETRY-SCIENCE"}
         original = job_spec(self.writer, subject)
         declared, completed = self._complete_engineering_failure(
             spec=original,
             tag="retry-science",
-            disposition="requires_scientific_change",
         )
         with LocalIndex(self.writer.index_path) as index:
             prior = index.get("job-declared", declared.result["job_id"])
+            completion = index.get(
+                "job-completed",
+                completed.result["completion_record_id"],
+            )
         assert prior is not None
+        assert completion is not None
         authority_hash = self._retry_authority(
             completion_record_id=completed.result["completion_record_id"],
             changed_dimension="information",
@@ -1546,12 +1620,33 @@ class JobRetryFamilyWriterTests(unittest.TestCase):
         retry = job_spec(self.writer, subject)
         retry["changed_cause_proof_hash"] = authority_hash
         with self.assertRaisesRegex(
-            IdenticalFailedRetryError,
-            "distinct scientific work",
+            JobRetryFamilyError,
+            "scientific-change disposition cannot release the same Job family",
         ):
-            self.writer.declare_job(
-                spec=retry,
-                operation_id="reject-scientific-change-family-release",
+            parse_job_retry_resume_authority(
+                self.writer.evidence.read_verified(authority_hash),
+                mission_id="MIS-RETRY-SCIENCE",
+                evidence_subject=dict(retry["evidence_subject"]),
+                retry_family_fingerprint=prior.payload[
+                    "retry_family_fingerprint"
+                ],
+                prior_completion_record_id=completion.record_id,
+                prior_job_id=prior.record_id,
+                prior_job_hash=prior.fingerprint,
+                prior_work_fingerprint=prior.payload["work_fingerprint"],
+                new_work_fingerprint=prior.payload["work_fingerprint"],
+                failure=completion.payload["failure"],
+                engineering_disposition={
+                    **completion.payload["engineering_disposition"],
+                    "disposition": "requires_scientific_change",
+                },
+                previous_spec=prior.payload["spec"],
+                current_spec=retry,
+                read_evidence=self.writer.evidence.read_verified,
+                verify_evidence=self.writer.evidence.verify,
+                evidence_path=self.writer.evidence.verified_path,
+                validation_registry=self.writer.validation_registry,
+                engineering_fixture=True,
             )
 
 

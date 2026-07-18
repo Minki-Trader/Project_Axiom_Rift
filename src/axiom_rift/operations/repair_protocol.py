@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from axiom_rift.core.canonical import CanonicalJSONError, parse_canonical
+from axiom_rift.core.identity import canonical_digest
 
 
 class RepairProtocolError(ValueError):
@@ -113,6 +114,24 @@ def _digest_list(
     return result
 
 
+def _ordered_digest_list(
+    label: str,
+    value: object,
+    *,
+    allow_empty: bool,
+) -> tuple[str, ...]:
+    if (
+        not isinstance(value, list)
+        or (not allow_empty and not value)
+        or any(type(item) is not str for item in value)
+    ):
+        raise RepairProtocolError(f"{label} must be an ordered unique digest list")
+    result = tuple(_digest(label, item) for item in value)
+    if len(set(result)) != len(result):
+        raise RepairProtocolError(f"{label} must be an ordered unique digest list")
+    return result
+
+
 def _document(document: bytes, *, label: str) -> dict[str, Any]:
     try:
         value = parse_canonical(document)
@@ -181,10 +200,15 @@ def parse_repair_attempt_proof(
     reproduction_evidence_hashes: Sequence[str],
     prior_attempt_record_id: str | None,
     previous_basis_hash: str,
+    used_basis_hashes: Sequence[str],
     read_evidence: EvidenceReader,
     verify_evidence: EvidenceVerifier,
 ) -> RepairAttemptProof:
-    """Validate one changed-basis Repair attempt against exact active state."""
+    """Parse a legacy outcome-bearing attempt for fixture/history compatibility.
+
+    This codec is not prospective admission authority.  The Writer accepts only
+    an outcome-free ``RepairCandidate`` evaluated by a registered validator.
+    """
 
     if expected_outcome not in _ATTEMPT_OUTCOMES:
         raise RepairProtocolError("expected Repair attempt outcome is invalid")
@@ -245,11 +269,18 @@ def parse_repair_attempt_proof(
     observed_new_basis = _digest(
         "new Repair basis", value.get("new_basis_hash")
     )
+    used_bases = tuple(
+        _digest("used Repair basis", identity)
+        for identity in used_basis_hashes
+    )
     if (
-        observed_previous_basis != previous_basis_hash
-        or observed_new_basis == observed_previous_basis
+        not used_bases
+        or previous_basis_hash not in used_bases
+        or observed_previous_basis != previous_basis_hash
     ):
-        raise RepairProtocolError("Repair attempt does not change its exact basis")
+        raise RepairProtocolError(
+            "Repair attempt does not extend its exact basis history"
+        )
 
     observed_prior = value.get("prior_attempt_record_id")
     if observed_prior is not None:
@@ -361,13 +392,10 @@ def parse_repair_attempt_proof(
         for identity in (check_plan_hash, *result_hashes):
             verify_evidence(identity)
             verification_support.add(identity)
-    if (
-        set(observed_reproduction).intersection(verification_support)
-        or set(new_evidence).intersection(verification_support)
-    ):
-        raise RepairProtocolError(
-            "Repair verification support must be independent evidence"
-        )
+    # Registered validators must open both the changed target and the original
+    # reproduction inputs.  Those inspected inputs may therefore also appear
+    # in the receipt result set; the receipt and its immutable check plan stay
+    # separately bound by the registered dispatch boundary.
 
     explanation = _ascii("Repair attempt explanation", value.get("explanation"))
     failure_observation = value.get("failure_observation")
@@ -396,6 +424,47 @@ def parse_repair_attempt_proof(
         explanation=explanation,
         failure_observation=failure_observation,
         resume_action=observed_resume,
+    )
+
+
+def repair_attempt_intervention_fingerprint(
+    proof: RepairAttemptProof,
+    *,
+    verification_capabilities: Sequence[tuple[str, str]],
+) -> str:
+    """Identify one exact intervention while allowing genuinely new evidence."""
+
+    if not isinstance(proof, RepairAttemptProof):
+        raise RepairProtocolError("Repair intervention requires a typed proof")
+    normalized_capabilities = tuple(sorted(set(verification_capabilities)))
+    if (
+        not normalized_capabilities
+        or len(normalized_capabilities) != len(tuple(verification_capabilities))
+        or any(
+            type(protocol) is not str
+            or not protocol
+            or not protocol.isascii()
+            or type(validator_id) is not str
+            or not validator_id.startswith("validator:")
+            for protocol, validator_id in normalized_capabilities
+        )
+    ):
+        raise RepairProtocolError(
+            "Repair intervention verification capability is invalid"
+        )
+    return canonical_digest(
+        domain="repair-attempt-intervention",
+        payload={
+            "changed_dimension": proof.changed_dimension,
+            "implementation_proof_hash": proof.implementation_proof_hash,
+            "new_basis_hash": proof.new_basis_hash,
+            "new_evidence_hashes": list(proof.new_evidence_hashes),
+            "outcome": proof.outcome,
+            "verification_capabilities": [
+                {"protocol": protocol, "validator_id": validator_id}
+                for protocol, validator_id in normalized_capabilities
+            ],
+        },
     )
 
 
@@ -439,6 +508,7 @@ def _disposition_attempts(
         "changed_dimension",
         "new_basis_hash",
         "repair_attempt_record_id",
+        "repair_axis_id",
         "verification_receipt_hashes",
     }
     for item in value:
@@ -462,6 +532,10 @@ def _disposition_attempts(
                     f"{label} record",
                     item.get("repair_attempt_record_id"),
                 ),
+                "repair_axis_id": _ascii(
+                    f"{label} axis",
+                    item.get("repair_axis_id"),
+                ),
                 "verification_receipt_hashes": list(
                     _digest_list(
                         f"{label} verification receipts",
@@ -471,13 +545,10 @@ def _disposition_attempts(
                 ),
             }
         )
-    if normalized != sorted(
-        normalized,
-        key=lambda item: item["repair_attempt_record_id"],
-    ) or len(
+    if len(
         {item["repair_attempt_record_id"] for item in normalized}
     ) != len(normalized):
-        raise RepairProtocolError(f"{label} must be sorted and unique")
+        raise RepairProtocolError(f"{label} must be ordered and unique")
     return tuple(normalized)
 
 
@@ -520,6 +591,46 @@ def _validate_failed_attempt_receipts(
                 read_evidence(receipt_hash),
                 label="engineering disposition Repair verification receipt",
             )
+            if receipt.get("schema") == "repair_candidate_validation_receipt.v2":
+                if set(receipt) != {
+                    "check_plan_hash",
+                    "protocol",
+                    "result_artifact_hashes",
+                    "schema",
+                    "validator_id",
+                }:
+                    raise RepairProtocolError(
+                        "engineering disposition candidate receipt is malformed"
+                    )
+                validator_id = _ascii(
+                    "engineering disposition candidate validator",
+                    receipt.get("validator_id"),
+                )
+                if not validator_id.startswith("validator:"):
+                    raise RepairProtocolError(
+                        "engineering disposition candidate validator is untyped"
+                    )
+                _digest(
+                    "engineering disposition candidate validator",
+                    validator_id.removeprefix("validator:"),
+                )
+                _ascii(
+                    "engineering disposition candidate protocol",
+                    receipt.get("protocol"),
+                )
+                check_plan = _digest(
+                    "engineering disposition candidate check plan",
+                    receipt.get("check_plan_hash"),
+                )
+                results = _digest_list(
+                    "engineering disposition candidate results",
+                    receipt.get("result_artifact_hashes"),
+                    allow_empty=False,
+                )
+                for identity in (check_plan, *results):
+                    verify_evidence(identity)
+                    support.add(identity)
+                continue
             if (
                 set(receipt) != receipt_required
                 or receipt.get("schema") != _VERIFICATION_SCHEMA
@@ -866,7 +977,7 @@ def parse_engineering_failure_disposition(
         "engineering disposition basis",
         value.get("basis_manifest_hash"),
     )
-    attempt_ids = _digest_list(
+    attempt_ids = _ordered_digest_list(
         "engineering disposition Repair attempts",
         value.get("repair_attempt_record_ids"),
         allow_empty=True,
@@ -925,5 +1036,5 @@ __all__ = [
     "RepairAttemptProof",
     "RepairProtocolError",
     "parse_engineering_failure_disposition",
-    "parse_repair_attempt_proof",
+    "repair_attempt_intervention_fingerprint",
 ]
