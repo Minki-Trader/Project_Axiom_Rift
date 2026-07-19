@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 import sys
@@ -40,6 +40,9 @@ from axiom_rift.operations.prospective_job_materialization import (  # noqa: E40
     prospective_job_implementation_sha256,
 )
 from axiom_rift.operations.running_job import RunningJobExecution  # noqa: E402
+from axiom_rift.operations.study_diagnosis_projection import (  # noqa: E402
+    study_claim_scoped_diagnosis,
+)
 from axiom_rift.operations.validation import (  # noqa: E402
     EvidenceValidatorRegistry,
 )
@@ -47,7 +50,12 @@ from axiom_rift.operations.writer import (  # noqa: E402
     StateWriter,
 )
 from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID  # noqa: E402
-from axiom_rift.research.governance import ResearchLayer  # noqa: E402
+from axiom_rift.research.governance import (  # noqa: E402
+    DiagnosisConfidence,
+    EvidenceState,
+    ResearchLayer,
+    StudyDiagnosis,
+)
 from axiom_rift.research.portfolio import (  # noqa: E402
     BatchSpec,
     ConcurrentFamilyEvaluationMode,
@@ -1053,10 +1061,16 @@ def _known_operation_ids(design: StudyDesign) -> set[str]:
         "activate-current-v2-protocol",
         "batch-permit",
         "batch-permit-v2",
+        "close-initiative",
         "close-study",
+        "diagnose-study",
         "dispose-batch",
         "open-batch",
         "open-study",
+        "preserve-decision",
+        "preserved-snapshot",
+        "prune-decision",
+        "pruned-snapshot",
         "register-control",
         "register-exposure-cap",
         "work-decision",
@@ -1354,6 +1368,229 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
     }
 
 
+def diagnose_study(writer: StateWriter, design: StudyDesign) -> Mapping[str, Any]:
+    operation_id = design.binding.operation_prefix + "diagnose-study"
+    with writer.open_stable_index() as (control, index):
+        existing = index.get("operation", operation_id)
+        pattern = study_claim_scoped_diagnosis(index, study_id=STUDY_ID)
+        next_action = control["next_action"]
+    if pattern is None:
+        raise RuntimeError("STU-0125 claim-scoped diagnosis is unavailable")
+    if existing is None:
+        if (
+            next_action.get("kind") != "diagnose_study"
+            or next_action.get("study_id") != STUDY_ID
+            or not isinstance(next_action.get("study_close_record_id"), str)
+        ):
+            raise RuntimeError("STU-0125 diagnosis is not the exact next action")
+        result = writer.record_study_diagnosis(
+            diagnosis=StudyDiagnosis(
+                study_id=STUDY_ID,
+                study_close_record_id=next_action["study_close_record_id"],
+                evidence_state=pattern.evidence_state,
+                confidence=pattern.confidence,
+                rationale=(
+                    "the status-normalized pair is evaluable and supports absolute "
+                    "activity, after-cost economics, validity, selection-aware, and "
+                    "temporal evidence, but the registered exposure-cap control "
+                    "contrast is uniformly contradicted and monthly drawdown share "
+                    "also fails; unrelated positives do not establish cap value"
+                ),
+                counterfactual=(
+                    "an informative one-gross-slot cap would produce a positive "
+                    "registered control delta with synchronized uncertainty support "
+                    "while retaining acceptable drawdown concentration"
+                ),
+                reopen_condition=(
+                    "do not repeat this exact cap or tune capacity or slot priority; "
+                    "reopen only with new registered material or a distinct causal "
+                    "point-in-time exposure state"
+                ),
+                diagnosis_reason_code=pattern.reason_code,
+                supported_claim_ids=pattern.supported_claim_ids,
+                contradicted_claim_ids=pattern.contradicted_claim_ids,
+                unresolved_claim_ids=pattern.unresolved_claim_ids,
+                diagnostic_criterion_ids=pattern.diagnostic_criterion_ids,
+            ),
+            operation_id=operation_id,
+        ).result
+    else:
+        result = existing.payload.get("result")
+        if existing.status != "success" or not isinstance(result, Mapping):
+            raise RuntimeError("STU-0125 diagnosis operation is malformed")
+    control = writer.read_control()
+    if control is None:
+        raise RuntimeError("STU-0125 diagnosis lost control")
+    return {
+        "diagnosis_pattern": pattern.to_payload(),
+        "next_action": control["next_action"],
+        "revision": control["revision"],
+        "study_diagnosis_id": result.get("study_diagnosis_id"),
+        "study_id": STUDY_ID,
+    }
+
+
+def update_portfolio(writer: StateWriter, design: StudyDesign) -> Mapping[str, Any]:
+    with writer.open_stable_index() as (control, index):
+        next_action = control["next_action"]
+        diagnosis_id = next_action.get("study_diagnosis_id")
+        diagnosis = (
+            None
+            if not isinstance(diagnosis_id, str)
+            else index.get("study-diagnosis", diagnosis_id)
+        )
+    if (
+        next_action.get("kind") != "portfolio_decision"
+        or next_action.get("portfolio_snapshot_id") != BASE_SNAPSHOT_ID
+        or diagnosis is None
+        or diagnosis.payload.get("study_id") != STUDY_ID
+        or diagnosis.payload.get("evidence_state") != "absent_information"
+    ):
+        raise RuntimeError("STU-0125 Portfolio update is not the exact next action")
+    basis = _basis(
+        ("portfolio-snapshot", BASE_SNAPSHOT_ID),
+        ("study-close", diagnosis.payload["study_close_record_id"]),
+        ("study-diagnosis", diagnosis_id),
+    )
+    decision = PortfolioDecision(
+        decision_id="DEC-STU0125-PRUNE-EXPOSURE-CAP",
+        chosen_option_id="prune-exposure-cap-axis",
+        options=(
+            DecisionOption(
+                option_id="prune-exposure-cap-axis",
+                action=PortfolioAction.PRUNE,
+                target_id=NEW_AXIS_ID,
+                expected_information_value=(
+                    "retain the supported absolute component evidence while removing "
+                    "the contradicted cap mechanism from active allocation"
+                ),
+                opportunity_cost="forego an unchanged or tuned exposure-cap retry",
+            ),
+            DecisionOption(
+                option_id="rotate-independent-forest",
+                action=PortfolioAction.ROTATE,
+                target_id=ALTERNATE_AXIS_ID,
+                expected_information_value=(
+                    "retain an independent future branch under a separate protocol"
+                ),
+                opportunity_cost=(
+                    "leave the completed cap diagnosis without an explicit axis prune"
+                ),
+                omission_reason=(
+                    "the exact cap pair has already exhausted its preregistered "
+                    "information and must be resolved before another allocation"
+                ),
+            ),
+        ),
+        rationale=(
+            "prune the exposure-cap mechanism because its registered control delta "
+            "and uncertainty are contradicted despite useful absolute component evidence"
+        ),
+        commitment_batches=1,
+        quant_team_review=QuantTeamDecisionReview(
+            assessments=(
+                DecisionLensAssessment(
+                    lens=DecisionLens.CAUSALITY,
+                    position=DecisionLensPosition.SUPPORT,
+                    option_ids=(
+                        "prune-exposure-cap-axis",
+                        "rotate-independent-forest",
+                    ),
+                    basis_records=basis,
+                    finding=(
+                        "the point-in-time implementation is valid, but its exact "
+                        "causal control contrast is uniformly contradicted"
+                    ),
+                ),
+                DecisionLensAssessment(
+                    lens=DecisionLens.RISK,
+                    position=DecisionLensPosition.SUPPORT,
+                    option_ids=("prune-exposure-cap-axis",),
+                    basis_records=basis,
+                    finding=(
+                        "the monthly realized drawdown-share diagnostic remains above "
+                        "the preregistered ceiling"
+                    ),
+                ),
+                DecisionLensAssessment(
+                    lens=DecisionLens.STATISTICS,
+                    position=DecisionLensPosition.SUPPORT,
+                    option_ids=(
+                        "prune-exposure-cap-axis",
+                        "rotate-independent-forest",
+                    ),
+                    basis_records=basis,
+                    finding=(
+                        "synchronized uncertainty does not support a positive cap delta"
+                    ),
+                ),
+            ),
+            claim_boundary=(
+                "Portfolio allocation only; preserve component evidence but create no "
+                "candidate or confirmation authority"
+            ),
+            resolution_basis=(
+                "resolve the exact one-batch commitment without tuning capacity or priority"
+            ),
+            disagreement_resolution=(
+                "keep independent forest axes available after pruning this mechanism"
+            ),
+        ),
+    )
+    _ensure_operation(
+        writer,
+        design.binding,
+        "prune-decision",
+        lambda: writer.record_portfolio_decision(
+            decision=decision,
+            operation_id=design.binding.operation_prefix + "prune-decision",
+        ),
+    )
+    snapshot = PortfolioSnapshot(
+        mission_id=MISSION_ID,
+        axes=tuple(
+            replace(axis, status="pruned")
+            if axis.axis_id == NEW_AXIS_ID
+            else axis
+            for axis in design.prior_axes
+        ),
+        opportunity_cost_basis=(
+            "prune the contradicted exposure-cap mechanism while preserving its "
+            "absolute component evidence and every independent forest axis"
+        ),
+        research_intake_id=design.expanded_snapshot.research_intake_id,
+        exhaustion_standard=design.expanded_snapshot.exhaustion_standard_value(),
+    )
+    _ensure_operation(
+        writer,
+        design.binding,
+        "pruned-snapshot",
+        lambda: writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id=design.binding.operation_prefix + "pruned-snapshot",
+        ),
+    )
+    _ensure_operation(
+        writer,
+        design.binding,
+        "close-initiative",
+        lambda: writer.close_initiative(
+            outcome="completed",
+            operation_id=design.binding.operation_prefix + "close-initiative",
+        ),
+    )
+    control = writer.read_control()
+    if control is None:
+        raise RuntimeError("STU-0125 Portfolio update lost control")
+    return {
+        "decision_id": decision.identity,
+        "next_action": control["next_action"],
+        "portfolio_snapshot_id": snapshot.identity,
+        "revision": control["revision"],
+        "schema": "stu0125_portfolio_closeout.v1",
+    }
+
+
 def read_only_summary(writer: StateWriter, design: StudyDesign) -> Mapping[str, Any]:
     with writer.open_stable_index() as (control, index):
         operations = tuple(
@@ -1391,7 +1628,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stage",
-        choices=("study-close",),
+        choices=("study-close", "diagnose", "portfolio"),
         help="omit for a read-only preregistration plan",
     )
     return parser.parse_args()
@@ -1410,6 +1647,12 @@ def main() -> None:
     _require_operation_ownership(writer, design)
     if arguments.stage is None:
         print(json.dumps(read_only_summary(writer, design), sort_keys=True))
+        return
+    if arguments.stage == "diagnose":
+        print(json.dumps(diagnose_study(writer, design), sort_keys=True))
+        return
+    if arguments.stage == "portfolio":
+        print(json.dumps(update_portfolio(writer, design), sort_keys=True))
         return
     writer.permit_authority = PermitAuthority(
         PermitKeyStore(ROOT / "local" / "permit.key").load_or_create()
