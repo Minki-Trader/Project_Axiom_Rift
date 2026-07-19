@@ -533,6 +533,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
         implementation_hash = validator_implementation_sha256(
             implementation_path=validator.implementation_path,
             dependency_paths=SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+            semantic_boundary_paths=validator.semantic_boundary_paths,
         )
         self.assertEqual(
             SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
@@ -547,7 +548,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
         dependency_paths = set(SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
         trace_paths = set(scientific_trace_validation_dependency_paths())
         self.assertTrue(trace_paths.issubset(dependency_paths))
-        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 10)
+        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 11)
         trace_names = {path.name for path in trace_paths}
         self.assertEqual(
             trace_names,
@@ -568,6 +569,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 "fixed_hold_historical_projection.py",
                 "historical_family_binding.py",
                 "historical_semantic_transition.py",
+                "prospective_pair_trace.py",
                 "scientific_study.py",
             },
         )

@@ -45,6 +45,7 @@ VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID = (
 COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID = (
     "cost_aware_execution.paired_policy.fixed_hold_replay.v1"
 )
+PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID = "prospective_policy.concurrent_pair.v1"
 
 # Keep protocol dispatch and validator source identity on one closed registry.
 # The dispatcher imports these implementations lazily to avoid module cycles,
@@ -58,6 +59,7 @@ SCIENTIFIC_TRACE_PROTOCOL_IDS = frozenset(
         COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
         COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
         COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID,
+        PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID,
         DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
         GAP_REPLAY_TRACE_PROTOCOL_ID,
         DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID,
@@ -76,7 +78,11 @@ FIXED_HOLD_TRACE_PROTOCOL_IDS = frozenset(
     }
 )
 PROTOCOL_DEFINITION_TRACE_PROTOCOL_IDS = frozenset(
-    {*FIXED_HOLD_TRACE_PROTOCOL_IDS, COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID}
+    {
+        *FIXED_HOLD_TRACE_PROTOCOL_IDS,
+        COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID,
+        PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID,
+    }
 )
 _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
     "analog_state_family.py",
@@ -95,6 +101,7 @@ _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
     "fixed_hold_historical_projection.py",
     "historical_family_binding.py",
     "historical_semantic_transition.py",
+    "prospective_pair_trace.py",
     "scientific_study.py",
 )
 
@@ -208,6 +215,15 @@ def normalized_trace_protocol_definition(
             raise ScientificTraceError(
                 "cost-aware execution protocol definition is invalid"
             ) from exc
+    elif protocol_id == PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID:
+        from axiom_rift.research.prospective_pair_trace import (
+            PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID as DEFINITION_PROTOCOL_ID,
+            prospective_pair_protocol_definition_from_manifest,
+        )
+
+        if DEFINITION_PROTOCOL_ID != PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID:
+            raise RuntimeError("prospective pair protocol id drifted")
+        definition = prospective_pair_protocol_definition_from_manifest(value)
     else:
         raise ScientificTraceError(
             "scientific trace protocol definition is not registered"
@@ -332,6 +348,7 @@ def validate_trace_calculation_pair(
     protocol_id = _ascii("trace protocol_id", trace.get("protocol_id"))
     is_fixed_hold = protocol_id in FIXED_HOLD_TRACE_PROTOCOL_IDS
     is_cost_aware = protocol_id == COST_AWARE_EXECUTION_TRACE_PROTOCOL_ID
+    is_prospective_pair = protocol_id == PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID
     expected_trace_fields = _TRACE_FIELDS
     if is_fixed_hold:
         expected_trace_fields = expected_trace_fields | {
@@ -344,6 +361,8 @@ def validate_trace_calculation_pair(
             "protocol_definition",
             "source_observations",
         }
+    elif is_prospective_pair:
+        expected_trace_fields = expected_trace_fields | {"protocol_definition"}
     expected_calculation_fields = _CALCULATION_FIELDS
     if protocol_id in PROTOCOL_DEFINITION_TRACE_PROTOCOL_IDS:
         expected_calculation_fields = expected_calculation_fields | {
@@ -463,6 +482,35 @@ def validate_trace_calculation_pair(
             raise ScientificTraceError(
                 "cost-aware execution trace calculation is invalid"
             ) from exc
+    elif protocol_id == PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID:
+        from axiom_rift.research.prospective_pair_trace import (
+            prospective_pair_protocol_definition_from_manifest,
+            validate_prospective_pair_trace_calculation,
+        )
+
+        _definition_protocol_id, definition_manifest = (
+            require_matching_trace_protocol_definitions(
+                planned=trace.get("protocol_definition"),
+                calculated=calculation.get("protocol_definition"),
+                calculation_protocol_id=protocol_id,
+                expected_executable_id=executable_id,
+            )
+        )
+        try:
+            definition = prospective_pair_protocol_definition_from_manifest(
+                definition_manifest
+            )
+            derived_metrics = validate_prospective_pair_trace_calculation(
+                trace=trace,
+                calculation=calculation,
+                definition=definition,
+            )
+        except ScientificTraceError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ScientificTraceError(
+                "prospective pair trace calculation is invalid"
+            ) from exc
     else:
         raise ScientificTraceError("scientific trace protocol is not registered")
 
@@ -497,6 +545,7 @@ __all__ = [
     "SCIENTIFIC_EVALUATION_TRACE_SCHEMA",
     "SCIENTIFIC_TRACE_PROTOCOL_IDS",
     "PROTOCOL_DEFINITION_TRACE_PROTOCOL_IDS",
+    "PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID",
     "ScientificTraceError",
     "VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID",
     "normalized_trace_protocol_definition",
