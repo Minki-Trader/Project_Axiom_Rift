@@ -170,6 +170,16 @@ scientific_adjudication_v2:
     mission_executable_and_batch_id_bound: true
     content_addressed_derived_binding_persisted: true
     validator_registration_without_exact_batch_authority: false
+  prospective_pair_atomic_protocol:
+    protocol_definition_matches_plan_trace_and_calculation: true
+    exact_family_order_control_subject_and_fold_inventory_required: true
+    executed_intents_and_trade_observations_are_bijective: true
+    skipped_intents_have_no_counterfactual_outcome_access: true
+    decision_entry_exit_and_completed_source_clocks_are_recomputed: true
+    gross_native_stress_and_net_cost_arithmetic_is_recomputed: true
+    zero_invariance_mismatch_requires_equal_content_hashes: true
+    selection_and_control_inference_recomputed_from_exact_daily_rows: true
+    producer_callback_module_or_import_path_in_durable_payload_allowed: false
 historical_adjudication:
   original_evidence_hashes_required: true
   exact_completion_and_study_close_required: true

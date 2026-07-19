@@ -506,6 +506,18 @@ scientific_adjudication_v2:
     global_search_history_role: context_and_duplicate_detection_only
     raw_and_adjusted_values_preserved: true
     monte_carlo_point_and_upper_preserved: true
+  prospective_pair_atomic_protocol:
+    registered_closed_dispatch_required: true
+    exact_two_member_family_registered_before_first_evaluation: true
+    control_and_subject_executable_identities_are_immutable: true
+    historical_search_count_is_context_only_never_adjustment: true
+    concurrent_family_adjustment_uses_only_preregistered_members: true
+    fold_windows_and_eligible_calendars_are_disjoint_and_exact: true
+    trade_intent_eligible_day_and_invariance_inventories_are_complete: true
+    completed_period_price_and_cost_sources_are_recomputed: true
+    calculation_is_pure_from_opened_atomic_rows: true
+    mechanism_specific_producer_implementation_is_preregistered: true
+    summary_surface_without_atomic_trace_is_scientifically_ineligible: true
 historical_scientific_correction:
   original_event_rewrite_allowed: false
   additive_claim_scoped_adjudication_required: true
