@@ -378,10 +378,12 @@ def build_sleeve_exposure_cap_risk_job_plan(
     study_id: str,
     executable_id: str,
     definition: ProspectivePairProtocolDefinition | None = None,
+    successor: bool = False,
 ) -> SleeveExposureCapRiskJobPlan:
     if definition is None:
         definition = build_sleeve_exposure_cap_risk_protocol_definition(
-            repository_root
+            repository_root,
+            successor=successor,
         )
     else:
         canonical_bytes(definition.manifest())

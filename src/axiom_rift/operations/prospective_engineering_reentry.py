@@ -238,7 +238,34 @@ def require_prospective_engineering_reentry(
     job_spec = successor["job_spec"]
     subject = job_spec.get("evidence_subject")
     expected_outputs = job_spec.get("expected_outputs")
+    output_classes = job_spec.get("output_classes", {})
     output_prefix = f"scientific/{plan.successor_study_id}/"
+    scientific_outputs = (
+        []
+        if type(expected_outputs) is not list
+        else [
+            path
+            for path in expected_outputs
+            if type(path) is str and path.startswith(output_prefix)
+        ]
+    )
+    invalid_outputs = (
+        []
+        if type(expected_outputs) is not list
+        else [
+            path
+            for path in expected_outputs
+            if type(path) is not str
+            or (
+                not path.startswith(output_prefix)
+                and not (
+                    isinstance(output_classes, Mapping)
+                    and output_classes.get(path) == "reproducible_cache"
+                    and path.startswith("local/cache/")
+                )
+            )
+        ]
+    )
     predecessor_executable_ids = {
         record.record_id
         for record in index.records_by_kind("trial")
@@ -254,10 +281,9 @@ def require_prospective_engineering_reentry(
         or successor_executable.identity in predecessor_executable_ids
         or type(expected_outputs) is not list
         or not expected_outputs
-        or any(
-            type(path) is not str or not path.startswith(output_prefix)
-            for path in expected_outputs
-        )
+        or any(type(path) is not str for path in expected_outputs)
+        or not scientific_outputs
+        or invalid_outputs
     ):
         raise ProspectiveEngineeringReentryValidationError(
             "engineering reentry successor does not bind a distinct Study protocol"

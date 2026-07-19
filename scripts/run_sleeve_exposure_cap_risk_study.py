@@ -68,6 +68,9 @@ from axiom_rift.research.portfolio_projection import (  # noqa: E402
     component_surface_registry,
     portfolio_axes_from_projection,
 )
+from axiom_rift.research.prospective_engineering_reentry import (  # noqa: E402
+    ProspectiveEngineeringReentry,
+)
 from axiom_rift.research.prospective_pair_trace import (  # noqa: E402
     PROSPECTIVE_PAIR_EVIDENCE_MODES,
 )
@@ -79,6 +82,8 @@ from axiom_rift.research.sleeve_exposure_cap_risk_chassis import (  # noqa: E402
     sleeve_exposure_cap_risk_configurations,
     sleeve_exposure_cap_risk_controlled_chassis,
     sleeve_exposure_cap_risk_executable,
+    sleeve_exposure_cap_risk_successor_controlled_chassis,
+    sleeve_exposure_cap_risk_successor_executable,
 )
 from axiom_rift.research.sleeve_exposure_cap_risk_runtime import (  # noqa: E402
     CALLABLE_IDENTITY,
@@ -86,12 +91,15 @@ from axiom_rift.research.sleeve_exposure_cap_risk_runtime import (  # noqa: E402
     execute_sleeve_exposure_cap_risk_job,
     sleeve_exposure_cap_risk_runtime_path,
 )
+import axiom_rift.research.sleeve_exposure_cap_risk_runtime as exposure_runtime  # noqa: E402
 from axiom_rift.research.sleeve_exposure_cap_risk_study import (  # noqa: E402
     SleeveExposureCapRiskJobPlan,
     build_sleeve_exposure_cap_risk_job_plan,
 )
 from axiom_rift.research.semantic_question import (  # noqa: E402
+    SemanticQuestionCore,
     SemanticQuestionLineageProposal,
+    SemanticQuestionRelation,
 )
 from axiom_rift.research.trials import NegativeMemory  # noqa: E402
 from axiom_rift.research.validation_v2 import (  # noqa: E402
@@ -102,10 +110,10 @@ from axiom_rift.research.validation_v2 import (  # noqa: E402
 
 MISSION_ID = "MIS-0006"
 INITIATIVE_ID = "INI-0025"
-STUDY_ID = "STU-0124"
-BATCH_DISPLAY_ID = "BAT-0124"
+STUDY_ID = "STU-0125"
+BATCH_DISPLAY_ID = "BAT-0125"
 BASE_SNAPSHOT_ID = (
-    "portfolio:c168da4f2d547550c0fcfc4884711bb8aa94e5727750f0c2ce2885fae5721643"
+    "portfolio:d5c40f723ecd2ed8a840289919958957629a91c86998b5bd23d1a6d8c091589d"
 )
 SOURCE_AXIS_ID = "axis-cost-aware-execution"
 ALTERNATE_AXIS_ID = "axis-p0-composite-audit-reanalysis"
@@ -123,7 +131,35 @@ POSITIVE_SLEEVE_DIAGNOSIS_ID = (
 LOSS_SKIP_DIAGNOSIS_ID = (
     "diagnosis:a64530b3c9d82e65abbc6f2fd2691ed1feb167472ac5b5d8c1a72dd6bed64a89"
 )
-OPERATION_PREFIX = "goal-audit-cross-sleeve-exposure-cap-risk-v1-"
+PREDECESSOR_STUDY_ID = "STU-0124"
+PREDECESSOR_STUDY_CLOSE_RECORD_ID = (
+    "13b1fea3e18e78a7fdec10ebbdeec6fa52c92b0f8093233bdb2b540d7a529039"
+)
+PREDECESSOR_COMPLETION_RECORD_ID = (
+    "1933f7519a3aed31a785c7621df1dacf1b7ce6f835d35bb9e73399715f2cafd8"
+)
+PREDECESSOR_DISPOSITION_RECORD_ID = (
+    "38e14f0a958d64812fce5704eae376fc1d14259940cf656ab6465220ac3524b3"
+)
+PREDECESSOR_DISPOSITION_HASH = (
+    "0f8662d508eb28aace1d8c1a2072400314f026c25db80ea7e6041f0e563c4b51"
+)
+PREDECESSOR_DIAGNOSIS_ID = (
+    "diagnosis:fc0c33b139fd67be8b4f403d22123c4e1e616f45d4fe94a32849f0cb956e2004"
+)
+SUCCESSOR_ARTIFACT_HASH = (
+    "075873d9715e02af26b5093e4799847fe5291b758f61254f3aaa1cab366eb61f"
+)
+SUCCESSOR_BASELINE_EXECUTABLE_ID = (
+    "executable:35e73c7aaa1a427153a68add48c8d245fe6539cf1e6c45b7a4487d6ed76769de"
+)
+PREDECESSOR_SEMANTIC_CORE_ID = (
+    "semantic-question-core:314ef57cc14460c4d51a75e1de21fb36f377172c4929f3d35b8587e063bf19c5"
+)
+AXIS_IDENTITY = (
+    "axis:a2f843712b6a75bfb854109fe72bbe0c9698fd47a3fe63c06c6833181e8b12b9"
+)
+OPERATION_PREFIX = "goal-audit-cross-sleeve-exposure-cap-risk-v2-"
 PERMIT_EXPIRY_UTC = "2027-12-31T23:59:59Z"
 
 
@@ -183,10 +219,11 @@ def _current_snapshot_axes(
         initial_action = {
             "kind": "portfolio_decision",
             "portfolio_snapshot_id": BASE_SNAPSHOT_ID,
+            "study_diagnosis_id": PREDECESSOR_DIAGNOSIS_ID,
         }
         progressed = index.get(
             "operation", OPERATION_PREFIX + "structural-decision"
-        )
+        ) or index.get("operation", OPERATION_PREFIX + "work-decision")
         if (
             science["active_mission"] != MISSION_ID
             or science["active_initiative"] != INITIATIVE_ID
@@ -229,6 +266,10 @@ def _current_snapshot_axes(
             ("study-diagnosis", MONTHLY_LOCK_DIAGNOSIS_ID),
             ("study-diagnosis", POSITIVE_SLEEVE_DIAGNOSIS_ID),
             ("study-diagnosis", LOSS_SKIP_DIAGNOSIS_ID),
+            ("study-diagnosis", PREDECESSOR_DIAGNOSIS_ID),
+            ("study-close", PREDECESSOR_STUDY_CLOSE_RECORD_ID),
+            ("job-completed", PREDECESSOR_COMPLETION_RECORD_ID),
+            ("repair-close", PREDECESSOR_DISPOSITION_RECORD_ID),
         ):
             if index.get(kind, record_id) is None:
                 raise RuntimeError("exposure-cap durable diagnosis basis is absent")
@@ -238,19 +279,29 @@ def _current_snapshot_axes(
 def build_design(writer: StateWriter) -> StudyDesign:
     prior_axes, snapshot_payload = _current_snapshot_axes(writer)
     by_id = {axis.axis_id: axis for axis in prior_axes}
-    if NEW_AXIS_ID in by_id:
-        raise RuntimeError("exposure-cap axis already predates this operation")
-    if SOURCE_AXIS_ID not in by_id or ALTERNATE_AXIS_ID not in by_id:
+    axis = by_id.get(NEW_AXIS_ID)
+    if (
+        axis is None
+        or axis.identity != AXIS_IDENTITY
+        or SOURCE_AXIS_ID not in by_id
+        or ALTERNATE_AXIS_ID not in by_id
+    ):
         raise RuntimeError("exposure-cap allocation axes are absent")
 
-    chassis = sleeve_exposure_cap_risk_controlled_chassis()
+    chassis = sleeve_exposure_cap_risk_successor_controlled_chassis()
     configurations = sleeve_exposure_cap_risk_configurations()
-    executables = tuple(sleeve_exposure_cap_risk_executable(item) for item in configurations)
+    executables = tuple(
+        sleeve_exposure_cap_risk_successor_executable(item)
+        for item in configurations
+    )
+    if executables[0].identity != SUCCESSOR_BASELINE_EXECUTABLE_ID:
+        raise RuntimeError("exposure-cap successor artifact identity drifted")
     definition_plan = build_sleeve_exposure_cap_risk_job_plan(
         repository_root=ROOT,
         mission_id=MISSION_ID,
         study_id=STUDY_ID,
         executable_id=executables[0].identity,
+        successor=True,
     )
     definition = definition_plan.definition
     if tuple(item.identity for item in executables) != (
@@ -260,32 +311,6 @@ def build_design(writer: StateWriter) -> StudyDesign:
     if executables[0].identity != chassis.baseline_executable.identity:
         raise RuntimeError("exposure-cap control is not the exact prior baseline")
 
-    axis = PortfolioAxis(
-        axis_id=NEW_AXIS_ID,
-        causal_question=(
-            "Does limiting the dual-positive-sleeve frontier to one concurrently "
-            "open gross lot reduce overlapping loss concentration without destroying "
-            "after-cost activity and utility?"
-        ),
-        mechanism_family=MECHANISM_FAMILY,
-        primary_research_layer=ResearchLayer.RISK,
-        system_architecture_family=chassis.architecture.identity,
-        changed_domains=chassis.changed_domains,
-        controlled_domains=chassis.controlled_domains,
-        why_now=(
-            "STU-0123 preserved the exact unrestricted dual-sleeve control's absolute "
-            "activity and economics while contradicting its loss-skip delta; concurrent "
-            "gross exposure remains an untested point-in-time risk mechanism that does "
-            "not depend on loss outcomes or a new external source."
-        ),
-        stop_or_reopen_condition=(
-            "Stop after the exact unrestricted-two-slot versus one-gross-slot pair; "
-            "do not tune slot priority or adjacent capacity levels, and reopen only "
-            "with new material, independent confirmation, or a distinct causal "
-            "point-in-time exposure state."
-        ),
-        architecture_chassis=chassis.architecture,
-    )
     structural_basis = _basis(
         ("portfolio-snapshot", BASE_SNAPSHOT_ID),
         ("study-diagnosis", MONTHLY_LOCK_DIAGNOSIS_ID),
@@ -370,40 +395,62 @@ def build_design(writer: StateWriter) -> StudyDesign:
             "retain activity as an independent component claim and stop after one Batch"
         ),
     )
-    structural_decision = PortfolioDecision(
-        decision_id="DEC-CROSS-SLEEVE-GROSS-EXPOSURE-CAP-RISK-STRUCTURE",
-        chosen_option_id="add-gross-exposure-cap-risk-axis",
-        options=structural_options,
-        rationale=(
-            "add one distinct risk branch while preserving every existing "
-            "forest axis and one live independent rotation option"
-        ),
-        commitment_batches=1,
-        quant_team_review=structural_review,
-        proposed_axis=axis,
-    )
+    structural_decision = None
     expanded_snapshot = PortfolioSnapshot(
         mission_id=MISSION_ID,
-        axes=(*prior_axes, axis),
-        opportunity_cost_basis=(
-            "retain the entire current forest and spend one bounded pair on the "
-            "lowest-dimensional point-in-time exposure response to retained sleeve "
-            "concentration"
-        ),
+        axes=prior_axes,
+        opportunity_cost_basis=snapshot_payload["opportunity_cost_basis"],
         research_intake_id=snapshot_payload.get("research_intake_id"),
         exhaustion_standard=snapshot_payload.get("exhaustion_standard"),
     )
+    if expanded_snapshot.identity != BASE_SNAPSHOT_ID:
+        raise RuntimeError("exposure-cap successor Portfolio snapshot drifted")
+
+    lineage = SemanticQuestionLineageProposal(
+        predecessor_study_id=PREDECESSOR_STUDY_ID,
+        successor_study_id=STUDY_ID,
+        predecessor_core_id=PREDECESSOR_SEMANTIC_CORE_ID,
+        successor_core_id=PREDECESSOR_SEMANTIC_CORE_ID,
+        relation=SemanticQuestionRelation.ENGINEERING_REENTRY,
+        rationale=(
+            "reenter the same exposure-cap question under the registered "
+            "status-normalized validator protocol without inheriting predecessor evidence"
+        ),
+        basis_record_ids=(
+            "job-completed:" + PREDECESSOR_COMPLETION_RECORD_ID,
+            "study-close:" + PREDECESSOR_STUDY_CLOSE_RECORD_ID,
+            "study-diagnosis:" + PREDECESSOR_DIAGNOSIS_ID,
+            "study-open:" + PREDECESSOR_STUDY_ID,
+        ),
+    )
+    reentry = ProspectiveEngineeringReentry(
+        mission_id=MISSION_ID,
+        portfolio_snapshot_id=BASE_SNAPSHOT_ID,
+        target_axis_id=NEW_AXIS_ID,
+        target_axis_identity=AXIS_IDENTITY,
+        predecessor_study_id=PREDECESSOR_STUDY_ID,
+        successor_study_id=STUDY_ID,
+        study_diagnosis_id=PREDECESSOR_DIAGNOSIS_ID,
+        study_close_record_id=PREDECESSOR_STUDY_CLOSE_RECORD_ID,
+        completion_record_id=PREDECESSOR_COMPLETION_RECORD_ID,
+        disposition_record_id=PREDECESSOR_DISPOSITION_RECORD_ID,
+        disposition_hash=PREDECESSOR_DISPOSITION_HASH,
+        successor_artifact_hash=SUCCESSOR_ARTIFACT_HASH,
+        successor_baseline_executable_id=executables[0].identity,
+        portfolio_action=PortfolioAction.DEEPEN.value,
+        semantic_question_lineage=lineage,
+    )
 
     work_basis = _basis(
-        ("portfolio-decision", structural_decision.identity),
-        ("portfolio-snapshot", expanded_snapshot.identity),
-        ("study-diagnosis", MONTHLY_LOCK_DIAGNOSIS_ID),
-        ("study-diagnosis", POSITIVE_SLEEVE_DIAGNOSIS_ID),
-        ("study-diagnosis", LOSS_SKIP_DIAGNOSIS_ID),
+        ("job-completed", PREDECESSOR_COMPLETION_RECORD_ID),
+        ("portfolio-snapshot", BASE_SNAPSHOT_ID),
+        ("repair-close", PREDECESSOR_DISPOSITION_RECORD_ID),
+        ("study-close", PREDECESSOR_STUDY_CLOSE_RECORD_ID),
+        ("study-diagnosis", PREDECESSOR_DIAGNOSIS_ID),
     )
     work_decision = PortfolioDecision(
-        decision_id="DEC-CROSS-SLEEVE-GROSS-EXPOSURE-CAP-RISK-WORK",
-        chosen_option_id="run-exposure-cap-pair",
+        decision_id="DEC-STU0125-STATUS-NORMALIZED-EXPOSURE-CAP-REENTRY",
+        chosen_option_id="deepen-status-normalized-exposure-cap",
         options=(
             DecisionOption(
                 option_id="rotate-independent-forest",
@@ -412,23 +459,23 @@ def build_design(writer: StateWriter) -> StudyDesign:
                 expected_information_value="advance a distinct open forest branch",
                 opportunity_cost="defer the exact gross-overlap causal contrast",
                 omission_reason=(
-                    "the frozen pair is cheaper and more identifiable than another "
-                    "structural allocation"
+                    "the typed successor is already bounded and directly resolves "
+                    "the non-scientific validator gap"
                 ),
             ),
             DecisionOption(
-                option_id="run-exposure-cap-pair",
-                action=PortfolioAction.CONTRAST,
+                option_id="deepen-status-normalized-exposure-cap",
+                action=PortfolioAction.DEEPEN,
                 target_id=NEW_AXIS_ID,
                 expected_information_value=(
-                    "one exact causal, economic, temporal, and risk comparison"
+                    "recover one exact causal, economic, temporal, and risk comparison"
                 ),
                 opportunity_cost="two member Jobs and one bounded Batch",
             ),
         ),
         rationale=(
-            "compare the exact prior unrestricted control with one no-tuning causal "
-            "risk policy before any result is observed"
+            "execute the typed same-question successor without granting scientific "
+            "credit to STU-0124"
         ),
         commitment_batches=1,
         quant_team_review=QuantTeamDecisionReview(
@@ -437,8 +484,8 @@ def build_design(writer: StateWriter) -> StudyDesign:
                     lens=DecisionLens.ECONOMICS,
                     position=DecisionLensPosition.SUPPORT,
                     option_ids=(
+                        "deepen-status-normalized-exposure-cap",
                         "rotate-independent-forest",
-                        "run-exposure-cap-pair",
                     ),
                     basis_records=work_basis,
                     finding=(
@@ -449,7 +496,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
                 DecisionLensAssessment(
                     lens=DecisionLens.RISK,
                     position=DecisionLensPosition.UNCERTAIN,
-                    option_ids=("run-exposure-cap-pair",),
+                    option_ids=("deepen-status-normalized-exposure-cap",),
                     basis_records=work_basis,
                     finding=(
                         "overlap concentration may improve at the cost of density, so neither "
@@ -460,8 +507,8 @@ def build_design(writer: StateWriter) -> StudyDesign:
                     lens=DecisionLens.STATISTICS,
                     position=DecisionLensPosition.SUPPORT,
                     option_ids=(
+                        "deepen-status-normalized-exposure-cap",
                         "rotate-independent-forest",
-                        "run-exposure-cap-pair",
                     ),
                     basis_records=work_basis,
                     finding=(
@@ -482,6 +529,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
             ),
         ),
         baseline_executable=chassis.baseline_executable,
+        engineering_reentry=reentry,
     )
     question = {
         "causal_question": axis.causal_question,
@@ -510,6 +558,11 @@ def build_design(writer: StateWriter) -> StudyDesign:
         ],
         "evidence_modes": list(PROSPECTIVE_PAIR_EVIDENCE_MODES),
     }
+    if (
+        SemanticQuestionCore.from_question_manifest(question).identity
+        != PREDECESSOR_SEMANTIC_CORE_ID
+    ):
+        raise RuntimeError("exposure-cap successor semantic question drifted")
     proposal = {
         "candidate_eligible": False,
         "concurrent_family": {
@@ -518,17 +571,20 @@ def build_design(writer: StateWriter) -> StudyDesign:
             "subject_executable_id": executables[1].identity,
         },
         "control_policy": configurations[0].configuration_id,
+        "engineering_reentry_id": reentry.identity,
         "estimand": (
             "subject minus unrestricted control under one common eligible calendar"
         ),
         "mechanism": MECHANISM_FAMILY,
-        "schema": "sleeve_exposure_cap_risk_study.v1",
+        "predecessor_study_id": PREDECESSOR_STUDY_ID,
+        "schema": "sleeve_exposure_cap_risk_study.v2",
         "subject_policy": configurations[1].configuration_id,
     }
     study_hash = writer.study_input_hash(
         question=question,
         material_identity=OBSERVED_MATERIAL_ID,
         semantic_proposal=proposal,
+        semantic_question_lineage=lineage,
         controlled_chassis=chassis,
         portfolio_axis_id=axis.axis_id,
         portfolio_axis_identity=axis.identity,
@@ -602,7 +658,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
             permit_expiry_utc=PERMIT_EXPIRY_UTC,
             portfolio_snapshot_id=BASE_SNAPSHOT_ID,
             study_permit_suffix="study-permit",
-            superseded_operation_suffixes=(),
+            superseded_operation_suffixes=("batch-permit",),
         ),
         prior_axes=prior_axes,
         axis=axis,
@@ -613,7 +669,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
         proposal=proposal,
         batch_spec=batch_spec,
         members=members,
-        semantic_question_lineage=None,
+        semantic_question_lineage=lineage,
     )
 
 
@@ -672,7 +728,7 @@ def _ensure_operation(
 
 def _study_permit(writer: StateWriter, design: StudyDesign) -> Permit:
     binding = design.binding
-    chassis = sleeve_exposure_cap_risk_controlled_chassis()
+    chassis = sleeve_exposure_cap_risk_successor_controlled_chassis()
     study_hash = writer.study_input_hash(
         question=design.question,
         material_identity=OBSERVED_MATERIAL_ID,
@@ -996,6 +1052,7 @@ def _known_operation_ids(design: StudyDesign) -> set[str]:
     suffixes = {
         "activate-current-v2-protocol",
         "batch-permit",
+        "batch-permit-v2",
         "close-study",
         "dispose-batch",
         "open-batch",
@@ -1076,7 +1133,7 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
         binding.study_permit_suffix,
         lambda: _study_permit(writer, design),
     )
-    chassis = sleeve_exposure_cap_risk_controlled_chassis()
+    chassis = sleeve_exposure_cap_risk_successor_controlled_chassis()
     _ensure_operation(
         writer,
         binding,
@@ -1102,7 +1159,7 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
     _ensure_operation(
         writer,
         binding,
-        "batch-permit",
+        "batch-permit-v2",
         lambda: writer.issue_permit(
             kind=PermitKind.BATCH,
             subject_kind=SubjectKind.STUDY,
@@ -1112,7 +1169,7 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
             scope=("batch",),
             expires_at_utc=binding.permit_expiry_utc,
             one_shot=True,
-            operation_id=binding.operation_prefix + "batch-permit",
+            operation_id=binding.operation_prefix + "batch-permit-v2",
         ),
     )
     _ensure_operation(
@@ -1123,7 +1180,7 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
             batch_spec=design.batch_spec,
             permit=_permit_from_operation(
                 writer,
-                binding.operation_prefix + "batch-permit",
+                binding.operation_prefix + "batch-permit-v2",
             ),
             operation_id=binding.operation_prefix + "open-batch",
         ),
@@ -1209,10 +1266,25 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
             ).get("execution")
             if not isinstance(execution_payload, Mapping):
                 raise RuntimeError("exposure-cap running Job execution is absent")
-            packet = execute_sleeve_exposure_cap_risk_job(
-                repository_root=ROOT,
-                execution=RunningJobExecution.from_mapping(execution_payload),
+            original_builder = exposure_runtime.build_sleeve_exposure_cap_risk_job_plan
+
+            def successor_builder(**kwargs: Any) -> SleeveExposureCapRiskJobPlan:
+                if kwargs.get("definition") is None:
+                    kwargs["successor"] = True
+                return original_builder(**kwargs)
+
+            exposure_runtime.build_sleeve_exposure_cap_risk_job_plan = (
+                successor_builder
             )
+            try:
+                packet = execute_sleeve_exposure_cap_risk_job(
+                    repository_root=ROOT,
+                    execution=RunningJobExecution.from_mapping(execution_payload),
+                )
+            finally:
+                exposure_runtime.build_sleeve_exposure_cap_risk_job_plan = (
+                    original_builder
+                )
             return writer.complete_job(
                 outcome="success",
                 output_manifest=packet.outputs(),

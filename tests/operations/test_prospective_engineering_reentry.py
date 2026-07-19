@@ -269,6 +269,34 @@ class ProspectiveEngineeringReentryValidationTests(unittest.TestCase):
         self.assertEqual(result["scientific_claim_delta"], 0)
         self.assertEqual(result["scientific_failure_delta"], 0)
 
+    def test_registered_reproducible_cache_output_is_allowed(self) -> None:
+        artifact = deepcopy(self.successor_artifact)
+        cache_path = "local/cache/prospective-successor.json"
+        artifact["job_spec"]["expected_outputs"].append(cache_path)
+        artifact["job_spec"]["output_classes"] = {
+            cache_path: "reproducible_cache",
+        }
+        self.successor_bytes = canonical_bytes(artifact)
+        self.successor_hash = sha256(self.successor_bytes).hexdigest()
+
+        result = self._validate(_MemoryIndex(self._records()))
+
+        self.assertEqual(result["successor_artifact_hash"], self.successor_hash)
+
+    def test_unclassified_non_scientific_output_fails_closed(self) -> None:
+        artifact = deepcopy(self.successor_artifact)
+        artifact["job_spec"]["expected_outputs"].append(
+            "local/cache/unclassified-successor.json"
+        )
+        self.successor_bytes = canonical_bytes(artifact)
+        self.successor_hash = sha256(self.successor_bytes).hexdigest()
+
+        with self.assertRaisesRegex(
+            ProspectiveEngineeringReentryValidationError,
+            "distinct Study protocol",
+        ):
+            self._validate(_MemoryIndex(self._records()))
+
     def test_disposition_artifact_binding_tamper_fails_closed(self) -> None:
         records = list(self._records())
         original = records[3]

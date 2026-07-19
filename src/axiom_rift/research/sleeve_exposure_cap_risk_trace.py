@@ -66,6 +66,7 @@ from axiom_rift.research.sleeve_exposure_cap_risk_chassis import (
     sleeve_exposure_cap_risk_chassis_implementation_sha256,
     sleeve_exposure_cap_risk_configurations,
     sleeve_exposure_cap_risk_executable,
+    sleeve_exposure_cap_risk_successor_executable,
 )
 from axiom_rift.research.volatility_clock_label_chassis import fit_label_model
 from axiom_rift.research.volatility_clock_label_discovery import (
@@ -160,13 +161,20 @@ def _windows(
 
 def build_sleeve_exposure_cap_risk_protocol_definition(
     repository_root: str | Path,
+    *,
+    successor: bool = False,
 ) -> ProspectivePairProtocolDefinition:
     data, folds = _load_foundation(repository_root)
     configurations = sleeve_exposure_cap_risk_configurations()
+    executable_factory = (
+        sleeve_exposure_cap_risk_successor_executable
+        if successor
+        else sleeve_exposure_cap_risk_executable
+    )
     members = tuple(
         ProspectivePairMember(
             configuration_id=configuration.configuration_id,
-            executable_id=sleeve_exposure_cap_risk_executable(configuration).identity,
+            executable_id=executable_factory(configuration).identity,
             ordinal=index,
         )
         for index, configuration in enumerate(configurations, start=1)
@@ -588,7 +596,15 @@ def compute_sleeve_exposure_cap_risk_family_trace(
     *,
     definition: ProspectivePairProtocolDefinition,
 ) -> dict[str, object]:
-    current = build_sleeve_exposure_cap_risk_protocol_definition(repository_root)
+    configurations = sleeve_exposure_cap_risk_configurations()
+    successor = (
+        definition.control_executable_id
+        == sleeve_exposure_cap_risk_successor_executable(configurations[0]).identity
+    )
+    current = build_sleeve_exposure_cap_risk_protocol_definition(
+        repository_root,
+        successor=successor,
+    )
     if current.manifest() != definition.manifest():
         raise ValueError("sleeve exposure-cap protocol authority changed")
     data, folds = _load_foundation(repository_root)
@@ -598,8 +614,13 @@ def compute_sleeve_exposure_cap_risk_family_trace(
     trade_observations: list[dict[str, object]] = []
     intent_observations: list[dict[str, object]] = []
     invariance: list[dict[str, object]] = []
-    for configuration in sleeve_exposure_cap_risk_configurations():
-        executable_id = sleeve_exposure_cap_risk_executable(configuration).identity
+    executable_factory = (
+        sleeve_exposure_cap_risk_successor_executable
+        if successor
+        else sleeve_exposure_cap_risk_executable
+    )
+    for configuration in configurations:
+        executable_id = executable_factory(configuration).identity
         for fold in folds:
             fold_id = str(fold["fold_id"])
             test = fold["test_oos"]

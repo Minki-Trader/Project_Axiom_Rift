@@ -40,6 +40,7 @@ from axiom_rift.research.sleeve_loss_skip_risk_chassis import (
 
 
 CAP_ONE_GROSS_POSITION = "max_one_cross_sleeve_gross_position"
+STATUS_NORMALIZED_PROTOCOL_REVISION = "status_normalized_v1"
 _POLICIES = (UNRESTRICTED_CONTROL, CAP_ONE_GROSS_POSITION)
 _FIVE_MINUTES_NS = 5 * 60 * 1_000_000_000
 _SLOTS = (
@@ -135,6 +136,29 @@ def sleeve_exposure_cap_risk_executable(
     )
 
 
+def sleeve_exposure_cap_risk_successor_executable(
+    configuration: SleeveExposureCapRiskConfiguration,
+) -> ExecutableSpec:
+    current = sleeve_exposure_cap_risk_executable(configuration)
+    parameters = current.parameter_values()
+    if not isinstance(parameters, dict):
+        raise ValueError("sleeve exposure-cap successor parameters are invalid")
+    return ExecutableSpec(
+        display_name="status-normalized " + current.display_name,
+        components=current.components,
+        parameters={
+            **parameters,
+            "scientific_protocol_revision": STATUS_NORMALIZED_PROTOCOL_REVISION,
+        },
+        data_contract=current.data_contract,
+        split_contract=current.split_contract,
+        clock_contract=current.clock_contract,
+        cost_contract=current.cost_contract,
+        engine_contract=current.engine_contract,
+        source_contracts=current.source_contracts,
+    )
+
+
 def sleeve_exposure_cap_risk_baseline() -> ExecutableSpec:
     return sleeve_loss_skip_risk_baseline()
 
@@ -161,10 +185,28 @@ def sleeve_exposure_cap_risk_controlled_chassis() -> ControlledStudyChassis:
     )
 
 
+def sleeve_exposure_cap_risk_successor_controlled_chassis() -> ControlledStudyChassis:
+    baseline = sleeve_exposure_cap_risk_successor_executable(
+        sleeve_exposure_cap_risk_configurations()[0]
+    )
+    current = sleeve_exposure_cap_risk_controlled_chassis()
+    return ControlledStudyChassis(
+        baseline_executable=baseline,
+        changed_domains=current.changed_domains,
+        controlled_domains=current.controlled_domains,
+        architecture=ArchitectureChassisSpec.from_executable(baseline),
+    )
+
+
 def executable_configuration_map() -> dict[str, SleeveExposureCapRiskConfiguration]:
+    configurations = sleeve_exposure_cap_risk_configurations()
     return {
-        sleeve_exposure_cap_risk_executable(value).identity: value
-        for value in sleeve_exposure_cap_risk_configurations()
+        executable.identity: configuration
+        for configuration in configurations
+        for executable in (
+            sleeve_exposure_cap_risk_executable(configuration),
+            sleeve_exposure_cap_risk_successor_executable(configuration),
+        )
     }
 
 
@@ -403,6 +445,7 @@ def simulate_sleeve_exposure_cap_risk(
 
 __all__ = [
     "CAP_ONE_GROSS_POSITION",
+    "STATUS_NORMALIZED_PROTOCOL_REVISION",
     "UNRESTRICTED_CONTROL",
     "SleeveExposureCapRiskConfiguration",
     "executable_configuration_map",
@@ -413,4 +456,6 @@ __all__ = [
     "sleeve_exposure_cap_risk_configurations",
     "sleeve_exposure_cap_risk_controlled_chassis",
     "sleeve_exposure_cap_risk_executable",
+    "sleeve_exposure_cap_risk_successor_controlled_chassis",
+    "sleeve_exposure_cap_risk_successor_executable",
 ]

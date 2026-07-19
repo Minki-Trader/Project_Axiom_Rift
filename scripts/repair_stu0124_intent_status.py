@@ -931,6 +931,56 @@ def close_terminal_study(writer: StateWriter) -> dict[str, Any]:
     }
 
 
+def diagnose_engineering_gap(writer: StateWriter) -> dict[str, Any]:
+    operation_id = TERMINAL_OPERATION_PREFIX + "diagnose"
+    result = _operation_result(writer, operation_id)
+    if result is None:
+        control = writer.read_control()
+        if control is None:
+            raise RuntimeError("STU-0124 diagnosis lost control state")
+        next_action = control.get("next_action")
+        if (
+            not isinstance(next_action, Mapping)
+            or next_action.get("kind") != "diagnose_study"
+            or next_action.get("study_id") != STUDY_ID
+            or not isinstance(next_action.get("study_close_record_id"), str)
+        ):
+            raise RuntimeError("STU-0124 diagnosis is not the exact next action")
+        result = writer.record_study_diagnosis(
+            diagnosis=StudyDiagnosis(
+                study_id=STUDY_ID,
+                study_close_record_id=next_action["study_close_record_id"],
+                evidence_state=EvidenceState.ENGINEERING_GAP,
+                confidence=DiagnosisConfidence.HIGH,
+                rationale=(
+                    "no scientific result was admitted because the registered "
+                    "intent-status correction changed the current validator "
+                    "identity after STU-0124 preregistration; the typed Repair "
+                    "requires a distinct successor protocol"
+                ),
+                counterfactual=(
+                    "a separately preregistered successor bound to the current "
+                    "validator identity could answer the unchanged exposure-cap "
+                    "question without counting this engineering failure as evidence"
+                ),
+                reopen_condition=(
+                    "continue only from a Portfolio decision through the typed "
+                    "successor artifact, or select another higher-information axis"
+                ),
+            ),
+            operation_id=operation_id,
+        ).result
+    control = writer.read_control()
+    if control is None:
+        raise RuntimeError("STU-0124 diagnosis lost terminal control state")
+    return {
+        "next_action": control["next_action"],
+        "revision": control["revision"],
+        "schema": "stu0124_validator_terminal_diagnosis.v1",
+        "study_diagnosis_id": result.get("study_diagnosis_id"),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--open", action="store_true")
@@ -940,6 +990,7 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--open-terminal", action="store_true")
     parser.add_argument("--terminal", action="store_true")
+    parser.add_argument("--diagnose", action="store_true")
     arguments = parser.parse_args()
     if sum(
         (
@@ -950,6 +1001,7 @@ def main() -> None:
             arguments.resume,
             arguments.open_terminal,
             arguments.terminal,
+            arguments.diagnose,
         )
     ) > 1:
         raise SystemExit("choose one STU-0124 Repair action")
@@ -967,6 +1019,8 @@ def main() -> None:
         if arguments.open_terminal
         else close_terminal_study(writer)
         if arguments.terminal
+        else diagnose_engineering_gap(writer)
+        if arguments.diagnose
         else execute_repair(writer)
         if arguments.execute
         else {
