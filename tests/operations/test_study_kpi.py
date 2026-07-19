@@ -957,6 +957,56 @@ class StudyKpiWriterTests(unittest.TestCase):
         assert payload is not None
         self.assertEqual(payload["source"], "typed_engineering_failure_completion")
         self.assertEqual(payload["outcome"], "evidence_gap")
+        event_id = digest("study-close-event", {"engineering": True})
+        with LocalIndex(self.writer.index_path) as index:
+            index.put_many(
+                (
+                    IndexRecord(
+                        kind="journal-event",
+                        record_id=event_id,
+                        subject="Study:active",
+                        status="study_closed",
+                        fingerprint=event_id,
+                        payload={
+                            "occurred_at_utc": "2026-07-12T00:00:00Z",
+                            "operation_id": "close-engineering-study",
+                        },
+                        event_stream="control",
+                        event_sequence=1,
+                        authority_sequence=1,
+                        authority_event_id=event_id,
+                        authority_offset=1,
+                    ),
+                    IndexRecord(
+                        kind="study-kpi",
+                        record_id=self.study_id,
+                        subject=f"Study:{self.study_id}",
+                        status="evidence_gap",
+                        fingerprint=digest("study-kpi", payload),
+                        payload=payload,
+                        event_stream="study-kpi",
+                        event_sequence=payload["sequence"],
+                        authority_sequence=1,
+                        authority_event_id=event_id,
+                        authority_offset=1,
+                    ),
+                )
+            )
+        with (
+            patch.object(
+                self.writer,
+                "_open_authoritative_index",
+                side_effect=lambda: LocalIndex(self.writer.index_path),
+            ),
+            patch.object(self.writer, "_require_stable_locked", return_value=None),
+        ):
+            self.assertTrue(self.writer.rebuild_study_kpi_projection())
+            self.assertFalse(self.writer.rebuild_study_kpi_projection())
+        ledger = (self.writer.root / LEDGER_RELATIVE_PATH).read_text(
+            encoding="ascii"
+        )
+        self.assertIn("STU-KPI", ledger)
+        self.assertIn("| evidence_gap |", ledger)
 
     def test_writer_derived_unavailable_study_cannot_be_pruned(self) -> None:
         unstarted_batch_id = "batch:" + "6" * 64

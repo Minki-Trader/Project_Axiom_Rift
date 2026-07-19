@@ -12160,6 +12160,39 @@ class StateWriter:
                             raise TransitionError(
                                 "Study KPI non-performance source is invalid"
                             )
+                    elif source == "typed_engineering_failure_completion":
+                        derived_source = (
+                            None
+                            if type(completion_record_id) is not str
+                            else self._study_kpi_from_completion(
+                                index=index,
+                                study_id=study_id,
+                                completion_record_id=completion_record_id,
+                            )
+                        )
+                        derived_display_id = (
+                            None
+                            if derived_source is None
+                            else self._study_kpi_display_id(
+                                index,
+                                derived_source["executable_id"],
+                            )
+                        )
+                        if (
+                            derived_source is None
+                            or derived_source["source"] != source
+                            or derived_source["completion_record_id"]
+                            != completion_record_id
+                            or derived_source["executable_id"] != executable_id
+                            or derived_display_id != executable_display_id
+                            or derived_source["metrics"] != dict(metrics)
+                            or derived_source["unavailable_reason"]
+                            != unavailable_reason
+                            or outcome not in {"evidence_gap", "not_evaluable"}
+                        ):
+                            raise TransitionError(
+                                "Study KPI engineering failure source is invalid"
+                            )
                     elif source == "writer_derived_unavailable":
                         allowed_reasons = {
                             "unstarted_batch_not_evaluable_without_final_validator_completion": "not_evaluable",
