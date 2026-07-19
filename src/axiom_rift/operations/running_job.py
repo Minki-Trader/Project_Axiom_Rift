@@ -68,6 +68,62 @@ from axiom_rift.storage.state import (
 )
 
 
+_PROSPECTIVE_PAIR_STATUS_CORRECTION_FACTS_SCHEMA = (
+    "prospective_pair_status_encoding_correction_facts.v1"
+)
+_PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID = (
+    "validator:b4be337629711282d7c6c6f3deb3de23736163bbce56ce3a523f8608e156c8e4"
+)
+
+
+def _require_passed_prospective_pair_status_correction_facts(
+    *,
+    binding: Mapping[str, Any],
+    facts: Mapping[str, Any],
+) -> None:
+    """Replay the exact registered status-correction facts without a registry."""
+
+    pair = facts.get("changed_source_pair")
+    if (
+        set(facts)
+        != {
+            "changed_source_pair",
+            "covered_surface_ids",
+            "new_implementation_identity",
+            "old_implementation_identity",
+            "repair_id",
+            "result_manifest_hash",
+            "schema",
+            "source_status",
+            "trace_status",
+            "validation_plan_hash",
+        }
+        or facts.get("schema")
+        != _PROSPECTIVE_PAIR_STATUS_CORRECTION_FACTS_SCHEMA
+        or binding.get("validator_id")
+        != _PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID
+        or facts.get("source_status") != "gross_exposure_cap_blocked"
+        or facts.get("trace_status") != "risk_policy_skipped"
+        or not isinstance(pair, Mapping)
+        or pair
+        != {
+            "new_artifact_hash": (
+                "d21ad03596d7aa8b85eae0de59bee15c9f5412d70dada83ebdd19297dc614b8c"
+            ),
+            "old_artifact_hash": (
+                "6d3109c5ad6230d6cc2dcc71c0a393c168bedf01e4fa2f274697d5dc15cd512a"
+            ),
+            "relative_path": (
+                "axiom_rift/research/sleeve_exposure_cap_risk_trace.py"
+            ),
+        }
+        or binding.get("changed_source_pair_bindings") != [dict(pair)]
+    ):
+        raise RepairSemanticEquivalenceError(
+            "prospective-pair status correction facts are invalid"
+        )
+
+
 _AUTHORITATIVE_EVENT_CACHE_SIZE = 64
 _THIS_FILE = Path(__file__).resolve()
 _REPAIR_PROJECTION_FILE = _THIS_FILE.with_name(
@@ -259,6 +315,11 @@ def effective_running_job_implementation(
             if not isinstance(validation, Mapping)
             else validation.get("measurement_artifact_hashes")
         )
+        prospective_pair_status_facts = (
+            isinstance(facts, Mapping)
+            and facts.get("schema")
+            == _PROSPECTIVE_PAIR_STATUS_CORRECTION_FACTS_SCHEMA
+        )
         if (
             production_trial.payload.get("engineering_fixture") is not False
             or not isinstance(validation, Mapping)
@@ -286,8 +347,11 @@ def effective_running_job_implementation(
             != facts.get("validation_plan_hash")
             or binding.get("result_manifest_hash")
             != facts.get("result_manifest_hash")
-            or binding.get("surface_inventory_hash")
-            != facts.get("surface_inventory_hash")
+            or (
+                not prospective_pair_status_facts
+                and binding.get("surface_inventory_hash")
+                != facts.get("surface_inventory_hash")
+            )
             or trace.get("validator_id") != binding.get("validator_id")
             or type(trace.get("declared_artifact_count")) is not int
             or trace.get("declared_artifact_count") <= 0
@@ -309,6 +373,11 @@ def effective_running_job_implementation(
                 == FIXED_HOLD_AUTHORITY_CORRECTION_FACTS_SCHEMA
             ):
                 require_passed_fixed_hold_authority_correction_facts(
+                    binding=binding,
+                    facts=facts,
+                )
+            elif prospective_pair_status_facts:
+                _require_passed_prospective_pair_status_correction_facts(
                     binding=binding,
                     facts=facts,
                 )

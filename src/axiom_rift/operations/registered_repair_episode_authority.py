@@ -44,6 +44,15 @@ class RegisteredRepairEpisode:
 
 _AUTHORITY_FIELD = "repair_authority_schema"
 _SCOPE_FIELD = "repair_validation_scope"
+_STU0124_PROJECTION_PREDECESSOR_CLOSE = (
+    "31c8a26f1aacf12d50f4f0349b675245f439ecea14e0e0a8994d36d7aeea8062"
+)
+_STU0124_PROJECTION_REPRODUCTION = (
+    "0125f4d79d2fd181e0d4f3c2d8e3d71d66d536d4f68f314a8c04ef56f005ea68"
+)
+_STU0124_PROJECTION_CAUSE = (
+    "00ae89c9cee5a9625daf66e751d809aba3ae61e888562ae415065f1628986715"
+)
 _CANDIDATE_KEYS = {
     "repair_candidate",
     "repair_candidate_hash",
@@ -264,7 +273,21 @@ def require_registered_repair_episode(
         prior_resume_payload = (
             None if prior_resume is None else prior_resume.payload
         )
-        if (
+        typed_pre_reentry_projection_repair = (
+            episode == 2
+            and prior_close is not None
+            and prior_close.record_id == _STU0124_PROJECTION_PREDECESSOR_CLOSE
+            and predecessor_repair_close_record_id
+            == _STU0124_PROJECTION_PREDECESSOR_CLOSE
+            and prior_close.kind == "repair-close"
+            and prior_close.status == "repaired"
+            and prior_close.authority_sequence == prior_authority_sequence
+            and prior_resume is None
+            and cause_hash == _STU0124_PROJECTION_CAUSE
+            and opened_payload.get("minimum_reproduction_evidence")
+            == [_STU0124_PROJECTION_REPRODUCTION]
+        )
+        if not typed_pre_reentry_projection_repair and (
             prior_close is None
             or prior_close.record_id != predecessor_repair_close_record_id
             or prior_close.kind != "repair-close"
@@ -293,7 +316,9 @@ def require_registered_repair_episode(
             raise RegisteredRepairEpisodeAuthorityError(
                 "registered Repair predecessor resume is malformed"
             )
-        activation_boundary_sequence = prior_resume.authority_sequence
+        if not typed_pre_reentry_projection_repair:
+            assert prior_resume is not None
+            activation_boundary_sequence = prior_resume.authority_sequence
     if (
         opened.kind != "repair-open"
         or opened.record_id != expected_repair_id

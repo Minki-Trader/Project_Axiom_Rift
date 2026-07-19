@@ -115,10 +115,16 @@ class _RepairDispositionCapability:
 
 
 _EXPECTED_FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID = (
-    "validator:78193d66002ab49722aff28814cbb1120c4a81953a4d8b446e108bc664411bfe"
+    "validator:3583fd1b22de47b84d09b50bbf8876a7564709669b1d4f849f0513db74128668"
 )
 _EXPECTED_FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID = (
-    "validator:9008a7b6bdb676c71d7bf34b4a1f02f38b4dbfc73b3093261708358673887ad7"
+    "validator:a88416de8390044ffa91de97cf810f13e3d3eab7067cce6ff8c3963f1859ce15"
+)
+_EXPECTED_PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID = (
+    "validator:b4be337629711282d7c6c6f3deb3de23736163bbce56ce3a523f8608e156c8e4"
+)
+_EXPECTED_PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_VALIDATOR_ID = (
+    "validator:3fbca7f14f3c7248b07603108b7d0b1e9e144ddb7cad066e6b744c79b4fa3c46"
 )
 
 
@@ -157,6 +163,48 @@ def _fixed_hold_repair_attempt_validator() -> tuple[str, str]:
     return (
         FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID,
         FIXED_HOLD_REPAIR_ATTEMPT_PROTOCOL,
+    )
+
+
+def _prospective_pair_status_correction_validator() -> tuple[str, str]:
+    """Lazy-load and pin the exact status-encoding equivalence capability."""
+
+    from axiom_rift.operations.prospective_pair_status_repair_equivalence import (
+        PROSPECTIVE_PAIR_STATUS_CORRECTION_PROTOCOL,
+        PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID,
+    )
+
+    if (
+        PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID
+        != _EXPECTED_PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID
+    ):
+        raise EvidenceValidationError(
+            "prospective-pair status validator differs from its registered capability"
+        )
+    return (
+        PROSPECTIVE_PAIR_STATUS_CORRECTION_VALIDATOR_ID,
+        PROSPECTIVE_PAIR_STATUS_CORRECTION_PROTOCOL,
+    )
+
+
+def _prospective_pair_status_repair_attempt_validator() -> tuple[str, str]:
+    """Lazy-load and pin the exact engineering Repair capability."""
+
+    from axiom_rift.operations.prospective_pair_status_repair_validation import (
+        PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_PROTOCOL,
+        PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_VALIDATOR_ID,
+    )
+
+    if (
+        PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_VALIDATOR_ID
+        != _EXPECTED_PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_VALIDATOR_ID
+    ):
+        raise EvidenceValidationError(
+            "prospective-pair status Repair validator differs from its registered capability"
+        )
+    return (
+        PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_VALIDATOR_ID,
+        PROSPECTIVE_PAIR_STATUS_REPAIR_ATTEMPT_PROTOCOL,
     )
 
 
@@ -202,6 +250,84 @@ class RepairWriterMixin:
         cause_hash = _digest(failure_manifest, domain="repair-cause")
         return failure_manifest, cause_hash
 
+    def _require_pre_reentry_projection_repair(
+        self,
+        index: LocalIndex,
+        *,
+        job: Mapping[str, Any],
+        failure_manifest: Mapping[str, Any],
+    ) -> None:
+        """Authorize only the typed projection failure of a repaired Job."""
+
+        close_id = job.get("required_repair_resume_record_id")
+        references = failure_manifest.get("minimum_reproduction_evidence")
+        close = (
+            None
+            if not isinstance(close_id, str)
+            else index.get("repair-close", close_id)
+        )
+        validation = (
+            None
+            if close is None
+            else close.payload.get("semantic_equivalence_validation")
+        )
+        facts = (
+            None
+            if not isinstance(validation, Mapping)
+            else validation.get("facts")
+        )
+        if (
+            not isinstance(references, list)
+            or len(references) != 1
+            or close is None
+            or close.status != "repaired"
+            or close.subject != f"Job:{job.get('id')}"
+            or close.payload.get("job_id") != job.get("id")
+            or not isinstance(validation, Mapping)
+            or validation.get("verdict") != "passed"
+            or not isinstance(facts, Mapping)
+            or facts.get("schema")
+            != "prospective_pair_status_encoding_correction_facts.v1"
+        ):
+            raise TransitionError(
+                "a repaired Job must re-enter its engine before another Repair"
+            )
+        try:
+            reproduction = parse_canonical(
+                self.evidence.read_verified(references[0])
+            )
+        except (FileNotFoundError, OSError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "pre-reentry projection Repair reproduction is unavailable"
+            ) from exc
+        if (
+            not isinstance(reproduction, Mapping)
+            or set(reproduction)
+            != {
+                "exception_message",
+                "exception_type",
+                "failure_stage",
+                "job_id",
+                "prior_repair_close_record_id",
+                "root_cause",
+                "schema",
+                "scientific_result_computed",
+                "study_id",
+            }
+            or reproduction.get("schema")
+            != "repaired_job_projection_reproduction.v1"
+            or reproduction.get("exception_type")
+            != "RunningJobAuthorityIntegrityError"
+            or reproduction.get("failure_stage")
+            != "verify_running_job_execution"
+            or reproduction.get("job_id") != job.get("id")
+            or reproduction.get("prior_repair_close_record_id") != close_id
+            or reproduction.get("scientific_result_computed") is not False
+        ):
+            raise TransitionError(
+                "pre-reentry projection Repair reproduction is invalid"
+            )
+
     def open_repair(
         self,
         *,
@@ -224,8 +350,10 @@ class RepairWriterMixin:
             if science["active_repair"] is not None:
                 raise TransitionError("another Repair is active")
             if job.get("required_repair_resume_record_id") is not None:
-                raise TransitionError(
-                    "a repaired Job must re-enter its engine before another Repair"
+                self._require_pre_reentry_projection_repair(
+                    index,
+                    job=job,
+                    failure_manifest=failure_manifest,
                 )
             declaration = index.get("job-declared", job["id"])
             if declaration is None:
@@ -1978,9 +2106,16 @@ class RepairWriterMixin:
             if validator_id == fixed_validator_id:
                 validation_protocol = FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL
             else:
-                raise self._semantic_equivalence_repair_error(
-                    "validator does not implement the registered equivalence protocol"
-                )
+                (
+                    status_validator_id,
+                    status_validation_protocol,
+                ) = _prospective_pair_status_correction_validator()
+                if validator_id == status_validator_id:
+                    validation_protocol = status_validation_protocol
+                else:
+                    raise self._semantic_equivalence_repair_error(
+                        "validator does not implement the registered equivalence protocol"
+                    )
         try:
             self.validation_registry.require_plannable_protocol(
                 validator_id=validator_id,
@@ -2125,6 +2260,21 @@ class RepairWriterMixin:
             validator_id=_fixed_hold_authority_correction_validator_id(),
         )
 
+    def plan_prospective_pair_status_correction_repair(
+        self,
+        *,
+        new_implementation_identity: str,
+    ) -> dict[str, Any]:
+        """Plan the exact protocol-specific trace-status Repair."""
+
+        validator_id, _protocol = (
+            _prospective_pair_status_correction_validator()
+        )
+        return self.plan_implementation_repair_semantic_equivalence(
+            new_implementation_identity=new_implementation_identity,
+            validator_id=validator_id,
+        )
+
     def resolve_fixed_hold_authority_correction_verification(
         self,
         *,
@@ -2175,6 +2325,65 @@ class RepairWriterMixin:
             evidence_hash = self.evidence.finalize(content).sha256
         try:
             require_fixed_hold_authority_correction_verification_claim(
+                content,
+                new_implementation_identity=new_implementation_identity,
+            )
+        except EvidenceValidationError as exc:
+            raise TransitionError(str(exc)) from exc
+        return (evidence_hash,)
+
+    def resolve_prospective_pair_status_correction_verification(
+        self,
+        *,
+        new_implementation_identity: str,
+        evidence_hashes: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        """Materialize or authenticate the status-correction conformance claim."""
+
+        from axiom_rift.operations.prospective_pair_status_repair_equivalence import (
+            prospective_pair_status_correction_verification_claim_manifest,
+            require_prospective_pair_status_correction_verification_claim,
+        )
+
+        validator_id, protocol = (
+            _prospective_pair_status_correction_validator()
+        )
+        _require_digest(
+            "prospective-pair corrected implementation",
+            new_implementation_identity,
+        )
+        self.validation_registry.require_registered_protocol(
+            validator_id=validator_id,
+            domain="scientific",
+            protocol=protocol,
+        )
+        if type(evidence_hashes) is not tuple:
+            raise TransitionError(
+                "prospective-pair correction verification hashes must be a tuple"
+            )
+        if evidence_hashes:
+            if (
+                len(evidence_hashes) != 1
+                or evidence_hashes != tuple(sorted(set(evidence_hashes)))
+            ):
+                raise TransitionError(
+                    "prospective-pair correction requires one exact verification"
+                )
+            evidence_hash = evidence_hashes[0]
+            _require_digest(
+                "prospective-pair correction verification",
+                evidence_hash,
+            )
+            content = self.evidence.read_verified(evidence_hash)
+        else:
+            content = canonical_bytes(
+                prospective_pair_status_correction_verification_claim_manifest(
+                    new_implementation_identity=new_implementation_identity,
+                )
+            )
+            evidence_hash = self.evidence.finalize(content).sha256
+        try:
+            require_prospective_pair_status_correction_verification_claim(
                 content,
                 new_implementation_identity=new_implementation_identity,
             )
@@ -2332,6 +2541,160 @@ class RepairWriterMixin:
             tuple(sorted(identity for _name, identity in artifact_roles)),
         )
 
+    def materialize_prospective_pair_status_repair_candidate_validation_plan(
+        self,
+        *,
+        explanation: str,
+        new_basis_hash: str,
+        new_evidence_hashes: tuple[str, ...],
+        implementation_proof_hash: str,
+        result_artifact_hashes: tuple[str, ...],
+        repair_axis_id: str,
+        prior_validation_observation_head: Mapping[str, Any] | None,
+        bound_validation_observations: tuple[Mapping[str, Any], ...],
+    ) -> tuple[str, str, str, tuple[str, ...]]:
+        """Bind one status-correction result to an outcome-free candidate."""
+
+        reason = _require_ascii(
+            "prospective-pair status Repair explanation", explanation
+        )
+        _require_digest("prospective-pair status Repair basis", new_basis_hash)
+        _require_digest(
+            "prospective-pair status Repair implementation proof",
+            implementation_proof_hash,
+        )
+        if (
+            type(new_evidence_hashes) is not tuple
+            or not new_evidence_hashes
+            or new_evidence_hashes != tuple(sorted(set(new_evidence_hashes)))
+            or new_basis_hash not in new_evidence_hashes
+            or implementation_proof_hash not in new_evidence_hashes
+        ):
+            raise TransitionError(
+                "prospective-pair status Repair changed evidence is not exact"
+            )
+        if (
+            type(result_artifact_hashes) is not tuple
+            or len(result_artifact_hashes) != 1
+            or result_artifact_hashes
+            != tuple(sorted(set(result_artifact_hashes)))
+        ):
+            raise TransitionError(
+                "prospective-pair status Repair requires one exact result"
+            )
+        for identity in (*new_evidence_hashes, *result_artifact_hashes):
+            _require_digest("prospective-pair status Repair evidence", identity)
+            self.evidence.read_verified(identity)
+        with self.open_stable_index() as (control, index):
+            science = control.get("scientific")
+            job = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_job")
+            )
+            repair = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_repair")
+            )
+            mission_id = (
+                None
+                if not isinstance(science, Mapping)
+                else science.get("active_mission")
+            )
+            if (
+                not isinstance(job, Mapping)
+                or not isinstance(repair, Mapping)
+                or job.get("status") != "interrupted_repair"
+                or repair.get("job_id") != job.get("id")
+                or type(mission_id) is not str
+            ):
+                raise TransitionError(
+                    "prospective-pair status Repair requires one interrupted Job"
+                )
+            opened = index.get("repair-open", str(repair.get("id")))
+        reproduction = (
+            None
+            if opened is None
+            else opened.payload.get("minimum_reproduction_evidence")
+        )
+        if (
+            not isinstance(reproduction, list)
+            or not reproduction
+            or reproduction != sorted(set(reproduction))
+        ):
+            raise TransitionError(
+                "prospective-pair status Repair reproduction is unavailable"
+            )
+        context = build_repair_candidate_validation_context(
+            bound_validation_observations=bound_validation_observations,
+            cause_hash=str(repair["cause_hash"]),
+            changed_dimension="implementation",
+            explanation=reason,
+            implementation_proof_hash=implementation_proof_hash,
+            job_hash=str(job["hash"]),
+            job_id=str(job["id"]),
+            new_basis_hash=new_basis_hash,
+            new_evidence_hashes=new_evidence_hashes,
+            previous_basis_hash=str(repair["latest_basis_hash"]),
+            prior_attempt_record_id=repair.get("latest_attempt_record_id"),
+            prior_validation_observation_head=(
+                prior_validation_observation_head
+            ),
+            repair_axis_id=repair_axis_id,
+            repair_id=str(repair["id"]),
+            reproduction_evidence_hashes=reproduction,
+            resume_action=str(repair["resume_action"]),
+        )
+        validator_id, protocol = (
+            _prospective_pair_status_repair_attempt_validator()
+        )
+        try:
+            self.validation_registry.require_plannable_protocol(
+                validator_id=validator_id,
+                domain="engineering",
+                protocol=protocol,
+            )
+        except EvidenceValidationError as exc:
+            raise TransitionError(str(exc)) from exc
+        artifact_roles = tuple(
+            sorted(
+                (
+                    ("implementation_proof", implementation_proof_hash),
+                    ("new_implementation_manifest", new_basis_hash),
+                    ("validation_result", result_artifact_hashes[0]),
+                    *(
+                        (f"reproduction:{ordinal:04d}", identity)
+                        for ordinal, identity in enumerate(reproduction)
+                    ),
+                )
+            )
+        )
+        if len({identity for _name, identity in artifact_roles}) != len(
+            artifact_roles
+        ):
+            raise TransitionError(
+                "prospective-pair status Repair validation roles overlap"
+            )
+        binding = repair_validation_binding(
+            verification_kind="candidate",
+            mission_id=mission_id,
+            protocol=protocol,
+            context=context,
+            artifact_roles=artifact_roles,
+        )
+        plan = build_repair_validation_plan(
+            validator_id=validator_id,
+            binding=binding,
+        )
+        plan_artifact = self.evidence.finalize(canonical_bytes(plan))
+        return (
+            plan_artifact.sha256,
+            validator_id,
+            protocol,
+            tuple(sorted(identity for _name, identity in artifact_roles)),
+        )
+
     def _run_implementation_repair_semantic_equivalence(
         self,
         *,
@@ -2431,9 +2794,26 @@ class RepairWriterMixin:
                     facts=facts,
                 )
             else:
-                raise RepairSemanticEquivalenceError(
-                    "implementation Repair validation protocol is unsupported"
-                )
+                (
+                    status_validator_id,
+                    status_protocol,
+                ) = _prospective_pair_status_correction_validator()
+                if (
+                    plan.get("validator_id") == status_validator_id
+                    and plan.get("protocol") == status_protocol
+                ):
+                    from axiom_rift.operations.prospective_pair_status_repair_equivalence import (
+                        require_passed_prospective_pair_status_correction_facts,
+                    )
+
+                    require_passed_prospective_pair_status_correction_facts(
+                        binding=binding,
+                        facts=facts,
+                    )
+                else:
+                    raise RepairSemanticEquivalenceError(
+                        "implementation Repair validation protocol is unsupported"
+                    )
         except RepairSemanticEquivalenceError as exc:
             raise self._semantic_equivalence_repair_error(exc) from exc
         if (
