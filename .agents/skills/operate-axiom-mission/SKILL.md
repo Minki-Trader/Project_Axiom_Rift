@@ -14,47 +14,26 @@ Use the repository as authority. Do not depend on chat history.
 3. Read the active record named by control state. At a Mission-admission
    boundary, read its exact predecessor terminal instead.
 4. Read only the contracts required by the classified action.
-5. Audit every prospective real `study-kpi` record against Git.  Its exact
-   `study_closed` event ID and revision must identify exactly one commit
-   reachable from local `main` through the required trailers.  That commit
-   must change all three required projection paths; its snapshot must end the
-   Journal and control head at that exact event/revision, and its KPI file
-   bytes must equal the deterministic render of all Journal `study-kpi`
-   records in that snapshot.  If this authenticated commit is absent, resume the
-   closeout delivery before any state or science action.  Refresh the
-   `origin/main` observation, require the closeout commit to be its ancestor,
-   and otherwise make the immediate non-force push attempt before new science
-   while retaining same-commit delivery debt after a bounded failed attempt.
-   Audit a `historical_backfill` provenance set as one authenticated
-   `study_kpi_backfilled` checkpoint instead of requiring fictional commits at
-   each old close time; its commit snapshot must bind the complete original
-   close set and exact deterministic ledger bytes.
-   A sponsor-authorized `study_close_delivery_repair` attestation may satisfy
-   this audit only for an exact listed prospective commit that already changed
-   all three required paths and whose tree, Journal tail, control head, and
-   deterministic KPI bytes are correct. Require the original commit and the
-   attestation checkpoint to be reachable from local `main` and ancestors of
-   `origin/main`. The repair cannot replace missing or incorrect scientific or
-   projection content and cannot create another Study-close snapshot.
-   Require `git config --get core.hooksPath` to equal `.githooks`; run
+5. Require `git config --get core.hooksPath` to equal `.githooks`; run
    `scripts/install_git_hooks.py` when absent or different. At routine state
-   boundaries let the Writer authenticate the tracked
-   `records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json`, seek its exact Journal
-   boundary, and validate only the bounded Journal and local-main suffix. The
-   ignored local cache is a hint and its deletion or contents never establish
-   delivery. Initialize the tracked checkpoint only with
-   `scripts/audit_all_study_close_deliveries.py --initialize-checkpoint`; its
-   commit-msg validation repeats the complete audit. After initialization, a
-   missing, modified, or malformed tracked checkpoint blocks later science and
-   never falls back to the ignored cache or a routine complete-history scan.
-   The active checkpoint schema is v2. Upgrade v1 only through the explicit
-   full-maintenance path, which authenticates the exact twenty-one-row
-   historical backfill source set and binds each source close, commit, tree,
-   path blob, trailer or typed attestation, ancestry, and deterministic KPI
-   bytes. Routine operation uses the fast bounded suffix guard; a complete
-   reconstruction or exact-staging audit runs only when explicitly required.
-   Close and no-close boundaries are monotone and a no-close boundary cannot
-   advance the authenticated close count.
+   boundaries let the Writer read-only authenticate
+   `records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json`, its exact bounded Journal
+   suffix, the local-main checkpoint commit, and the retained delivery-attempt
+   receipt. The routine guard must not fetch, push, refresh a remote ref, write
+   a receipt, render the KPI Markdown view, or scan complete history.
+   A missing, modified, or malformed checkpoint or receipt fails closed and
+   routes to the exact explicit maintenance or delivery action; it never makes
+   the routine guard perform that action implicitly. After a real closeout
+   commit, run
+   `scripts/update_study_close_delivery_checkpoint.py --attempt-origin` once
+   for the bounded fetch/non-force-push attempt and retained receipt. A failed
+   attempt records same-commit delivery debt but does not invalidate science.
+   Initialize or upgrade the active v2 checkpoint only with the explicit full
+   maintenance command. Historical backfill and sponsor-authorized trailer
+   repair remain exact checkpoint-scoped exceptions; their complete-history
+   proof is never a routine preflight. Close and no-close boundaries are
+   monotone, and a no-close boundary cannot create another network obligation
+   or advance the authenticated close count.
    On a real worktree, absence of `.git`, HEAD, local main, the required hook,
    or the tracked checkpoint fails closed. Only a typed isolated engineering
    fixture may omit those surfaces, and it has no scientific authority.
@@ -312,9 +291,11 @@ delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
    `Axiom-State-Revision: <revision>`. The tracked commit-msg hook must validate
    the bounded staged Journal suffix, control and index heads, the exact new KPI
    record, checkpoint transition, co-staged paths, and exact trailer block.
-   Never use `--no-verify`. Then immediately attempt a
-   non-force push of `main` to `origin/main`. Observe remote tree equality
-   read-only when delivery succeeds.
+   Never use `--no-verify`. Then run
+   `scripts/update_study_close_delivery_checkpoint.py --attempt-origin` for the
+   one bounded fetch/non-force-push attempt and retained receipt. Observe remote
+   tree equality read-only when delivery succeeds. Routine Writer preflights
+   only authenticate that receipt and never repeat the network action.
 
 A push, authentication, network, protection, or divergence failure never
 rolls back the scientific close and never becomes scientific evidence or a
@@ -356,6 +337,13 @@ path. A tracked full suite, complete-history reconstruction, or exact-staging
 audit belongs to a coherent engineering or delivery milestone and is not a
 per-Job prerequisite. Do not delay an otherwise permitted bounded scientific
 Job for unrelated slow validation. Test success remains engineering evidence.
+
+Focused tracked tests materialize only the exact selected tests, the frozen
+indexed `src/` tree, ambient pytest configuration and ancestor `conftest.py`
+files, explicitly declared extra dependencies, and explicitly requested
+protected inputs. They still report the excluded untracked-test inventory, but
+they do not copy the full repository merely to run a small selection. Use
+explicit full mode when repository-wide state is genuinely under test.
 
 For one content-addressed correction run, reconstruct an independent complete
 history baseline at most once and retain its exact replay session. Read the

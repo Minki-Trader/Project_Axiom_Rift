@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from axiom_rift.operations.study_close_git import (  # noqa: E402
     CHECKPOINT_PATH,
     StudyCloseDeliveryError,
+    attempt_study_close_origin_delivery,
     check_study_close_delivery_checkpoint,
     prepare_study_close_delivery_checkpoint,
     require_study_close_guard_ready,
@@ -89,11 +90,41 @@ def _parser() -> argparse.ArgumentParser:
             "records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json"
         ),
     )
+    parser.add_argument(
+        "--attempt-origin",
+        action="store_true",
+        help=(
+            "after the checkpoint commit exists, perform the one bounded "
+            "origin fetch/push attempt and retain its local receipt"
+        ),
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    if arguments.attempt_origin and (
+        arguments.check
+        or arguments.stage_checkpoint
+        or arguments.allow_milestone_path
+    ):
+        _emit(
+            {
+                "error": {
+                    "code": "conflicting_actions",
+                    "message": (
+                        "--attempt-origin is a standalone post-commit action"
+                    ),
+                    "next_command": (
+                        "python scripts/update_study_close_delivery_checkpoint.py "
+                        "--attempt-origin"
+                    ),
+                },
+                "schema": "study_close_checkpoint_cli_error.v1",
+            },
+            stream=sys.stderr,
+        )
+        return 2
     if arguments.check and arguments.stage_checkpoint:
         _emit(
             {
@@ -107,6 +138,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             stream=sys.stderr,
         )
         return 2
+    if arguments.attempt_origin:
+        try:
+            require_study_close_guard_ready(ROOT)
+            attempt_study_close_origin_delivery(ROOT)
+        except (
+            OSError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            StudyCloseDeliveryError,
+        ) as exc:
+            _emit(_error_payload(exc), stream=sys.stderr)
+            return 1
+        _emit(
+            {
+                "mode": "attempt_origin",
+                "next_command": "git status --short",
+                "schema": "study_close_checkpoint_cli_result.v1",
+            }
+        )
+        return 0
+
     allowed = tuple(sorted(set(arguments.allow_milestone_path)))
     try:
         require_study_close_guard_ready(ROOT)

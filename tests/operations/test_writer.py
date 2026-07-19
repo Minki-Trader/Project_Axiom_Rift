@@ -1064,7 +1064,11 @@ def scientific_executable_spec(
         split_contract=split_contract,
         clock_contract="clock:completed-m5-bar",
         cost_contract="cost:fixed-lot-boundary-fixture",
-        engine_contract="engine:python-boundary-fixture",
+        engine_contract=(
+            "engine:mt5-boundary-fixture"
+            if architecture_variant == "alternate"
+            else "engine:python-boundary-fixture"
+        ),
     )
 
 
@@ -4612,7 +4616,22 @@ class WriterTests(unittest.TestCase):
                     ),
                 },
             )
-            return body, [diagnosis], {"diagnosis_id": diagnosis_id}
+            study = IndexRecord(
+                kind="study-open",
+                record_id="STU-UNBOUND-SOURCE",
+                subject="Study:STU-UNBOUND-SOURCE",
+                status="closed",
+                fingerprint="e" * 64,
+                payload={
+                    "mission_id": "MIS-FIXTURE",
+                    "portfolio_axis_id": source_axis.axis_id,
+                    "portfolio_snapshot_id": snapshot.identity,
+                    "system_architecture_family": (
+                        source_axis.system_architecture_family
+                    ),
+                },
+            )
+            return body, [study, diagnosis], {"diagnosis_id": diagnosis_id}
 
         self.writer._commit(
             event_kind="test_diagnosis_seeded",
@@ -14753,7 +14772,9 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         control, trigger = self._reach_architecture_review(tag="bounded-new")
         direction = ArchitectureContinuationDirection(
             mode=ArchitectureContinuationMode.NEW_MECHANISM,
-            reviewed_architecture_family=self.axes[0].system_architecture_family,
+            reviewed_architecture_family=trigger.payload[
+                "system_architecture_family"
+            ],
             trigger_record_id=control["next_action"]["trigger_record_id"],
             covered_diagnosis_ids=tuple(trigger.payload["diagnosis_ids"]),
             required_research_layer=ResearchLayer.MODEL,
@@ -14808,7 +14829,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         self.assertEqual(snapshot_action["required_followup_layers"], ["model"])
         self.assertEqual(
             snapshot_action["required_architecture_family"],
-            self.axes[0].system_architecture_family,
+            direction.reviewed_architecture_family,
         )
 
         common_chassis = self.axes[0].architecture_chassis
@@ -14977,10 +14998,19 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         control = self.writer.read_control()
         assert control is not None
         self.assertEqual(control["next_action"]["kind"], "review_architecture")
+        with LocalIndex(self.writer.index_path) as index:
+            review_trigger = index.get(
+                "architecture-review-trigger",
+                control["next_action"]["trigger_record_id"],
+            )
+        self.assertIsNotNone(review_trigger)
+        assert review_trigger is not None
+        review_family = review_trigger.payload["system_architecture_family"]
+        self.assertTrue(review_family.startswith("architecture-family:"))
         review = ArchitectureReview(
             mission_id="MIS-DIRECTION",
             trigger_record_id=control["next_action"]["trigger_record_id"],
-            system_architecture_family=self.axes[0].system_architecture_family,
+            system_architecture_family=review_family,
             conclusion=ArchitectureReviewConclusion.ROTATE_ARCHITECTURE,
             rationale="three gaps across two axes make another same-chassis pass low value",
             stop_or_reopen_condition="reopen only after changed architecture evidence",
@@ -14988,7 +15018,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         stale_review = ArchitectureReview(
             mission_id="MIS-DIRECTION",
             trigger_record_id="0" * 64,
-            system_architecture_family=self.axes[0].system_architecture_family,
+            system_architecture_family=review_family,
             conclusion=ArchitectureReviewConclusion.ROTATE_ARCHITECTURE,
             rationale="three gaps across two axes make another same-chassis pass low value",
             stop_or_reopen_condition="reopen only after changed architecture evidence",
@@ -15046,13 +15076,17 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         )
         control = self.writer.read_control()
         assert control is not None
-        self.assertEqual(control["next_action"]["kind"], "portfolio_decision")
         self.assertEqual(
-            control["next_action"]["architecture_review_id"], review.identity
+            control["next_action"]["kind"], "execute_portfolio_decision"
         )
-        self.assertIn("excluded_architecture_family", control["next_action"])
+        self.assertEqual(
+            control["next_action"]["decision_id"], valid.identity
+        )
+        self.assertNotIn("excluded_architecture_family", control["next_action"])
 
-    def test_parity_collapse_rechecks_architecture_review_threshold(self) -> None:
+    def test_component_parity_does_not_collapse_distinct_runtime_architecture(
+        self,
+    ) -> None:
         studies = (
             ("collapse-first", "STU-9031", 0, PortfolioAction.DEEPEN),
             ("collapse-second", "STU-9032", 2, PortfolioAction.ROTATE),
@@ -15102,16 +15136,12 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         )
         control = self.writer.read_control()
         assert control is not None
-        self.assertEqual(control["next_action"]["kind"], "review_architecture")
-        with LocalIndex(self.writer.index_path) as index:
-            trigger = index.get(
-                "architecture-review-trigger",
-                control["next_action"]["trigger_record_id"],
-            )
-        self.assertIsNotNone(trigger)
-        assert trigger is not None
-        self.assertEqual(len(trigger.payload["diagnosis_ids"]), 3)
-        self.assertEqual(len(trigger.payload["portfolio_axis_ids"]), 2)
+        self.assertEqual(
+            control["next_action"]["kind"], "execute_portfolio_decision"
+        )
+        self.assertEqual(
+            control["next_action"]["decision_id"], decision.identity
+        )
 
     def test_diagnosis_constrains_new_axis_and_forces_its_first_decision(self) -> None:
         first = self._decision(

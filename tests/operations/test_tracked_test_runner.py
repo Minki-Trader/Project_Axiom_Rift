@@ -1,3 +1,4 @@
+# axiom-focused-dependency: scripts/run_tracked_tests.py
 from __future__ import annotations
 
 from hashlib import sha256
@@ -595,7 +596,7 @@ class TrackedTestRunnerTests(unittest.TestCase):
                 )
                 self.assertIn("timeout must be", error["error"])
 
-    def test_focused_selection_keeps_full_frozen_manifest(self) -> None:
+    def test_focused_selection_binds_only_selected_test_and_dependencies(self) -> None:
         (self.root / "tests" / "test_other.py").write_text(
             "def test_other():\n    assert False\n",
             encoding="ascii",
@@ -613,21 +614,33 @@ class TrackedTestRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("1 passed", result.stdout)
         manifest = json.loads(result.stdout.splitlines()[0])
-        self.assertEqual(manifest["schema"], "tracked_pytest_manifest.v3")
-        self.assertEqual(manifest["tracked_test_count"], 2)
+        self.assertEqual(manifest["schema"], "tracked_pytest_manifest.v4")
+        self.assertEqual(manifest["tracked_test_count"], 1)
         self.assertEqual(
             [item["path"] for item in manifest["tracked_tests"]],
-            ["tests/test_other.py", "tests/test_tracked.py"],
+            ["tests/test_tracked.py"],
         )
         self.assertEqual(
             manifest["selection"],
             {
-                "authority": "subset_of_frozen_git_index_test_manifest",
+                "authority": (
+                    "exact_selected_tests_indexed_src_and_declared_dependencies"
+                ),
+                "declared_input_roles": [],
                 "mode": "focused",
                 "selected_tracked_file_count": 1,
                 "selectors": ["tests/test_tracked.py"],
                 "unselected_tracked_file_count": 1,
             },
+        )
+        self.assertEqual(manifest["focused_dependency_count"], 1)
+        self.assertEqual(
+            [entry["path"] for entry in manifest["focused_dependencies"]],
+            ["tests/test_tracked.py"],
+        )
+        self.assertEqual(
+            manifest["sandbox_snapshot"]["mode"],
+            "focused_dependency_tree",
         )
         self.assertEqual(
             manifest["runtime_projection"],
@@ -655,12 +668,13 @@ class TrackedTestRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("1 passed", result.stdout)
         manifest = json.loads(result.stdout.splitlines()[0])
-        self.assertEqual(manifest["tracked_test_count"], 2)
+        self.assertEqual(manifest["tracked_test_count"], 1)
 
     def test_focused_selection_imports_unselected_helper_from_index(self) -> None:
         tracked = self.root / "tests" / "test_tracked.py"
         helper = self.root / "tests" / "test_helper.py"
         tracked.write_text(
+            "# axiom-focused-dependency: tests/test_helper.py\n"
             "from test_helper import VALUE\n\n"
             "def test_tracked():\n"
             "    assert VALUE == 'frozen-index'\n",
@@ -683,6 +697,45 @@ class TrackedTestRunnerTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("1 passed", result.stdout)
+        manifest = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(
+            [entry["path"] for entry in manifest["focused_dependencies"]],
+            ["tests/test_helper.py", "tests/test_tracked.py"],
+        )
+
+    def test_focused_snapshot_pack_never_requests_the_full_index_tree(self) -> None:
+        subject = load_runner_module()
+        manifest, _selected, _runtime = subject._manifest(
+            self.root.resolve(),
+            pytest_args=(),
+            selectors=("tests/test_tracked.py",),
+        )
+        observed_pack_inputs: list[bytes] = []
+        actual_run = subprocess.run
+
+        def observed_run(arguments, *args, **kwargs):
+            if tuple(arguments)[:2] == ("git", "pack-objects"):
+                observed_pack_inputs.append(kwargs.get("input", b""))
+            return actual_run(arguments, *args, **kwargs)
+
+        with TemporaryDirectory(prefix="focused-pack-test-") as temporary:
+            with patch.object(subject.subprocess, "run", side_effect=observed_run):
+                subject._checkout_independent_focused_tree(
+                    self.root.resolve(),
+                    Path(temporary).resolve() / "repository",
+                    entries=manifest["focused_dependencies"],
+                    source_tree=manifest["focused_source_tree"],
+                )
+
+        self.assertEqual(len(observed_pack_inputs), 1)
+        self.assertNotIn(
+            manifest["git_index_tree"].encode("ascii"),
+            observed_pack_inputs[0].splitlines(),
+        )
+        self.assertEqual(
+            set(observed_pack_inputs[0].decode("ascii").splitlines()),
+            {entry["blob"] for entry in manifest["focused_dependencies"]},
+        )
 
     def test_focused_selection_rejects_selected_worktree_drift(self) -> None:
         tracked = self.root / "tests" / "test_tracked.py"
@@ -792,6 +845,62 @@ class TrackedTestRunnerTests(unittest.TestCase):
         self.assertEqual(
             (self.root / "data/processed/datasets/observed.csv").read_bytes(),
             observed,
+        )
+
+    def test_focused_protected_inputs_require_selected_test_opt_in(self) -> None:
+        observed = b"focused-development-prefix\n"
+        split = b'{"schema":"focused-split"}\n'
+        self.configure_protected_development_inputs(
+            observed=observed,
+            split=split,
+        )
+        tracked = self.root / "tests" / "test_tracked.py"
+        tracked.write_text(
+            "from pathlib import Path\n\n"
+            "def test_tracked():\n"
+            "    assert not Path('data/processed/datasets/observed.csv').exists()\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_tracked.py")
+
+        absent = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+        self.assertEqual(absent.returncode, 0, absent.stderr or absent.stdout)
+        absent_manifest = json.loads(absent.stdout.splitlines()[0])
+        self.assertEqual(absent_manifest["protected_development_inputs"]["input_count"], 0)
+
+        tracked.write_text(
+            "# axiom-focused-inputs: protected_development\n"
+            "from pathlib import Path\n\n"
+            "def test_tracked():\n"
+            "    assert Path('data/processed/datasets/observed.csv').read_bytes() == "
+            f"{observed!r}\n"
+            "    assert Path('data/processed/coverage_audits/rolling.json').read_bytes() == "
+            f"{split!r}\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_tracked.py")
+        present = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+        self.assertEqual(present.returncode, 0, present.stderr or present.stdout)
+        present_manifest = json.loads(present.stdout.splitlines()[0])
+        self.assertEqual(
+            present_manifest["selection"]["declared_input_roles"],
+            ["protected_development"],
+        )
+        self.assertEqual(
+            present_manifest["protected_development_inputs"]["input_count"],
+            2,
         )
 
     def test_runner_materializes_only_exact_allowlisted_test_evidence(self) -> None:

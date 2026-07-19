@@ -16,6 +16,7 @@ from axiom_rift.operations.study_close_git import (
     CHECKPOINT_PATH,
     StudyCloseDeliveryError,
     StudyCloseGuardCapability,
+    attempt_study_close_origin_delivery,
     audit_all_study_close_deliveries,
     capture_study_close_delivery_observation,
     check_study_close_delivery_checkpoint_maintenance,
@@ -463,6 +464,7 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(message),
         )
+        attempt_study_close_origin_delivery(self.root)
         require_all_study_close_deliveries(self.root)
 
     def append_committed_close(
@@ -624,6 +626,7 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(message),
         )
+        audit_all_study_close_deliveries(self.root)
         require_all_study_close_deliveries(self.root)
 
     def test_explicit_v1_to_v2_upgrade_is_checkable_and_hook_bound(self) -> None:
@@ -669,6 +672,7 @@ class StudyCloseGitTests(unittest.TestCase):
         ):
             inspected = inspect_tracked_study_close_delivery(self.root)
         self.assertEqual(inspected.checkpoint_digest, written.checkpoint_digest)
+        attempt_study_close_origin_delivery(self.root)
         require_all_study_close_deliveries(self.root)
 
     def test_v2_upgrade_rejects_uncommitted_repair_manifest_bytes(self) -> None:
@@ -689,11 +693,34 @@ class StudyCloseGitTests(unittest.TestCase):
 
     def test_no_close_checkpoint_maintenance_is_explicit_and_hook_bound(self) -> None:
         self.initialize_checkpoint()
+        receipt_path = self.root / "local" / "study-close-origin-attempt.json"
+        retained_receipt = receipt_path.read_bytes()
+
+        def require_without_origin_side_effects() -> None:
+            with patch.object(
+                study_close_git,
+                "_run_origin_git",
+                side_effect=AssertionError("routine guard touched origin"),
+            ) as origin_git, patch.object(
+                study_close_git,
+                "_write_origin_attempt",
+                side_effect=AssertionError("routine guard rewrote receipt"),
+            ) as receipt_write, patch.object(
+                study_close_git,
+                "_best_effort_write_cache",
+                side_effect=AssertionError("routine guard wrote audit cache"),
+            ) as cache_write:
+                require_all_study_close_deliveries(self.root)
+            origin_git.assert_not_called()
+            receipt_write.assert_not_called()
+            cache_write.assert_not_called()
+            self.assertEqual(receipt_path.read_bytes(), retained_receipt)
+
         previous = StudyCloseDeliveryCheckpoint.from_bytes(
             (self.root / CHECKPOINT_PATH).read_bytes()
         )
         event = self.append_committed_non_close()
-        require_all_study_close_deliveries(self.root)
+        require_without_origin_side_effects()
 
         projected = check_study_close_delivery_checkpoint_maintenance(self.root)
         self.assertEqual(projected.basis, "maintenance")
@@ -726,7 +753,7 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(message),
         )
-        require_all_study_close_deliveries(self.root)
+        require_without_origin_side_effects()
         with self.assertRaisesRegex(
             StudyCloseDeliveryError, "validation failed"
         ):
@@ -780,6 +807,7 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(message),
         )
+        attempt_study_close_origin_delivery(self.root)
         require_all_study_close_deliveries(self.root)
 
     def test_full_audit_preserves_legacy_v1_checkpoint_close(self) -> None:
@@ -912,6 +940,28 @@ class StudyCloseGitTests(unittest.TestCase):
             side_effect=AssertionError("routine close ran full delivery audit"),
         ):
             self.append_committed_close(2)
+        attempt_study_close_origin_delivery(self.root)
+        with patch.object(
+            study_close_git,
+            "_optional_git_file",
+            side_effect=reject_kpi_read,
+        ), patch.object(
+            study_close_git,
+            "_index_journal",
+            side_effect=AssertionError("routine guard read full Journal history"),
+        ), patch.object(
+            study_close_git,
+            "render_projection",
+            side_effect=AssertionError("routine guard rendered KPI history"),
+        ), patch.object(
+            study_close_git,
+            "_perform_full_audit",
+            side_effect=AssertionError("routine guard ran full delivery audit"),
+        ), patch.object(
+            study_close_git,
+            "_run_origin_git",
+            side_effect=AssertionError("routine guard touched the network"),
+        ):
             require_all_study_close_deliveries(self.root)
 
         current = StudyCloseDeliveryCheckpoint.from_bytes(
@@ -1133,6 +1183,16 @@ class StudyCloseGitTests(unittest.TestCase):
         run(self.root, "git", "remote", "add", "origin", str(remote))
         receipt_path.unlink()
         study_close_git._ensure_origin_delivery_observed.cache_clear()
+        with patch.object(study_close_git, "_run_origin_git") as origin_git:
+            with self.assertRaisesRegex(
+                StudyCloseDeliveryError,
+                "explicit Study-close origin delivery attempt is absent",
+            ):
+                require_all_study_close_deliveries(self.root)
+        origin_git.assert_not_called()
+        self.assertFalse(receipt_path.exists())
+
+        attempt_study_close_origin_delivery(self.root)
         require_all_study_close_deliveries(self.root)
         delivered = json.loads(receipt_path.read_text(encoding="ascii"))
         self.assertEqual(delivered["outcome"], "delivered")
@@ -1156,12 +1216,38 @@ class StudyCloseGitTests(unittest.TestCase):
         )
         receipt_path.unlink()
         study_close_git._ensure_origin_delivery_observed.cache_clear()
+        attempt_study_close_origin_delivery(self.root)
         require_all_study_close_deliveries(self.root)
         stale = json.loads(receipt_path.read_text(encoding="ascii"))
         self.assertEqual(stale["observed_remote_before"], head)
         self.assertNotEqual(stale["fetch_returncode"], 0)
         self.assertNotEqual(stale["push_returncode"], 0)
         self.assertEqual(stale["outcome"], "delivery_debt")
+
+    def test_origin_attempt_cli_mode_is_standalone(self) -> None:
+        from scripts import update_study_close_delivery_checkpoint as cli
+
+        with patch.object(cli, "ROOT", self.root), patch.object(
+            cli, "require_study_close_guard_ready"
+        ) as guard_ready, patch.object(
+            cli, "attempt_study_close_origin_delivery"
+        ) as attempt, patch.object(cli, "_emit") as emit:
+            self.assertEqual(cli.main(["--attempt-origin"]), 0)
+        guard_ready.assert_called_once_with(self.root)
+        attempt.assert_called_once_with(self.root)
+        self.assertEqual(emit.call_args.args[0]["mode"], "attempt_origin")
+
+        with patch.object(cli, "ROOT", self.root), patch.object(
+            cli, "require_study_close_guard_ready"
+        ) as guard_ready, patch.object(
+            cli, "attempt_study_close_origin_delivery"
+        ) as attempt, patch.object(cli, "_emit") as emit:
+            self.assertEqual(cli.main(["--attempt-origin", "--check"]), 2)
+        guard_ready.assert_not_called()
+        attempt.assert_not_called()
+        self.assertEqual(
+            emit.call_args.args[0]["error"]["code"], "conflicting_actions"
+        )
 
     def test_v2_binds_exact_twenty_one_row_historical_backfill(self) -> None:
         closes: list[dict[str, object]] = []
@@ -1256,6 +1342,7 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(message),
         )
+        audit_all_study_close_deliveries(self.root)
         require_all_study_close_deliveries(self.root)
 
     def test_segmented_active_path_is_required(self) -> None:
@@ -1363,6 +1450,7 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(message),
         )
+        audit_all_study_close_deliveries(self.root)
         require_all_study_close_deliveries(self.root)
         verifier = study_close_git._sealed_journal_verifier(str(self.root))
         with patch.object(
@@ -1374,7 +1462,7 @@ class StudyCloseGitTests(unittest.TestCase):
             sealed_verification.assert_not_called()
             (directory / "journal-000001.seal.json").write_bytes(b"{}")
             with self.assertRaisesRegex(
-                StudyCloseDeliveryError, "worktree Journal audit failed"
+                StudyCloseDeliveryError, "legacy Study-close cache is stale"
             ):
                 require_all_study_close_deliveries(self.root)
             sealed_verification.assert_called_once()
@@ -1382,6 +1470,7 @@ class StudyCloseGitTests(unittest.TestCase):
     def test_routine_guard_is_checkpoint_and_suffix_bounded(self) -> None:
         self.initialize_checkpoint()
         self.append_committed_close(2)
+        attempt_study_close_origin_delivery(self.root)
         with patch.object(
             study_close_git, "_git", wraps=study_close_git._git
         ) as one_git, patch.object(
@@ -1401,6 +1490,7 @@ class StudyCloseGitTests(unittest.TestCase):
 
         for ordinal in range(3, 11):
             self.append_committed_close(ordinal)
+        attempt_study_close_origin_delivery(self.root)
         with patch.object(
             study_close_git, "_git", wraps=study_close_git._git
         ) as many_git, patch.object(

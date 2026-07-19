@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
@@ -16,10 +17,12 @@ from axiom_rift.core.component_surface import (
     ARCHITECTURE_ROLE_DOMAINS,
     ComponentManifestError,
     ComponentOutsideArchitectureError,
+    architecture_component_family_surface_identity as _core_architecture_family_surface,
     architecture_component_surface_identity as _core_architecture_surface,
     component_manifest_domain as _core_component_domain,
     component_manifest_identity as _core_component_identity,
     component_manifest_surfaces,
+    normalize_architecture_semantic_value as _normalize_architecture_semantic_value,
 )
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
 from axiom_rift.research.governance import ResearchLayer
@@ -54,6 +57,45 @@ _ROLE_DOMAINS: dict[ArchitectureRole, frozenset[ResearchLayer]] = {
     ArchitectureRole(role): frozenset(ResearchLayer(domain) for domain in domains)
     for role, domains in ARCHITECTURE_ROLE_DOMAINS.items()
 }
+
+_ENGINE_RUNTIME_CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("mql5", re.compile(r"^(?:mql5|mqh|ea)(?:[0-9._-]|$)", re.IGNORECASE)),
+    (
+        "mt5",
+        re.compile(r"^(?:mt5(?:build)?|metatrader)(?:[0-9._-]|$)", re.IGNORECASE),
+    ),
+    ("onnx", re.compile(r"^(?:onnx|onnxruntime)(?:[0-9._-]|$)", re.IGNORECASE)),
+    ("python", re.compile(r"^python(?:[0-9._-]|$)", re.IGNORECASE)),
+)
+_ENGINE_LIBRARY_PREFIXES = (
+    "jax",
+    "numpy",
+    "pandas",
+    "scikit",
+    "scipy",
+    "sklearn",
+    "tensorflow",
+    "torch",
+    "xgboost",
+)
+_ENGINE_NON_ARCHITECTURAL_PREFIXES = (
+    "alpha",
+    "artifact",
+    "blocks",
+    "bonferroni",
+    "bootstrap",
+    "bundle",
+    "chassis",
+    "digest",
+    "hash",
+    "implementation",
+    "loader",
+    "resample",
+    "seed",
+    "shared",
+    "sha",
+    "source_hash",
+)
 
 
 def _ascii(name: str, value: object) -> str:
@@ -613,6 +655,11 @@ class ArchitectureChassisSpec:
     lifecycle: ArchitectureRoleSpec
     execution: ArchitectureRoleSpec
     portfolio: ArchitectureRoleSpec
+    _component_context: tuple[ComponentSpec, ...] = field(
+        default=(),
+        repr=False,
+        compare=False,
+    )
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -621,6 +668,29 @@ class ArchitectureChassisSpec:
             for role in _ARCHITECTURE_ROLES
         ):
             raise ChassisIdentityError("architecture chassis roles are not typed")
+        if type(self._component_context) is not tuple or any(
+            not isinstance(component, ComponentSpec)
+            for component in self._component_context
+        ):
+            raise ChassisIdentityError(
+                "architecture prospective component context is not typed"
+            )
+        context_ids = tuple(
+            component.identity for component in self._component_context
+        )
+        if len(set(context_ids)) != len(context_ids):
+            raise ChassisIdentityError(
+                "architecture prospective component context must be unique"
+            )
+        role_component_ids = {
+            component.identity
+            for role in _ARCHITECTURE_ROLES
+            for component in getattr(self, role.value).components
+        }
+        if context_ids and not role_component_ids.issubset(context_ids):
+            raise ChassisIdentityError(
+                "architecture prospective context omits a role component"
+            )
         object.__setattr__(
             self,
             "identity",
@@ -682,7 +752,7 @@ class ArchitectureChassisSpec:
                 ),
                 boundary_bindings=boundaries,
             )
-        return cls(**roles)
+        return cls(**roles, _component_context=executable.components)
 
     @property
     def component_identities(self) -> tuple[str, ...]:
@@ -723,6 +793,229 @@ class ArchitectureChassisSpec:
                 }
             )
         return payload
+
+
+def _prospective_dependency_category(
+    dependency: str,
+    *,
+    registry: Mapping[str, Mapping[str, object]],
+) -> str:
+    if dependency.startswith("component:"):
+        component_id = _component_identity(dependency)
+        manifest = registry.get(component_id)
+        if manifest is None:
+            raise ChassisIdentityError(
+                "architecture dependency is not bound to a direct Component manifest"
+            )
+        return "research-domain:" + _component_domain_from_manifest(manifest).value
+    if dependency.startswith("role:"):
+        raw_domain = dependency.removeprefix("role:")
+        raw_domain = {"external_source": "data_source"}.get(raw_domain, raw_domain)
+        try:
+            domain = ResearchLayer(raw_domain)
+        except ValueError as exc:
+            raise ChassisIdentityError(
+                "architecture role dependency is not a ResearchLayer"
+            ) from exc
+        return "research-domain:" + domain.value
+    normalized = _normalize_architecture_semantic_value(dependency)
+    if not isinstance(normalized, str) or not normalized:
+        raise ChassisIdentityError("architecture dependency category is invalid")
+    return normalized
+
+
+def _engine_token_has_prefix(token: str, prefixes: tuple[str, ...]) -> bool:
+    lowered = token.lower()
+    return any(
+        lowered == prefix
+        or lowered.startswith(prefix + "_")
+        or lowered.startswith(prefix + "-")
+        or lowered.startswith(prefix + "@")
+        or (
+            prefix in _ENGINE_LIBRARY_PREFIXES
+            and lowered.startswith(prefix)
+            and len(lowered) > len(prefix)
+            and lowered[len(prefix)].isdigit()
+        )
+        for prefix in prefixes
+    )
+
+
+def _prospective_engine_category(value: str) -> dict[str, CanonicalValue]:
+    stable_value = value.split("+", 1)[0]
+    parts = stable_value.split(":")
+    if len(parts) < 2 or parts[0] != "engine" or not parts[1]:
+        raise ChassisIdentityError("architecture engine contract is malformed")
+    normalized_family = _normalize_architecture_semantic_value(parts[1])
+    if not isinstance(normalized_family, str) or not normalized_family:
+        raise ChassisIdentityError("architecture engine family is malformed")
+    runtime_categories: set[str] = set()
+    semantic_modes: set[str] = set()
+    for token in parts[2:]:
+        if not token:
+            continue
+        runtime_category = next(
+            (
+                category
+                for category, pattern in _ENGINE_RUNTIME_CATEGORIES
+                if pattern.match(token)
+            ),
+            None,
+        )
+        if runtime_category is not None:
+            runtime_categories.add(runtime_category)
+            continue
+        if _engine_token_has_prefix(token, _ENGINE_LIBRARY_PREFIXES):
+            continue
+        if _engine_token_has_prefix(token, _ENGINE_NON_ARCHITECTURAL_PREFIXES):
+            continue
+        normalized_token = _normalize_architecture_semantic_value(token)
+        if not isinstance(normalized_token, str) or not normalized_token:
+            raise ChassisIdentityError("architecture engine mode is malformed")
+        semantic_modes.add(normalized_token)
+    return {
+        "engine_family": normalized_family,
+        "runtime_categories": sorted(runtime_categories),
+        "schema": "architecture_engine_category.v4",
+        "semantic_modes": sorted(semantic_modes),
+    }
+
+
+def _prospective_boundary_category(
+    name: str,
+    value: str,
+) -> CanonicalValue:
+    binding = _ascii("architecture boundary identity", value)
+    if name == "engine_contract":
+        return _prospective_engine_category(binding)
+    namespace = name.removesuffix("_contract")
+    if not binding.startswith(namespace + ":"):
+        raise ChassisIdentityError(
+            f"architecture {namespace} contract is malformed"
+        )
+    normalized = _normalize_architecture_semantic_value(binding)
+    if not isinstance(normalized, str) or not normalized:
+        raise ChassisIdentityError(
+            f"architecture {namespace} category is malformed"
+        )
+    return normalized
+
+
+def prospective_architecture_payload_from_chassis(
+    chassis: ArchitectureChassisSpec,
+) -> dict[str, CanonicalValue]:
+    """Return a prospective semantic-family v4 payload from a typed chassis.
+
+    The legacy v2 payload and ``ArchitectureChassisSpec.identity`` remain exact
+    and immutable for historical reconstruction.  This additive payload is the
+    coarse scheduler/review family: it retains role topology, causal semantics,
+    and runtime categories while excluding implementation and experiment
+    bookkeeping that remains bound at Component and Executable identity.
+
+    A stored ``architecture_chassis.v2`` payload alone is insufficient because
+    it contains surface identities, not the complete Component manifests needed
+    to resolve dependency-domain topology.  Only a chassis derived from an exact
+    ``ExecutableSpec`` carries that prospective context; a reconstructed v2-only
+    chassis fails closed here and keeps its historical identity unchanged.
+    """
+
+    if not isinstance(chassis, ArchitectureChassisSpec):
+        raise ChassisIdentityError(
+            "prospective architecture value must be an ArchitectureChassisSpec"
+        )
+    if not chassis._component_context:
+        raise ChassisIdentityError(
+            "stored v2 architecture lacks prospective Component manifests"
+        )
+    manifests = tuple(
+        component.to_identity_payload()
+        for component in chassis._component_context
+    )
+    registry = _manifest_registry(manifests)
+    roles: dict[str, CanonicalValue] = {}
+    for role in _ARCHITECTURE_ROLES:
+        role_spec = getattr(chassis, role.value)
+        surfaces: list[str] = []
+        for component in role_spec.components:
+            manifest = component.to_identity_payload()
+            raw_dependencies = manifest.get("semantic_dependencies")
+            if not isinstance(raw_dependencies, list):
+                raise ChassisIdentityError(
+                    "architecture component dependencies are malformed"
+                )
+            dependencies = tuple(
+                _prospective_dependency_category(
+                    _ascii("architecture semantic dependency", dependency),
+                    registry=registry,
+                )
+                for dependency in raw_dependencies
+            )
+            try:
+                surfaces.append(
+                    _core_architecture_family_surface(
+                        manifest,
+                        role=role.value,
+                        semantic_dependencies=dependencies,
+                    )
+                )
+            except (ComponentManifestError, ComponentOutsideArchitectureError) as exc:
+                raise ChassisIdentityError(str(exc)) from exc
+        roles[role.value] = {
+            "absence": "none" if not surfaces else None,
+            "boundary_categories": {
+                name: _prospective_boundary_category(name, value)
+                for name, value in role_spec.boundary_bindings
+            },
+            "component_family_surfaces": sorted(surfaces),
+            "parameter_fields": sorted(
+                name for name, _ in role_spec.parameter_bindings
+            ),
+            "role": role.value,
+            "schema": "architecture_role_semantic.v4",
+        }
+    return {
+        "roles": roles,
+        "schema": "architecture_chassis_semantic.v4",
+    }
+
+
+def prospective_architecture_payload(
+    executable: ExecutableSpec,
+) -> dict[str, CanonicalValue]:
+    """Derive a typed chassis, then return its prospective v4 payload."""
+
+    if not isinstance(executable, ExecutableSpec):
+        raise ChassisIdentityError(
+            "prospective architecture baseline must be an ExecutableSpec"
+        )
+    return prospective_architecture_payload_from_chassis(
+        ArchitectureChassisSpec.from_executable(executable)
+    )
+
+
+def prospective_architecture_family_identity_from_chassis(
+    chassis: ArchitectureChassisSpec,
+) -> str:
+    """Return one additive v4 family from a context-complete chassis."""
+
+    return "architecture-family:" + canonical_digest(
+        domain="architecture-chassis-semantic-v4",
+        payload=prospective_architecture_payload_from_chassis(chassis),
+    )
+
+
+def prospective_architecture_family_identity(
+    executable: ExecutableSpec,
+) -> str:
+    """Derive a typed chassis, then return its additive v4 family."""
+
+    if not isinstance(executable, ExecutableSpec):
+        raise ChassisIdentityError(
+            "prospective architecture baseline must be an ExecutableSpec"
+        )
+    return prospective_architecture_family_identity_from_chassis(
+        ArchitectureChassisSpec.from_executable(executable)
+    )
 
 
 def normalize_architecture_payload(
@@ -1791,6 +2084,10 @@ __all__ = [
     "component_semantic_surface_identity",
     "executable_semantic_surface_identity",
     "normalize_architecture_payload",
+    "prospective_architecture_family_identity",
+    "prospective_architecture_family_identity_from_chassis",
+    "prospective_architecture_payload",
+    "prospective_architecture_payload_from_chassis",
     "require_combinable_chassis",
     "validate_controlled_executable",
 ]

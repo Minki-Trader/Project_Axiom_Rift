@@ -653,6 +653,17 @@ class ControlNextActionTests(unittest.TestCase):
                 "src/axiom_rift/operations/external_dependency.py",
                 "src/axiom_rift/operations/job_completion_projection.py",
                 "src/axiom_rift/operations/writer.py",
+                "src/axiom_rift/operations/writer_historical_replay.py",
+                "src/axiom_rift/operations/writer_holdout.py",
+                "src/axiom_rift/operations/writer_job_admission.py",
+                "src/axiom_rift/operations/writer_job_execution.py",
+                "src/axiom_rift/operations/writer_lifecycle.py",
+                "src/axiom_rift/operations/writer_portfolio_decision.py",
+                "src/axiom_rift/operations/writer_portfolio_withdrawal.py",
+                "src/axiom_rift/operations/writer_repair.py",
+                "src/axiom_rift/operations/writer_source_authority.py",
+                "src/axiom_rift/operations/writer_study_admission.py",
+                "src/axiom_rift/operations/writer_study_diagnosis.py",
             )
         )
         missing = [

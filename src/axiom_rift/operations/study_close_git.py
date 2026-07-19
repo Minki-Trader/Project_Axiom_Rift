@@ -374,6 +374,7 @@ def _matching_origin_attempt(
     checkpoint_digest: str,
     target_commit: str,
     attempt_main_head: str,
+    allow_descendant_main_head: bool = False,
 ) -> bool:
     try:
         content = _origin_attempt_path(root).read_bytes()
@@ -402,17 +403,35 @@ def _matching_origin_attempt(
     if not isinstance(value, dict) or set(value) != expected:
         return False
     receipt = value.pop("receipt_sha256")
+    recorded_main_head = value.get("attempt_main_head")
     if (
         value.get("schema") != _ORIGIN_ATTEMPT_SCHEMA
         or value.get("remote_ref") != _ORIGIN_REMOTE_REF
         or value.get("checkpoint_digest") != checkpoint_digest
         or value.get("target_commit") != target_commit
-        or value.get("attempt_main_head") != attempt_main_head
         or value.get("outcome") not in {"delivered", "delivery_debt"}
         or type(value.get("push_returncode")) is not int
         or type(value.get("fetch_returncode")) is not int
     ):
         return False
+    try:
+        _commit_identity(recorded_main_head, "origin receipt main head")
+    except _AuditCacheStale:
+        return False
+    if recorded_main_head != attempt_main_head:
+        if not allow_descendant_main_head:
+            return False
+        try:
+            if not _ancestor(root, str(recorded_main_head), attempt_main_head):
+                return False
+        except (OSError, subprocess.CalledProcessError):
+            return False
+    if target_commit != recorded_main_head:
+        try:
+            if not _ancestor(root, target_commit, str(recorded_main_head)):
+                return False
+        except (OSError, subprocess.CalledProcessError):
+            return False
     for key in (
         "fetch_stderr_sha256",
         "fetch_stdout_sha256",
@@ -426,6 +445,99 @@ def _matching_origin_attempt(
     return (
         type(receipt) is str
         and receipt == sha256(canonical_bytes(value)).hexdigest()
+    )
+
+
+@lru_cache(maxsize=64)
+def _origin_delivery_checkpoint_target(
+    root: Path,
+    checkpoint: StudyCloseDeliveryCheckpoint,
+    checkpoint_commit: str,
+) -> tuple[str, str]:
+    """Resolve the newest checkpoint that actually introduced a close.
+
+    Maintenance and no-close checkpoints are authenticated local authority but
+    do not create another network-delivery obligation.  Walk their exact
+    predecessor chain until the close-producing (or initial) checkpoint is
+    reached, so a later ordinary commit cannot manufacture another push.
+    """
+
+    current = checkpoint
+    current_commit = checkpoint_commit
+    visited: set[str] = set()
+    while (
+        current.last_study_close_event_id is None
+        and current.previous_checkpoint_commit is not None
+        and current.previous_checkpoint_digest is not None
+    ):
+        previous_commit = current.previous_checkpoint_commit
+        if previous_commit in visited:
+            raise StudyCloseDeliveryError(
+                "Study-close checkpoint predecessor chain contains a cycle"
+            )
+        visited.add(previous_commit)
+        if not _ancestor(root, previous_commit, current_commit):
+            raise StudyCloseDeliveryError(
+                "Study-close checkpoint predecessor is not an ancestor"
+            )
+        try:
+            previous = StudyCloseDeliveryCheckpoint.from_bytes(
+                _snapshot(root, previous_commit, CHECKPOINT_PATH)
+            )
+        except (StudyCloseCheckpointError, subprocess.CalledProcessError) as exc:
+            raise StudyCloseDeliveryError(
+                "Study-close checkpoint predecessor is unavailable"
+            ) from exc
+        if previous.checkpoint_digest != current.previous_checkpoint_digest:
+            raise StudyCloseDeliveryError(
+                "Study-close checkpoint predecessor digest differs"
+            )
+        current = previous
+        current_commit = previous_commit
+    return current.checkpoint_digest, current_commit
+
+
+def _has_retained_origin_attempt(
+    root: Path,
+    *,
+    checkpoint: StudyCloseDeliveryCheckpoint,
+    checkpoint_commit: str,
+    main_head: str,
+) -> bool:
+    candidates = [(checkpoint.checkpoint_digest, checkpoint_commit)]
+    if (
+        checkpoint.last_study_close_event_id is None
+        and checkpoint.previous_checkpoint_digest is not None
+        and checkpoint.previous_checkpoint_commit is not None
+    ):
+        candidates.append(
+            (
+                checkpoint.previous_checkpoint_digest,
+                checkpoint.previous_checkpoint_commit,
+            )
+        )
+    for digest, commit in candidates:
+        if _matching_origin_attempt(
+            root,
+            checkpoint_digest=digest,
+            target_commit=commit,
+            attempt_main_head=main_head,
+            allow_descendant_main_head=True,
+        ):
+            return True
+    delivery_digest, delivery_commit = _origin_delivery_checkpoint_target(
+        root,
+        checkpoint,
+        checkpoint_commit,
+    )
+    if (delivery_digest, delivery_commit) in candidates:
+        return False
+    return _matching_origin_attempt(
+        root,
+        checkpoint_digest=delivery_digest,
+        target_commit=delivery_commit,
+        attempt_main_head=main_head,
+        allow_descendant_main_head=True,
     )
 
 
@@ -506,6 +618,46 @@ def _ensure_origin_delivery_observed(
         # The bounded attempt already occurred. A later process safely retries
         # if the non-authoritative local receipt could not be retained.
         pass
+
+
+def attempt_study_close_origin_delivery(
+    repository_root: str | Path,
+    *,
+    capability: StudyCloseGuardCapability | None = None,
+) -> None:
+    """Perform the explicit bounded network delivery action.
+
+    Routine scientific preflights call ``require_all_study_close_deliveries``
+    instead.  That guard only authenticates this action's local receipt and
+    never fetches, pushes, or writes local state.
+    """
+
+    root = Path(repository_root).resolve()
+    if not _require_git_repository(root, capability=capability):
+        return
+    checkpoint, checkpoint_commit, main_head = (
+        _inspect_tracked_study_close_delivery(root)
+    )
+    delivery_digest, delivery_commit = _origin_delivery_checkpoint_target(
+        root,
+        checkpoint,
+        checkpoint_commit,
+    )
+    _ensure_origin_delivery_observed(
+        str(root),
+        main_head,
+        delivery_digest,
+        delivery_commit,
+    )
+    if not _matching_origin_attempt(
+        root,
+        checkpoint_digest=delivery_digest,
+        target_commit=delivery_commit,
+        attempt_main_head=main_head,
+    ):
+        raise StudyCloseDeliveryError(
+            "explicit Study-close origin delivery attempt was not retained"
+        )
 
 
 def _snapshot(root: Path, commit: str, path: str) -> bytes:
@@ -3243,12 +3395,16 @@ def require_all_study_close_deliveries(
         checkpoint, checkpoint_commit, main_head = (
             _inspect_tracked_study_close_delivery(root)
         )
-        _ensure_origin_delivery_observed(
-            str(root),
-            main_head,
-            checkpoint.checkpoint_digest,
-            checkpoint_commit,
-        )
+        if not _has_retained_origin_attempt(
+            root,
+            checkpoint=checkpoint,
+            checkpoint_commit=checkpoint_commit,
+            main_head=main_head,
+        ):
+            raise StudyCloseDeliveryError(
+                "explicit Study-close origin delivery attempt is absent; "
+                "run the delivery action before scientific mutation"
+            )
         return
     if _head_checkpoint(root) is not None:
         raise StudyCloseDeliveryError(
@@ -3262,12 +3418,16 @@ def require_all_study_close_deliveries(
     # tracked checkpoint. Once activated, the ignored cache is never authority.
     cached = _load_audit_cache(root)
     if cached is None:
-        audit_all_study_close_deliveries(root)
-        return
+        raise StudyCloseDeliveryError(
+            "legacy Study-close delivery cache is absent; run explicit full "
+            "maintenance"
+        )
     body, cursor = cached
     if body["repair_manifest_digest"] != _repair_manifest_digest(root):
-        audit_all_study_close_deliveries(root)
-        return
+        raise StudyCloseDeliveryError(
+            "legacy Study-close repair authority changed; run explicit full "
+            "maintenance"
+        )
     main_head = str(_git(root, "rev-parse", "main"))
     cached_main = body["main_head"]
     if cached_main != main_head and not _ancestor(root, cached_main, main_head):
@@ -3276,9 +3436,10 @@ def require_all_study_close_deliveries(
         )
     try:
         suffix_events, next_cursor = _scan_journal_suffix(root, cursor)
-    except _AuditCacheStale:
-        audit_all_study_close_deliveries(root)
-        return
+    except _AuditCacheStale as exc:
+        raise StudyCloseDeliveryError(
+            "legacy Study-close cache is stale; run explicit full maintenance"
+        ) from exc
     new_closes = _prospective_closes(suffix_events)
     trailer_commits = (
         _trailer_commits(root, f"{cached_main}..{main_head}")
@@ -3306,16 +3467,9 @@ def require_all_study_close_deliveries(
             close_chain_digest, close_event_id, close_revision
         )
         close_count += 1
-    _best_effort_write_cache(
-        root,
-        _cache_body(
-            main_head=main_head,
-            repair_manifest_digest=body["repair_manifest_digest"],
-            cursor=next_cursor,
-            close_count=close_count,
-            close_chain_digest=close_chain_digest,
-        ),
-    )
+    # This compatibility verification is intentionally read-only.  Advancing
+    # the rebuildable cache belongs to the explicit maintenance command.
+    _ = (next_cursor, close_count, close_chain_digest)
 
 
 __all__ = [
@@ -3325,6 +3479,7 @@ __all__ = [
     "StudyCloseCheckpointPlan",
     "StudyCloseDeliveryError",
     "StudyCloseGuardCapability",
+    "attempt_study_close_origin_delivery",
     "audit_all_study_close_deliveries",
     "check_study_close_delivery_checkpoint",
     "check_study_close_delivery_checkpoint_maintenance",

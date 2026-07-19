@@ -111,6 +111,13 @@ to evade the duplicate-family guard. An accepted but unstarted structural
 misclassification is withdrawn only by its evidence-bound additive Writer
 transition before the corrected classification is admitted.
 
+At every replay-constrained Portfolio Decision, retain at least one unchosen
+structural option on a different axis whose primary research layer differs or
+whose verified prospective semantic architecture family differs. Two labels,
+actions, or implementation builds over the same layer and semantic chassis are
+not a forest alternative. This is an option-quality invariant, not a rigid
+consecutive-run or calendar rotation quota.
+
 Treat a replay runner operation prefix as one-shot after its exact `open-study`
 operation binds a natural Study. A later request naming another Study receives
 only the recorded owner handoff and cannot execute a stage. Resume the bound
@@ -122,6 +129,13 @@ Every axis declares one immutable primary `ResearchLayer`, one stable
 and a stop or reopen condition. A non-synthesis axis changes exactly its one
 primary layer. Synthesis or Portfolio axes may change multiple domains but must
 say so explicitly.
+
+Preserve every historical chassis and Executable identity byte-for-byte. For
+new scheduling and architecture-review grouping, also derive the prospective
+semantic architecture family from role topology, causal boundary semantics,
+and runtime category. Implementation hashes, build or library versions, seeds,
+and protocol release suffixes remain exact Executable identity but cannot make
+one semantic design look like several architecture families.
 
 The initial intake-bound Portfolio preregisters evidence-bound exhaustion and
 architecture-review thresholds. It must be diverse in mechanism family,
@@ -396,6 +410,13 @@ source failure carries no scientific verdict. Use component-aware evidence to
 preserve partial positives and exact contradicted claims instead of collapsing
 the whole Executable into one universal negative.
 
+The registered control contrast is the primary causal gate. If it is
+contradicted or unresolved, supported economics, activity, stability, or other
+component claims cannot produce `supported_requires_confirmation`. A v2
+claim-scoped confirmation must explicitly list the registered control contrast
+as supported; the Writer rejects inconsistent caller-authored diagnoses before
+they become durable.
+
 When an audit creates a replay duty, operate its typed P0 or P1
 ReplayObligation through pending, in_progress, satisfied, or deferred state.
 Bind the exact original Study, adjudication, Executable, criteria, and evidence
@@ -406,6 +427,12 @@ Bind the exact original Study, adjudication, Executable, criteria, and evidence
   defer condition and exact resume condition. P0 blocks the affected credit. P1
   gets the highest-information-value bounded opportunity without freezing
   unrelated valid forest work.
+
+Audit completeness does not by itself justify serial replay monopoly. Close a
+bounded audit or replay action once its exact correctness obligation and resume
+condition are recorded; keep unrelated performance, refactor, or historical
+polish debt visible but nonblocking unless it invalidates the current decision
+basis.
 
 When one exact concurrent family covers more than one pending replay subject,
 select the bounded obligation subset once and bind a canonical member assignment:
@@ -486,7 +513,7 @@ confirmation credit to either axis.
 ## Architecture Review
 
 When preregistered repeated gaps or negatives accumulate across enough Studies
-and distinct axes under one architecture family, the writer emits
+and distinct axes under one prospective semantic architecture family, the writer emits
 `review_architecture`. No Initiative close, Portfolio Decision, Study, Batch,
 or Job may bypass it.
 

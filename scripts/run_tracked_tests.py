@@ -28,6 +28,17 @@ from axiom_rift.core.canonical import (  # noqa: E402
     canonical_bytes,
     parse_canonical,
 )
+from axiom_rift.operations.focused_test_snapshot import (  # noqa: E402
+    FOCUSED_PROTECTED_DEVELOPMENT,
+    FOCUSED_TEST_EVIDENCE,
+    bound_entries as bind_focused_entries,
+    dependency_paths as focused_dependency_paths,
+    directory_identity,
+    normalized_entries as normalized_focused_entries,
+    normalized_source_tree,
+    selected_test_declarations,
+    tree_inventory,
+)
 from axiom_rift.storage.atomic_file import (  # noqa: E402
     AtomicFileError,
     publish_stable_regular_file_if_changed,
@@ -437,54 +448,6 @@ def _head_authority_transition_plan(
     }
 
 
-def _tree_test_blob_ids(
-    root: Path,
-    index_tree: str,
-    paths: Sequence[str],
-) -> tuple[str, ...]:
-    """Resolve test blob identities with one tree read, not one Git process each."""
-
-    requested = tuple(paths)
-    if len(requested) != len(set(requested)):
-        raise RuntimeError("tracked test paths are not unique")
-    entries: dict[str, str] = {}
-    for row in _git(
-        root,
-        "ls-tree",
-        "-r",
-        "-z",
-        index_tree,
-        "--",
-        "tests",
-    ).split(b"\0"):
-        if not row:
-            continue
-        header, separator, raw_path = row.partition(b"\t")
-        fields = header.split()
-        decoded = _paths(raw_path + b"\0")
-        if (
-            not separator
-            or len(fields) != 3
-            or fields[0] not in {b"100644", b"100755"}
-            or fields[1] != b"blob"
-            or len(decoded) != 1
-        ):
-            raise RuntimeError("frozen test tree contains a malformed entry")
-        path = decoded[0]
-        blob = fields[2].decode("ascii")
-        if path in entries or not blob or any(
-            character not in "0123456789abcdef" for character in blob
-        ):
-            raise RuntimeError("frozen test tree blob identity is malformed")
-        entries[path] = blob
-    missing = sorted(set(requested).difference(entries))
-    if missing:
-        raise RuntimeError(
-            "frozen test tree blobs are unavailable: " + ", ".join(missing)
-        )
-    return tuple(entries[path] for path in requested)
-
-
 def _batch_blob_contents(
     root: Path,
     blob_ids: Sequence[str],
@@ -779,20 +742,35 @@ def _foundation_scalar(raw_value: str) -> str:
     return value
 
 
+def _no_protected_development_inputs() -> dict[str, object]:
+    return {
+        "authority": "none",
+        "input_count": 0,
+        "inputs": [],
+        "schema": "protected_development_inputs.v2",
+        "scientific_or_claim_authority": False,
+        "test_execution_prerequisite_only": True,
+    }
+
+
+def _no_test_evidence_inputs() -> dict[str, object]:
+    return {
+        "authority": "none",
+        "input_count": 0,
+        "inputs": [],
+        "schema": "tracked_test_evidence_inputs.v1",
+        "scientific_or_claim_authority": False,
+        "test_execution_prerequisite_only": True,
+    }
+
+
 def _protected_development_input_plan(
     root: Path, *, index_tree: str, tracked_paths: set[str]
 ) -> dict[str, object]:
     """Bind only Foundation-declared protected development test prerequisites."""
 
     if _FOUNDATION_DATA_PATH not in tracked_paths:
-        return {
-            "authority": "none",
-            "input_count": 0,
-            "inputs": [],
-            "schema": "protected_development_inputs.v2",
-            "scientific_or_claim_authority": False,
-            "test_execution_prerequisite_only": True,
-        }
+        return _no_protected_development_inputs()
     content = _tree_blob(root, index_tree, _FOUNDATION_DATA_PATH)
     try:
         text = content.decode("ascii")
@@ -916,14 +894,7 @@ def _test_evidence_input_plan(
     """Bind the exact small local evidence set required by tracked tests."""
 
     if _TEST_EVIDENCE_MANIFEST_PATH not in tracked_paths:
-        return {
-            "authority": "none",
-            "input_count": 0,
-            "inputs": [],
-            "schema": "tracked_test_evidence_inputs.v1",
-            "scientific_or_claim_authority": False,
-            "test_execution_prerequisite_only": True,
-        }
+        return _no_test_evidence_inputs()
     content = _tree_blob(root, index_tree, _TEST_EVIDENCE_MANIFEST_PATH)
     try:
         text = content.decode("ascii")
@@ -1220,7 +1191,10 @@ def _manifest(
         raise RuntimeError("tracked-test root differs from the Git repository root")
     head = _git(root, "rev-parse", "HEAD").decode("ascii").strip()
     index_tree = _git(root, "write-tree").decode("ascii").strip()
-    tracked_paths = set(_tree_paths(root, index_tree))
+    inventory = tree_inventory(
+        _git(root, "ls-tree", "-r", "-z", index_tree)
+    )
+    tracked_paths = set(inventory)
     tracked = tuple(
         path
         for path in sorted(tracked_paths)
@@ -1289,11 +1263,14 @@ def _manifest(
         sorted({value.split("::", 1)[0] for value in selected})
     )
     for path in selected_files:
+        entry = inventory.get(path)
+        if entry is None or entry.get("mode") not in {"100644", "100755"}:
+            raise RuntimeError(f"selected tracked test is not regular: {path}")
         try:
             (root / Path(path)).read_bytes()
         except OSError as exc:
             raise RuntimeError(f"selected tracked test is unavailable: {path}") from exc
-    selected_blobs = _tree_test_blob_ids(root, index_tree, selected_files)
+    selected_blobs = tuple(inventory[path]["blob"] for path in selected_files)
     selected_worktree_blobs = _worktree_blob_ids(root, selected_files)
     for path, blob, worktree_blob in zip(
         selected_files,
@@ -1306,24 +1283,116 @@ def _manifest(
                 "selected tracked test worktree bytes differ from the Git "
                 "index blob: " + path
             )
-    blobs = _tree_test_blob_ids(root, index_tree, tracked)
-    contents = _batch_blob_contents(root, blobs)
-    entries: list[dict[str, str]] = []
-    for path, blob, content in zip(
-        tracked,
-        blobs,
-        contents,
-        strict=True,
-    ):
-        entries.append(
-            {"blob": blob, "path": path, "sha256": sha256(content).hexdigest()}
+
+    focused_roles: tuple[str, ...] = ()
+    declared_dependencies: tuple[str, ...] = ()
+    focused_dependency_entries: tuple[dict[str, str], ...] = ()
+    focused_source_tree: dict[str, object] = {
+        "authority": "none",
+        "path_count": 0,
+    }
+    if focused:
+        unique_selected_blobs = tuple(dict.fromkeys(selected_blobs))
+        unique_selected_contents = _batch_blob_contents(
+            root, unique_selected_blobs
         )
-    protected_inputs = _protected_development_input_plan(
-        root, index_tree=index_tree, tracked_paths=tracked_paths
+        content_by_blob = dict(
+            zip(unique_selected_blobs, unique_selected_contents, strict=True)
+        )
+        focused_roles, declared_dependencies = selected_test_declarations(
+            {
+                path: content_by_blob[blob]
+                for path, blob in zip(
+                    selected_files, selected_blobs, strict=True
+                )
+            },
+            inventory=inventory,
+        )
+        declared = set(declared_dependencies)
+        if FOCUSED_PROTECTED_DEVELOPMENT in focused_roles:
+            declared.add(_FOUNDATION_DATA_PATH)
+        if FOCUSED_TEST_EVIDENCE in focused_roles:
+            declared.add(_TEST_EVIDENCE_MANIFEST_PATH)
+        dependency_paths = focused_dependency_paths(
+            inventory=inventory,
+            selected_files=selected_files,
+            declared_dependencies=tuple(sorted(declared)),
+        )
+        focused_dependency_entries = bind_focused_entries(
+            inventory=inventory,
+            paths=dependency_paths,
+            read_blobs=lambda blobs: _batch_blob_contents(root, blobs),
+        )
+        source_path_count = sum(
+            path.startswith("src/")
+            and entry.get("mode") in {"100644", "100755"}
+            for path, entry in inventory.items()
+        )
+        if source_path_count:
+            focused_source_tree = {
+                "authority": "git_index_subtree",
+                "path": "src",
+                "path_count": source_path_count,
+                "tree": directory_identity(
+                    _git(root, "ls-tree", "-z", index_tree, "--", "src"),
+                    expected_path="src",
+                ),
+            }
+        test_entry_paths = selected_files
+    else:
+        test_entry_paths = tracked
+
+    frozen_test_entries = bind_focused_entries(
+        inventory=inventory,
+        paths=test_entry_paths,
+        read_blobs=lambda blobs: _batch_blob_contents(root, blobs),
     )
-    test_evidence_inputs = _test_evidence_input_plan(
-        root, index_tree=index_tree, tracked_paths=tracked_paths
+    entries = [
+        {
+            "blob": entry["blob"],
+            "path": entry["path"],
+            "sha256": entry["sha256"],
+        }
+        for entry in frozen_test_entries
+    ]
+
+    protected_inputs = (
+        _protected_development_input_plan(
+            root, index_tree=index_tree, tracked_paths=tracked_paths
+        )
+        if not focused or FOCUSED_PROTECTED_DEVELOPMENT in focused_roles
+        else _no_protected_development_inputs()
     )
+    test_evidence_inputs = (
+        _test_evidence_input_plan(
+            root, index_tree=index_tree, tracked_paths=tracked_paths
+        )
+        if not focused or FOCUSED_TEST_EVIDENCE in focused_roles
+        else _no_test_evidence_inputs()
+    )
+
+    full_snapshot_required = (
+        not focused
+        or rebuild_runtime_projection
+        or rebuild_runtime_projection_from_head_authority
+    )
+    if full_snapshot_required:
+        sandbox_snapshot = {
+            "mode": "full_git_index_tree",
+            "path_count": len(inventory),
+            "source_index_tree": index_tree,
+            "tree": index_tree,
+        }
+    else:
+        focused_path_count = (
+            len(focused_dependency_entries)
+            + int(focused_source_tree["path_count"])
+        )
+        sandbox_snapshot = {
+            "mode": "focused_dependency_tree",
+            "path_count": focused_path_count,
+            "source_index_tree": index_tree,
+        }
     python_runtime, runtime_paths = _python_runtime()
     body: dict[str, object] = {
         "execution_mode": "isolated_git_index_tree",
@@ -1332,14 +1401,26 @@ def _manifest(
         "execution_timeout_seconds": execution_timeout_seconds,
         "git_head": head,
         "git_index_tree": index_tree,
+        "focused_dependencies": list(focused_dependency_entries),
+        "focused_dependency_count": (
+            len(focused_dependency_entries)
+            + int(focused_source_tree["path_count"])
+        ),
+        "focused_source_tree": focused_source_tree,
         "protected_development_inputs": protected_inputs,
         "pytest_args": list(pytest_args),
         "python_runtime": python_runtime,
         "runtime_projection": runtime_projection,
+        "sandbox_snapshot": sandbox_snapshot,
         "sandbox_origin_policy": "detached_no_remote_no_push",
-        "schema": "tracked_pytest_manifest.v3",
+        "schema": "tracked_pytest_manifest.v4",
         "selection": {
-            "authority": "subset_of_frozen_git_index_test_manifest",
+            "authority": (
+                "exact_selected_tests_indexed_src_and_declared_dependencies"
+                if focused
+                else "complete_frozen_git_index_test_manifest"
+            ),
+            "declared_input_roles": list(focused_roles),
             "mode": "focused" if focused else "all_tracked",
             "selected_tracked_file_count": len(
                 {value.split("::", 1)[0] for value in selected}
@@ -1962,13 +2043,9 @@ def _verify_independent_git_metadata(sandbox: Path, source_root: Path) -> None:
                 raise RuntimeError("isolated Git metadata exposes the source repository path")
 
 
-def _checkout_independent_index_tree(
-    root: Path, sandbox: Path, *, index_tree: str
-) -> None:
-    # Fail before materialization if the frozen tree contains links or other
-    # non-regular entries.  The returned modes remain encoded in the tree and
-    # are loaded directly into the independent index below.
-    _regular_tree_modes(root, index_tree)
+def _initialize_independent_repository(
+    root: Path, sandbox: Path
+) -> str:
     object_format = (
         _git(root, "rev-parse", "--show-object-format").decode("ascii").strip()
     )
@@ -1991,22 +2068,30 @@ def _checkout_independent_index_tree(
         f"--object-format={object_format}",
         "--template=",
     )
+    return object_format
 
-    # Transfer only the frozen index tree and its reachable blobs.  A shared
-    # clone followed by deleting .git and re-adding the whole worktree hashed
-    # every large journal/data fixture twice on every focused run.  The pack is
-    # self-contained: no alternate, remote, source path, or history is retained.
+
+def _transfer_git_objects(
+    root: Path, sandbox: Path, objects: Sequence[str]
+) -> None:
+    requested = tuple(dict.fromkeys(objects))
+    if not requested or any(
+        len(value) not in {40, 64}
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in requested
+    ):
+        raise RuntimeError("frozen snapshot object set is empty or invalid")
     packed = subprocess.run(
-        ("git", "pack-objects", "--stdout", "--revs"),
+        ("git", "pack-objects", "--compression=0", "--stdout", "--revs"),
         cwd=root,
         env=_isolated_git_environment(),
-        input=f"{index_tree}\n".encode("ascii"),
+        input=b"".join(value.encode("ascii") + b"\n" for value in requested),
         check=True,
         capture_output=True,
         timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     ).stdout
     if not packed:
-        raise RuntimeError("frozen index tree object pack is empty")
+        raise RuntimeError("frozen snapshot object pack is empty")
     subprocess.run(
         ("git", "index-pack", "--stdin", "--strict"),
         cwd=sandbox,
@@ -2016,10 +2101,13 @@ def _checkout_independent_index_tree(
         capture_output=True,
         timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     )
-    _isolated_git(sandbox, "read-tree", index_tree)
-    _isolated_git(sandbox, "checkout-index", "--all", "--force")
+
+
+def _finalize_independent_snapshot(
+    root: Path, sandbox: Path, *, tree: str
+) -> None:
     observed_tree = _isolated_git(sandbox, "write-tree").decode("ascii").strip()
-    if observed_tree != index_tree:
+    if observed_tree != tree:
         raise RuntimeError("isolated pytest index tree differs")
     commit_environment = _isolated_git_environment()
     commit_environment.update(
@@ -2031,7 +2119,7 @@ def _checkout_independent_index_tree(
         }
     )
     commit = subprocess.run(
-        ("git", "commit-tree", index_tree),
+        ("git", "commit-tree", tree),
         cwd=sandbox,
         env=commit_environment,
         input=b"Isolated tracked-test snapshot\n",
@@ -2045,16 +2133,88 @@ def _checkout_independent_index_tree(
     committed_tree = (
         _isolated_git(sandbox, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
     )
-    if committed_tree != index_tree:
+    if committed_tree != tree:
         raise RuntimeError("independent Git commit tree differs")
     _isolated_git(sandbox, "config", "core.hooksPath", ".githooks")
     _verify_independent_git_metadata(sandbox, root)
+
+
+def _checkout_independent_index_tree(
+    root: Path, sandbox: Path, *, index_tree: str
+) -> None:
+    # Fail before materialization if the frozen tree contains links or other
+    # non-regular entries.  The returned modes remain encoded in the tree and
+    # are loaded directly into the independent index below.
+    _regular_tree_modes(root, index_tree)
+    _initialize_independent_repository(root, sandbox)
+
+    # Full-suite and explicit-recovery runs retain the complete index tree.
+    # The pack is self-contained: no alternate, remote, source path, or history
+    # is retained.
+    _transfer_git_objects(root, sandbox, (index_tree,))
+    _isolated_git(sandbox, "read-tree", index_tree)
+    _isolated_git(sandbox, "checkout-index", "--all", "--force")
+    _finalize_independent_snapshot(root, sandbox, tree=index_tree)
+
+
+def _checkout_independent_focused_tree(
+    root: Path,
+    sandbox: Path,
+    *,
+    entries: Sequence[Mapping[str, str]],
+    source_tree: Mapping[str, object],
+) -> None:
+    """Create a standalone Git snapshot from only the bound focused closure."""
+
+    normalized = normalized_focused_entries(entries)
+    source = normalized_source_tree(source_tree)
+
+    _initialize_independent_repository(root, sandbox)
+    unique_blobs = tuple(dict.fromkeys(entry["blob"] for entry in normalized))
+    transfer_objects = (
+        *((str(source["tree"]),) if source["authority"] != "none" else ()),
+        *unique_blobs,
+    )
+    _transfer_git_objects(root, sandbox, transfer_objects)
+    if source["authority"] != "none":
+        _isolated_git(
+            sandbox,
+            "read-tree",
+            "--prefix=src/",
+            str(source["tree"]),
+        )
+    index_info = b"".join(
+        entry["mode"].encode("ascii")
+        + b" "
+        + entry["blob"].encode("ascii")
+        + b"\t"
+        + entry["path"].encode("ascii")
+        + b"\n"
+        for entry in normalized
+    )
+    subprocess.run(
+        ("git", "update-index", "--index-info"),
+        cwd=sandbox,
+        env=_isolated_git_environment(),
+        input=index_info,
+        check=True,
+        capture_output=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    observed_tree = _isolated_git(sandbox, "write-tree").decode("ascii").strip()
+    if not observed_tree:
+        raise RuntimeError("focused snapshot materialized tree is absent")
+    _isolated_git(sandbox, "checkout-index", "--all", "--force")
+    _finalize_independent_snapshot(root, sandbox, tree=observed_tree)
 
 
 def _run_isolated_pytest(
     root: Path,
     *,
     index_tree: str,
+    sandbox_snapshot: Mapping[str, object],
+    focused_dependencies: Sequence[Mapping[str, str]],
+    focused_source_tree: Mapping[str, object],
     tracked: Sequence[str],
     pytest_args: Sequence[str],
     execution_timeout_seconds: int,
@@ -2080,7 +2240,29 @@ def _run_isolated_pytest(
         runtime_root = isolation_root / "runtime"
         if root == isolation_root or root in isolation_root.parents:
             raise RuntimeError("isolated pytest sandbox remains under the source repository")
-        _checkout_independent_index_tree(root, sandbox, index_tree=index_tree)
+        if (
+            sandbox_snapshot.get("source_index_tree") != index_tree
+            or type(sandbox_snapshot.get("path_count")) is not int
+        ):
+            raise RuntimeError("isolated pytest sandbox plan is malformed")
+        if sandbox_snapshot.get("mode") == "full_git_index_tree":
+            if sandbox_snapshot.get("tree") != index_tree:
+                raise RuntimeError("full sandbox tree differs from its index authority")
+            _checkout_independent_index_tree(root, sandbox, index_tree=index_tree)
+        elif sandbox_snapshot.get("mode") == "focused_dependency_tree":
+            source = normalized_source_tree(focused_source_tree)
+            if sandbox_snapshot.get("path_count") != (
+                len(focused_dependencies) + int(source["path_count"])
+            ):
+                raise RuntimeError("focused sandbox dependency count differs")
+            _checkout_independent_focused_tree(
+                root,
+                sandbox,
+                entries=focused_dependencies,
+                source_tree=source,
+            )
+        else:
+            raise RuntimeError("isolated pytest sandbox mode is invalid")
         materialized = _materialize_protected_inputs(
             root,
             sandbox,
@@ -2278,6 +2460,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             test_evidence_plan.get("inputs"), list
         ):
             raise RuntimeError("tracked test evidence input plan is malformed")
+        sandbox_snapshot = manifest.get("sandbox_snapshot")
+        focused_dependencies = manifest.get("focused_dependencies")
+        focused_source_tree = manifest.get("focused_source_tree")
+        if not isinstance(sandbox_snapshot, dict) or not isinstance(
+            focused_dependencies, list
+        ) or not isinstance(focused_source_tree, dict):
+            raise RuntimeError("tracked test sandbox plan is malformed")
         protected_inputs = (
             *protected_plan["inputs"],
             *test_evidence_plan["inputs"],
@@ -2325,6 +2514,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_isolated_pytest(
             root,
             index_tree=str(manifest["git_index_tree"]),
+            sandbox_snapshot=sandbox_snapshot,
+            focused_dependencies=focused_dependencies,
+            focused_source_tree=focused_source_tree,
             tracked=tracked,
             pytest_args=pytest_args,
             execution_timeout_seconds=int(
