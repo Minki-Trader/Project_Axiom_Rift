@@ -2,34 +2,42 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from axiom_rift.research.chassis import (
-    ArchitectureChassisSpec,
-    ControlledStudyChassis,
-    ResearchLayer,
-    validate_controlled_executable,
-)
+from axiom_rift.research.chassis import validate_controlled_executable
 from axiom_rift.research.positive_direction_sleeve_chassis import (
     PositiveDirectionSleeveConfiguration,
     positive_direction_sleeve_executable,
 )
 from axiom_rift.research.sleeve_loss_skip_risk_chassis import (
+    INTENT_CALENDAR_POLICY,
     SKIP_NEXT_AFTER_LOSS,
     UNRESTRICTED_CONTROL,
     SleeveLossSkipRiskConfiguration,
     simulate_sleeve_loss_skip_risk,
+    sleeve_loss_skip_risk_controlled_chassis,
     sleeve_loss_skip_risk_executable,
+)
+from axiom_rift.research.sleeve_loss_skip_risk_trace import (
+    preregistered_eligible_intent_rows,
 )
 
 
-def test_control_is_exact_prior_dual_positive_executable() -> None:
+def test_corrected_control_preserves_prior_components_under_new_calendar() -> None:
     prior = positive_direction_sleeve_executable(
         PositiveDirectionSleeveConfiguration("dual_positive_direction_slots")
     )
     control = sleeve_loss_skip_risk_executable(
         SleeveLossSkipRiskConfiguration(UNRESTRICTED_CONTROL)
     )
-    assert control.identity == prior.identity
+    assert control.identity != prior.identity
+    assert control.component_identities == prior.component_identities
+    assert control.parameter_values()["intent_calendar_policy"] == (
+        INTENT_CALENDAR_POLICY
+    )
+    assert control.engine_contract.endswith(
+        "+preregistered-eligible-intent-calendar-v2"
+    )
 
 
 def test_subject_changes_only_risk_and_portfolio_layers() -> None:
@@ -39,23 +47,8 @@ def test_subject_changes_only_risk_and_portfolio_layers() -> None:
     subject = sleeve_loss_skip_risk_executable(
         SleeveLossSkipRiskConfiguration(SKIP_NEXT_AFTER_LOSS)
     )
-    chassis = ControlledStudyChassis(
-        baseline_executable=baseline,
-        changed_domains=(ResearchLayer.PORTFOLIO, ResearchLayer.RISK),
-        controlled_domains=(
-            ResearchLayer.CALIBRATION,
-            ResearchLayer.EXECUTION,
-            ResearchLayer.FEATURE,
-            ResearchLayer.LABEL,
-            ResearchLayer.LIFECYCLE,
-            ResearchLayer.MODEL,
-            ResearchLayer.REGIME,
-            ResearchLayer.SELECTOR,
-            ResearchLayer.SYNTHESIS,
-            ResearchLayer.TRADE,
-        ),
-        architecture=ArchitectureChassisSpec.from_executable(baseline),
-    )
+    chassis = sleeve_loss_skip_risk_controlled_chassis()
+    assert chassis.baseline_executable.identity == baseline.identity
     validate_controlled_executable(chassis.to_identity_payload(), subject)
 
 
@@ -97,3 +90,33 @@ def test_loss_skip_frees_slot_without_reading_skipped_outcome() -> None:
     assert statuses == ["executed", "risk_policy_skipped", "executed"]
     assert result.intent_rows[1][1] == time[23] + pd.Timedelta(minutes=5)
     assert result.intent_rows[2][1] == time[24] + pd.Timedelta(minutes=5)
+
+
+def test_trace_drops_only_noneligible_gap_diagnostics() -> None:
+    eligible = ("2026-01-05",)
+    weekend_gap = (
+        "regime_router",
+        pd.Timestamp("2026-01-03T00:00:00"),
+        pd.Timestamp("2026-01-05T00:00:00"),
+        pd.Timestamp("2026-01-05T01:00:00"),
+        1,
+        "gap_excluded",
+    )
+    eligible_gap = (
+        "regime_router",
+        pd.Timestamp("2026-01-05T00:05:00"),
+        pd.Timestamp("2026-01-05T00:10:00"),
+        pd.Timestamp("2026-01-05T01:10:00"),
+        1,
+        "gap_excluded",
+    )
+    assert preregistered_eligible_intent_rows(
+        (weekend_gap, eligible_gap),
+        eligible_dates=eligible,
+    ) == (eligible_gap,)
+    invalid_executed = (*weekend_gap[:-1], "executed")
+    with pytest.raises(ValueError, match="non-gap intent"):
+        preregistered_eligible_intent_rows(
+            (invalid_executed,),
+            eligible_dates=eligible,
+        )

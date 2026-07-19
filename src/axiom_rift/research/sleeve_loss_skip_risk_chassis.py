@@ -17,6 +17,10 @@ import numpy as np
 import pandas as pd
 
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
+from axiom_rift.research.chassis import (
+    ArchitectureChassisSpec,
+    ControlledStudyChassis,
+)
 from axiom_rift.research.discovery import (
     SimulationResult,
     _time_ns,
@@ -26,6 +30,7 @@ from axiom_rift.research.discovery import (
     empty_trade_frame,
     execution_pnl_breakdown,
 )
+from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.positive_direction_sleeve_chassis import (
     PositiveDirectionSleeveConfiguration,
     positive_direction_sleeve_components,
@@ -35,6 +40,7 @@ from axiom_rift.research.positive_direction_sleeve_chassis import (
 
 UNRESTRICTED_CONTROL = "unrestricted_dual_positive_control"
 SKIP_NEXT_AFTER_LOSS = "skip_next_same_sleeve_after_loss"
+INTENT_CALENDAR_POLICY = "preregistered_eligible_decision_day_only_v2"
 _POLICIES = (UNRESTRICTED_CONTROL, SKIP_NEXT_AFTER_LOSS)
 _FIVE_MINUTES_NS = 5 * 60 * 1_000_000_000
 _THIS_FILE = Path(__file__).resolve()
@@ -66,6 +72,7 @@ class SleeveLossSkipRiskConfiguration:
                 "regime_router": 12,
                 "target_direction": 6,
             },
+            "intent_calendar_policy": INTENT_CALENDAR_POLICY,
             "loss_definition": "accepted_native_net_pnl_below_zero",
             "risk_policy": self.risk_policy,
             "skip_count_per_trigger": 1,
@@ -127,22 +134,55 @@ def sleeve_loss_skip_risk_executable(
     base = positive_direction_sleeve_executable(
         PositiveDirectionSleeveConfiguration("dual_positive_direction_slots")
     )
-    if configuration.risk_policy == UNRESTRICTED_CONTROL:
-        return base
     return ExecutableSpec(
-        display_name="positive sleeves skip next same-sleeve entry after loss",
-        components=sleeve_loss_skip_risk_components(),
+        display_name=(
+            "positive sleeves eligible-day control"
+            if configuration.risk_policy == UNRESTRICTED_CONTROL
+            else "positive sleeves skip next same-sleeve entry after loss"
+        ),
+        components=(
+            base.components
+            if configuration.risk_policy == UNRESTRICTED_CONTROL
+            else sleeve_loss_skip_risk_components()
+        ),
         parameters=configuration.semantic_parameters(),
         data_contract=base.data_contract,
         split_contract=base.split_contract,
         clock_contract=base.clock_contract,
         cost_contract=base.cost_contract,
-        engine_contract=base.engine_contract,
+        engine_contract=(
+            base.engine_contract
+            + "+preregistered-eligible-intent-calendar-v2"
+        ),
+        source_contracts=base.source_contracts,
     )
 
 
 def sleeve_loss_skip_risk_baseline() -> ExecutableSpec:
     return sleeve_loss_skip_risk_executable(sleeve_loss_skip_risk_configurations()[0])
+
+
+def sleeve_loss_skip_risk_controlled_chassis() -> ControlledStudyChassis:
+    """Freeze the exact control and the only layers changed by this mechanism."""
+
+    baseline = sleeve_loss_skip_risk_baseline()
+    return ControlledStudyChassis(
+        baseline_executable=baseline,
+        changed_domains=(ResearchLayer.PORTFOLIO, ResearchLayer.RISK),
+        controlled_domains=(
+            ResearchLayer.CALIBRATION,
+            ResearchLayer.EXECUTION,
+            ResearchLayer.FEATURE,
+            ResearchLayer.LABEL,
+            ResearchLayer.LIFECYCLE,
+            ResearchLayer.MODEL,
+            ResearchLayer.REGIME,
+            ResearchLayer.SELECTOR,
+            ResearchLayer.SYNTHESIS,
+            ResearchLayer.TRADE,
+        ),
+        architecture=ArchitectureChassisSpec.from_executable(baseline),
+    )
 
 
 def executable_configuration_map() -> dict[str, SleeveLossSkipRiskConfiguration]:
@@ -394,6 +434,7 @@ def simulate_sleeve_loss_skip_risk(
 
 
 __all__ = [
+    "INTENT_CALENDAR_POLICY",
     "SKIP_NEXT_AFTER_LOSS",
     "UNRESTRICTED_CONTROL",
     "SleeveLossSkipRiskConfiguration",
@@ -403,5 +444,6 @@ __all__ = [
     "sleeve_loss_skip_risk_chassis_implementation_sha256",
     "sleeve_loss_skip_risk_components",
     "sleeve_loss_skip_risk_configurations",
+    "sleeve_loss_skip_risk_controlled_chassis",
     "sleeve_loss_skip_risk_executable",
 ]

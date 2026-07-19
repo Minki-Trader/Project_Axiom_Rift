@@ -316,6 +316,35 @@ def _intent_rows_sha256(rows: tuple[tuple[Any, ...], ...]) -> str:
     return sha256(canonical_bytes(normalized)).hexdigest()
 
 
+def preregistered_eligible_intent_rows(
+    rows: tuple[tuple[Any, ...], ...],
+    *,
+    eligible_dates: tuple[str, ...],
+) -> tuple[tuple[Any, ...], ...]:
+    """Remove simulator-only gap rows outside the frozen intent calendar."""
+
+    eligible = frozenset(eligible_dates)
+    if not eligible or len(eligible) != len(eligible_dates):
+        raise ValueError("sleeve loss-skip eligible intent calendar is invalid")
+    kept: list[tuple[Any, ...]] = []
+    for row in rows:
+        if len(row) != 6:
+            raise ValueError("sleeve loss-skip intent shape is invalid")
+        _slot, decision, entry, _exit_time, _direction, status = row
+        if pd.Timestamp(decision).date().isoformat() in eligible:
+            kept.append(row)
+            continue
+        if str(status) != "gap_excluded":
+            raise ValueError(
+                "sleeve loss-skip non-gap intent is outside its eligible day"
+            )
+        if pd.Timestamp(entry).date().isoformat() not in eligible:
+            raise ValueError(
+                "sleeve loss-skip excluded gap has no eligible next bar"
+            )
+    return tuple(kept)
+
+
 def _trade_observation(
     row: Mapping[str, Any],
     *,
@@ -504,8 +533,17 @@ def compute_sleeve_loss_skip_risk_trace(
                 ),
                 compared_row_count=compared,
             )
-            left = simulation.intent_rows
-            right = prefix_simulation.intent_rows
+            window = next(
+                item for item in definition.folds if item.fold_id == fold_id
+            )
+            left = preregistered_eligible_intent_rows(
+                simulation.intent_rows,
+                eligible_dates=window.eligible_dates,
+            )
+            right = preregistered_eligible_intent_rows(
+                prefix_simulation.intent_rows,
+                eligible_dates=window.eligible_dates,
+            )
             append_mismatch = abs(len(left) - len(right)) + sum(
                 left_item != right_item
                 for left_item, right_item in zip(left, right, strict=False)
@@ -566,7 +604,7 @@ def compute_sleeve_loss_skip_risk_trace(
                         executable_id=executable_id,
                     )
                 )
-            for row in simulation.intent_rows:
+            for row in left:
                 intent_observations.append(
                     _intent_observation(
                         row,
@@ -645,5 +683,6 @@ __all__ = [
     "HISTORICAL_PRIOR_GLOBAL_EXPOSURE_COUNT",
     "build_sleeve_loss_skip_risk_protocol_definition",
     "compute_sleeve_loss_skip_risk_trace",
+    "preregistered_eligible_intent_rows",
     "sleeve_loss_skip_risk_trace_implementation_sha256",
 ]

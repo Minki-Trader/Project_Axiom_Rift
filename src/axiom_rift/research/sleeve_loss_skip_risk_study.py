@@ -14,9 +14,7 @@ import pandas as pd
 import scipy
 
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.operations.running_job import RunningJobExecution
 from axiom_rift.operations.running_job_context import (
-    RunningJobExecutionContext,
     running_job_execution_context_implementation_sha256,
 )
 from axiom_rift.research.adjudication import (
@@ -34,7 +32,6 @@ from axiom_rift.research.prospective_pair_trace import (
     PROSPECTIVE_PAIR_EVIDENCE_MODES,
     PROSPECTIVE_PAIR_TRACE_PROTOCOL_ID,
     ProspectivePairProtocolDefinition,
-    build_prospective_pair_calculation,
     prospective_pair_control_contrast_id,
     prospective_pair_control_family_id,
     prospective_pair_trace_implementation_sha256,
@@ -51,12 +48,10 @@ from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
 )
 from axiom_rift.research.sleeve_loss_skip_risk_chassis import (
-    executable_configuration_map,
     sleeve_loss_skip_risk_chassis_implementation_sha256,
 )
 from axiom_rift.research.sleeve_loss_skip_risk_trace import (
     build_sleeve_loss_skip_risk_protocol_definition,
-    compute_sleeve_loss_skip_risk_trace,
     sleeve_loss_skip_risk_trace_implementation_sha256,
 )
 from axiom_rift.research.validation_v2 import (
@@ -65,16 +60,11 @@ from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_MEASUREMENT_V2_SCHEMA,
     SCIENTIFIC_RESULT_SCHEMA,
     SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
-    adjudicate_validation_measurement_v2,
     build_validation_plan_v2,
     multiplicity_family_registration_hash,
 )
 
 
-CALLABLE_IDENTITY = (
-    "axiom_rift.research.sleeve_loss_skip_risk_study."
-    "execute_sleeve_loss_skip_risk_job.v1"
-)
 EVIDENCE_DEPTH = "discovery"
 PRIMARY_CONTROL_DELTA_METRIC = (
     "primary_control_delta_net_profit_micropoints"
@@ -502,95 +492,7 @@ class SleeveLossSkipRiskJobPacket:
         return dict(self.output_manifest)
 
 
-def execute_sleeve_loss_skip_risk_job(
-    *,
-    repository_root: str | Path,
-    execution: RunningJobExecution,
-) -> SleeveLossSkipRiskJobPacket:
-    root = Path(repository_root).resolve()
-    writer = RunningJobExecutionContext(root)
-    binding = writer.verify_running_job_execution(
-        execution, expected_callable_identity=CALLABLE_IDENTITY
-    )
-    subject = binding.get("spec", {}).get("evidence_subject")
-    mission_id = binding.get("mission_id")
-    study_id = binding.get("study_id")
-    if (
-        not isinstance(subject, Mapping)
-        or subject.get("id") not in executable_configuration_map()
-        or type(mission_id) is not str
-        or type(study_id) is not str
-    ):
-        raise ValueError("sleeve loss-skip running Job binding is invalid")
-    scoped = build_sleeve_loss_skip_risk_job_plan(
-        repository_root=root,
-        mission_id=mission_id,
-        study_id=study_id,
-        executable_id=str(subject["id"]),
-    )
-    spec = binding["spec"]
-    if set(spec["expected_outputs"]) != set(scoped.expected_outputs()):
-        raise ValueError("sleeve loss-skip Job output registration drifted")
-    if not set(scoped.job_input_hashes()).issubset(set(spec["input_hashes"])):
-        raise ValueError("sleeve loss-skip Job inputs are incomplete")
-    trace = compute_sleeve_loss_skip_risk_trace(
-        root,
-        definition=scoped.definition,
-        mission_id=mission_id,
-        subject_executable_id=scoped.executable_id,
-        job_id=execution.job_id,
-        job_hash=execution.job_hash,
-    )
-    names = scoped.output_names
-    trace_hash = writer.evidence.finalize(canonical_bytes(trace)).sha256
-    calculation = build_prospective_pair_calculation(
-        trace=trace,
-        trace_output_name=names["trace"],
-        definition=scoped.definition,
-    )
-    calculation_hash = writer.evidence.finalize(
-        canonical_bytes(calculation)
-    ).sha256
-    measurement = build_measurement(
-        scoped_plan=scoped,
-        job_id=execution.job_id,
-        job_hash=execution.job_hash,
-        calculation=calculation,
-        trace_sha256=trace_hash,
-        calculation_sha256=calculation_hash,
-    )
-    measurement_hash = writer.evidence.finalize(
-        canonical_bytes(measurement)
-    ).sha256
-    result = build_result(
-        scoped_plan=scoped,
-        job_id=execution.job_id,
-        job_hash=execution.job_hash,
-        measurement_sha256=measurement_hash,
-    )
-    outputs = {
-        names["calculation"]: calculation_hash,
-        names["environment"]: writer.evidence.finalize(
-            canonical_bytes(build_environment_manifest())
-        ).sha256,
-        names["measurement"]: measurement_hash,
-        names["plan"]: writer.evidence.finalize(
-            canonical_bytes(scoped.plan)
-        ).sha256,
-        names["result"]: writer.evidence.finalize(
-            canonical_bytes(result)
-        ).sha256,
-        names["trace"]: trace_hash,
-    }
-    adjudication = adjudicate_validation_measurement_v2(scoped.plan, measurement)
-    return SleeveLossSkipRiskJobPacket(
-        adjudication_state=adjudication.state,
-        output_manifest=tuple(sorted(outputs.items())),
-    )
-
-
 __all__ = [
-    "CALLABLE_IDENTITY",
     "EVIDENCE_DEPTH",
     "PRIMARY_CONTROL_DELTA_METRIC",
     "PRIMARY_CONTROL_PVALUE_METRIC",
@@ -602,7 +504,6 @@ __all__ = [
     "build_result",
     "build_sleeve_loss_skip_risk_job_plan",
     "build_sleeve_loss_skip_risk_validation_plan",
-    "execute_sleeve_loss_skip_risk_job",
     "output_names",
     "sleeve_loss_skip_risk_criteria",
     "sleeve_loss_skip_risk_multiplicity_registrations",

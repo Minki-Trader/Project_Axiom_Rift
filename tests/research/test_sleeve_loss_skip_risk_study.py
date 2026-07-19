@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from hashlib import sha256
 
-from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.operations.prospective_job_materialization import (
+    prospective_job_dependency_paths,
+    prospective_job_implementation_artifact,
+    prospective_job_implementation_sha256,
+    prospective_job_source_closure_artifact,
+)
 from axiom_rift.operations.validation import (
     EvidenceValidationRequest,
     EvidenceValidatorRegistry,
@@ -10,6 +16,11 @@ from axiom_rift.operations.validation import (
 )
 from axiom_rift.research.prospective_pair_trace import (
     build_prospective_pair_calculation,
+)
+from axiom_rift.research.sleeve_loss_skip_risk_runtime import (
+    CALLABLE_IDENTITY,
+    JOB_IMPLEMENTATION_PROTOCOL,
+    sleeve_loss_skip_risk_runtime_path,
 )
 from axiom_rift.research.sleeve_loss_skip_risk_study import (
     SleeveLossSkipRiskJobPlan,
@@ -30,6 +41,42 @@ from tests.research.test_prospective_pair_trace import (
     _definition,
     _trace,
 )
+
+
+def test_job_implementation_closes_current_callable_source() -> None:
+    entry_path = sleeve_loss_skip_risk_runtime_path()
+    source_root = entry_path.parents[2]
+    paths = prospective_job_dependency_paths(entry_path)
+    assert paths
+    assert entry_path in paths
+    assert any(path.name == "sleeve_loss_skip_risk_study.py" for path in paths)
+    assert not any(
+        path.name == "prospective_job_materialization.py" for path in paths
+    )
+    closure = parse_canonical(
+        prospective_job_source_closure_artifact(
+            callable_identity=CALLABLE_IDENTITY,
+            dependency_paths=paths,
+            source_root=source_root,
+        )
+    )
+    assert closure["schema"] == "job_implementation_source_closure.v1"
+    assert any(
+        row["path"].endswith("sleeve_loss_skip_risk_runtime.py")
+        for row in closure["dependencies"]
+    )
+    manifest = prospective_job_implementation_artifact(
+        callable_identity=CALLABLE_IDENTITY,
+        protocol=JOB_IMPLEMENTATION_PROTOCOL,
+        dependency_paths=paths,
+        source_root=source_root,
+    )
+    assert sha256(manifest).hexdigest() == prospective_job_implementation_sha256(
+        entry_path=entry_path,
+        callable_identity=CALLABLE_IDENTITY,
+        protocol=JOB_IMPLEMENTATION_PROTOCOL,
+        source_root=source_root,
+    )
 
 
 def test_prospective_pair_plan_and_atomic_proofs_validate_end_to_end(
