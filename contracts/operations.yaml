@@ -11,6 +11,13 @@ authority:
     dual_read_compatibility: true
   local_projection: local/index.sqlite
   single_writer: axiom_rift.operations.writer.StateWriter
+  writer_decomposition:
+    public_transition_facade: axiom_rift.operations.writer.StateWriter
+    atomic_commit_owner: axiom_rift.operations.writer.StateWriter._commit
+    domain_mixins_are_independent_writers: false
+    domain_mixins_commit_only_through_facade_atomic_path: true
+    public_import_compatibility_preserved: true
+    new_large_transition_family_requires_focused_domain_module: true
 transaction:
   order:
     - finalize_content_addressed_evidence
@@ -130,6 +137,20 @@ research_direction:
   pending_direction_blocks_candidate_freeze_and_exhaustion: true
   diagnosis_and_review_are_study_close_delivery_guarded: true
   writer_derives_history_summary_and_followup_constraints: true
+  prospective_architecture_projection:
+    snapshot_field: prospective_architecture_projection
+    projection_schema: portfolio_axis_architecture_semantic.v1
+    family_schema: architecture_chassis_semantic.v4
+    writer_derived_additive_not_portfolio_identity: true
+    current_axis_only: true
+    conflict_fails_recovery: true
+    legacy_identity_rewrite_allowed: false
+    v2_only_missing_component_context_may_invent_v4: false
+  study_diagnosis_admission:
+    exact_writer_derived_claim_pattern_required: true
+    registered_control_support_required_for_confirmation: true
+    contradicted_or_unresolved_control_is_noncompensatory: true
+    legacy_claimless_v1_remains_readable: true
   architecture_review_trigger:
     threshold_preregistered_in_initial_portfolio: true
     exact_unreviewed_diagnosis_set_bound: true
@@ -745,7 +766,7 @@ git:
       next_portfolio_decision_writer_guard_required: true
       missing_or_malformed_delivery_blocks_later_scientific_mutation: true
     boot_delivery_audit:
-      basis: prospective_study_kpi_records_and_exact_commit_trailers
+      basis: tracked_checkpoint_bounded_suffix_and_retained_origin_attempt
       exact_unique_trailer_commit_reachable_from_local_ref: true
       commit_changes_all_required_same_commit_paths: true
       commit_snapshot_bounded_journal_suffix_matches_event: true
@@ -753,9 +774,20 @@ git:
       commit_snapshot_new_kpi_record_and_checkpoint_transition_valid: true
       complete_kpi_projection_scan_required: false
       local_commit_absence_requires_resume_before_state_or_science_action: true
-      refresh_remote_tracking_ref_before_observation: true
-      remote_relation: closeout_commit_ancestor_of_remote_ref
-      remote_absence_requires_immediate_push_attempt: true
+      routine_fetch_push_or_remote_refresh_allowed: false
+      routine_receipt_projection_or_kpi_write_allowed: false
+      missing_receipt_routes_to_explicit_origin_delivery: true
+    explicit_origin_delivery:
+      command: scripts/update_study_close_delivery_checkpoint.py --attempt-origin
+      trigger: post_commit
+      bounded_fetch_and_non_force_push_attempt: true
+      receipt: local/study-close-origin-attempt.json
+      receipt_schema: study_close_origin_attempt.v1
+      outcomes:
+        - delivered
+        - delivery_debt
+      failed_attempt_revokes_science: false
+      no_close_boundary_creates_new_network_obligation: false
     push_mode: non_force
     remote_tree_equality_observed_read_only: true
     push_failure:
@@ -1092,7 +1124,9 @@ mission_axis_disposition:
   unresolved_candidate_eligible_positive_blocks_terminal: true
   trial_holdout_candidate_and_claim_delta: 0
 validation_economics:
-  routine_study_close_delivery_basis: tamper_evident_high_water_and_new_suffix
+  routine_study_close_delivery_basis: tracked_checkpoint_bounded_suffix_and_retained_origin_attempt
+  routine_network_or_receipt_write_allowed: false
+  explicit_origin_delivery_action_required_when_receipt_missing: true
   complete_history_scan: explicit_maintenance_only
   sealed_segment_hash_cache: process_shared_bounded_by_identity
   current_kind_counts: materialized_projection
@@ -1104,7 +1138,8 @@ study_close_delivery_checkpoint:
   legacy_v2_transition: explicit_maintenance_activation
   git_authenticated_high_water: true
   ignored_local_cache_role: non_authoritative_hint_only
-  routine_validation_reads: checkpoint_boundary_and_bounded_suffix
+  routine_validation_reads: checkpoint_bounded_suffix_and_retained_origin_attempt
+  routine_network_or_write_allowed: false
   routine_active_segment_prefix_rehash_required: false
   missing_local_cache_forces_full_audit: false
   initialization_requires_explicit_complete_history_audit: true
@@ -1184,6 +1219,13 @@ project_goal_audit_v2_operations:
       duplicate_obligation_for_same_original_completion_allowed: false
       satisfaction_is_single_writer_only: true
       defer_requires_exact_resume_condition: true
+      portfolio_option_quality:
+        replay_bound_only: true
+        unchosen_structural_alternative_required: true
+        different_axis_required: true
+        different_primary_layer_or_verified_distinct_v4_family_required: true
+        same_layer_unknown_family_fails_closed: true
+        fixed_calendar_or_consecutive_quota: false
       satisfaction_invalidation:
         plan_is_read_only_and_state_derived: true
         canonical_audit_manifest_hash_required_at_commit: true
@@ -1228,7 +1270,16 @@ project_goal_audit_v2_operations:
       excluded_untracked_tests_reported: true
       untracked_or_unrelated_user_test_is_acceptance_authority: false
       intended_new_test_must_be_staged_before_inclusion: true
-      focused_selection_preserves_full_frozen_manifest: true
+      focused_selection_preserves_full_frozen_manifest: false
+      focused_snapshot_materializes:
+        - selected_frozen_tests
+        - complete_indexed_src_tree
+        - ambient_pytest_configuration
+        - ancestor_conftest_files
+        - explicitly_declared_extra_dependencies
+        - explicitly_requested_protected_inputs
+      full_git_index_tree_only_for_all_tracked_or_explicit_projection_recovery: true
+      focused_input_role_declaration_source: selected_frozen_test_bytes
       focused_selection_rebuilds_runtime_projection_by_default: false
       focused_runtime_projection_rebuild_requires_explicit_flag: true
       focused_execution_timeout_seconds_default: 1800
@@ -1238,6 +1289,7 @@ project_goal_audit_v2_operations:
       execution_timeout_is_explicit_failure_after_input_postconditions: true
       protected_development_inputs:
         declaration_source: indexed_foundation_data_manifest
+        focused_materialization_requires_role: protected_development
         allowed_roles:
           - observed_development
           - split_artifact

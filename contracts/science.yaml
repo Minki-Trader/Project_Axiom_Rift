@@ -71,6 +71,16 @@ research_direction:
     kpi_role: navigation_projection_only
     legacy_missing_tags: legacy_unclassified
     history_summary_source: writer_derived_durable_index
+  prospective_architecture_family:
+    historical_chassis_v2_and_executable_identity_immutable: true
+    family_schema: architecture_chassis_semantic.v4
+    used_for:
+      - portfolio_scheduling
+      - structural_comparison
+      - architecture_review
+    retains_role_dependency_topology_causal_boundaries_and_runtime_category: true
+    implementation_artifact_build_library_protocol_seed_or_parameter_value_splits_family: false
+    context_incomplete_legacy_may_invent_v4: false
   axis:
     primary_research_layer_required: true
     system_architecture_family_required: true
@@ -102,9 +112,22 @@ research_direction:
     kpi_alone_is_authority: false
     engineering_gap_is_scientific_falsification: false
     writer_derives_allowed_actions_and_layers: true
+    primary_control_gate:
+      claim_id: registered_control_contrast
+      supported_requires_confirmation_requires_explicit_support: true
+      contradicted_or_unresolved_is_noncompensatory: true
+      uniformly_contradicted_state: absent_information
+      uniformly_contradicted_reason: registered_control_contrast_uniformly_contradicted
+      legacy_claimless_v1_reconstructible: true
   next_decision_must_follow_dispose_or_structurally_exit: true
   supported_confirmation_obligation_is_axis_local_not_global_monopoly: true
   structural_forest_exit_requires_different_primary_layer_or_architecture: true
+  replay_bound_option_quality:
+    unchosen_structural_alternative_required: true
+    different_axis_required: true
+    different_primary_layer_or_verified_distinct_prospective_family_required: true
+    unknown_same_layer_family_fails_closed: true
+    rigid_calendar_or_consecutive_quota: false
   architecture_review:
     thresholds_preregistered_in_initial_portfolio: true
     exact_unreviewed_diagnosis_set_only: true
@@ -669,6 +692,9 @@ project_goal_audit_v2_protocol:
     P0_blocks_affected_scientific_credit: true
     P1_highest_information_value_bounded_opportunity: true
     P1_blocks_unrelated_valid_research: false
+    audit_completeness_alone_creates_serial_replay_monopoly: false
+    exact_correctness_and_resume_closure_ends_blocking: true
+    unrelated_polish_performance_or_refactor_debt_is_nonblocking_unless_current_basis_invalid: true
     progress_requires_exact_new_to_original_executable_match: true
     first_trial_or_position_fallback_allowed: false
     one_new_executable_satisfies_at_most_one_original: true

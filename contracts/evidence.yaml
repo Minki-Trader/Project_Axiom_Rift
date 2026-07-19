@@ -50,6 +50,9 @@ claims:
   candidate_and_release_require_candidate_bound_evidence: true
   missing_invalid_or_censored_kpi_auto_pass: false
   dimensions_are_non_compensatory: true
+  registered_control_contrast_is_primary_causal_gate: true
+  other_supported_dimensions_may_compensate_for_failed_or_unresolved_control: false
+  axis_confirmation_requires_explicit_supported_registered_control_contrast: true
   release_artifact_must_be_referenced_job_durable_output: true
   release_coverage_is_writer_derived_from_runtime_job_completions: true
   source_lifecycle_claim_is_exact_source_component_surface_and_case_bound: true
@@ -58,6 +61,8 @@ research_interpretation:
   study_diagnosis:
     scientific_evidence: false
     exact_writer_derived_evidence_basis_required: true
+    prospective_claim_pattern_must_match_writer_derivation: true
+    legacy_claimless_v1_remains_readable: true
     caller_kpi_or_failure_prose_is_authority: false
   architecture_review:
     scientific_evidence: false

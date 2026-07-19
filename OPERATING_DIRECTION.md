@@ -822,15 +822,18 @@ runtime_eligible; semantic change requires a new source contract.
   It cannot repair missing or incorrect scientific or projection content.
 
 - [MUST] OD-REC-018 Prospective Study-close delivery is mechanically enforced.
-  The tracked commit-msg hook reads the staged Journal, control, and KPI bytes,
-  requires all three paths in one commit, deterministically rerenders the KPI,
-  and accepts only one contiguous final trailer block bound to the exact close
-  event and revision. Bypassing the hook is prohibited. Routine StateWriter
-  boundaries verify the exact guard, a tamper-evident local high-water, and only
-  the new delivery suffix. A separate explicit maintenance action may rebuild
-  that projection by a complete audit. Missing, modified, or malformed delivery
-  evidence blocks later scientific mutation without making routine cost grow
-  with all historical closes.
+  The tracked commit-msg hook requires staged control, the resolved Journal
+  suffix, and the tracked checkpoint in one commit, validates the new immutable
+  study-kpi record and exact final trailers, and forbids routine KPI Markdown
+  changes. Routine StateWriter guards read only the checkpoint, local-main
+  relation, bounded no-close suffix, and retained origin-attempt receipt; they
+  never fetch, push, refresh a remote ref, write a receipt or projection, render
+  KPI Markdown, or scan complete history. Only the explicit post-commit
+  `update_study_close_delivery_checkpoint.py --attempt-origin` action performs
+  one bounded fetch and non-force push attempt and records delivered or delivery
+  debt. Ordinary descendants and no-close checkpoints reuse the close-producing
+  receipt. Missing or malformed evidence routes to that explicit action or full
+  maintenance and blocks later scientific mutation without hidden routine cost.
 
 ## 20. Foundation Initiative Boundary
 
@@ -943,14 +946,22 @@ runtime_eligible; semantic change requires a new source contract.
   source-state head. Ordinary recertification cannot clear it; the declared
   resolution policy, normally a new source contract, is required.
 - [MUST] OD-AUD-014 Architecture family identity is semantic: stable component
-  roles, causal boundaries, and runtime bindings define the family. Artifact
-  hashes remain Component and Executable identity, not gratuitous family splits.
+  roles, dependency-domain topology, causal boundaries, and runtime categories
+  define the family. Historical architecture_chassis.v2 and Executable identities
+  remain immutable. Prospective scheduling and review use additive semantic v4;
+  implementation or artifact hashes, library or build versions, protocol release
+  suffixes, seeds, and experiment parameter values cannot create family splits.
+  Without complete Component context the Writer preserves v2 and invents no v4.
 - [MUST] OD-AUD-015 Prospective Studies use reusable component and adjudication
   engines with declarative plans. Historical runners remain compatibility
   surfaces until exact parity evidence supports retirement.
 - [MUST] OD-AUD-016 Validation protects the changed surface and claim at risk.
   Routine checks use keyed projections, immutable-segment verification caches,
-  and suffix guards; complete audits are explicit maintenance, not per-Job delay.
+  bounded suffix guards, and sparse focused test snapshots; complete audits are
+  explicit maintenance, not per-Job delay. Once an exact audit or replay
+  correctness obligation and resume condition are closed, unrelated performance,
+  refactor, or historical-polish debt is nonblocking unless it invalidates the
+  current decision basis.
 - [MUST] OD-AUD-017 A missing source at dependent entry means no dependent entry.
   If a held dependent sleeve loses required state, it follows a preregistered
   safe exit. Independent controls and unrelated sleeves remain unaffected.
@@ -981,12 +992,18 @@ runtime_eligible; semantic change requires a new source contract.
   criterion may compare as passed, failed, or not_evaluable while its claim
   contribution remains supported, contradicted, unresolved, invalid, or
   diagnostic. Terminal and scheduler readers use only the scientific state.
+  The registered_control_contrast is a noncompensatory primary causal gate:
+  contradicted or unresolved control cannot be offset by other positive claims,
+  and prospective confirmation must list that control explicitly as supported.
 - [MUST] OD-AUD-023 An audit-created replay duty is a typed P0 or P1
   ReplayObligation with pending, in_progress, satisfied, or deferred lifecycle,
   the exact original Executable and claim criteria, and a bounded satisfaction
   or defer condition. P0 blocks affected scientific credit; P1 receives the
   highest information-value bounded opportunity without freezing unrelated
-  valid research.
+  valid research. Every replay-bound Decision retains an unchosen structural
+  option on another axis whose primary layer differs or whose verified semantic
+  v4 family differs. Labels, actions, or builds alone are insufficient; this is
+  option quality, not a calendar or consecutive-run quota.
 - [MUST] OD-AUD-024 Replay progress binds each new Executable to at most one exact
   original Executable. Position, display order, first-trial fallback, Study-wide
   substitution, and family-level evidence cannot satisfy an unmatched member.
@@ -1007,17 +1024,22 @@ runtime_eligible; semantic change requires a new source contract.
   for prospective work.
 - [MUST] OD-AUD-028 A repository-wide engineering run uses a Git-index-bound
   tracked-test manifest with exact path and byte identities and reports excluded
-  untracked tests. Untracked or unrelated user work never silently expands,
-  shrinks, or supplies acceptance authority.
+  untracked tests. A focused run remains index-bound but materializes only the
+  selected tests, indexed src tree, ambient pytest configuration, ancestor
+  conftest files, declared extra dependencies, and explicitly requested protected
+  inputs. Only all-tracked or explicit recovery uses the full index tree.
+  Untracked or unrelated work never changes acceptance authority.
 - [MUST] OD-AUD-029 Study-close checkpoint v2 binds the authenticated historical
   KPI-backfill proof and every prospective close, is monotone across close and
   no-close boundaries, and advances only with exact staged bytes. Routine
   verification is a fast bounded suffix check; complete reconstruction is an
   explicit full-maintenance action.
 - [MUST] OD-AUD-030 Git delivery checks fail closed when the repository, HEAD,
-  required local-main relation, hook, checkpoint, or authenticated path is
-  absent or malformed. Only a typed isolated engineering fixture may bypass a
-  real-worktree check, and it cannot create scientific authority.
+  required local-main relation, hook, checkpoint, authenticated path, or retained
+  origin-attempt receipt is absent or malformed. The routine guard is local,
+  read-only, and side-effect-free; missing delivery routes to the explicit bounded
+  origin action. Only a typed isolated engineering fixture may bypass a real-
+  worktree check, and it cannot create scientific authority.
 - [MUST] OD-AUD-031 Validation is proportionate to the changed reusable surface
   and claim at risk. Slow full-history, full-suite, and exact-staging audits are
   coherent maintenance or delivery checks, not repeated per-experiment gates;
@@ -1055,10 +1077,12 @@ runtime_eligible; semantic change requires a new source contract.
   Network observation and receipt mutation belong only to an explicit delivery
   readiness phase, and activation binds exact old-to-new authority rows,
   authenticated checkpoint state, local main, and frozen audit provenance.
-- [MUST] OD-AUD-039 Exact-index engineering tests may materialize only the
-  protected development inputs named by the indexed Foundation manifest. Paths,
-  roles, hashes, sizes, and independent copies fail closed; the inputs are test
-  prerequisites only and create no scientific or claim authority.
+- [MUST] OD-AUD-039 Exact-index focused tests may materialize protected
+  development inputs only when the selected frozen test bytes explicitly declare
+  the required input role and the indexed Foundation manifest names it. Paths,
+  roles, hashes, sizes, and independent copies fail closed; absent declaration
+  means zero protected inputs. They remain test prerequisites only and create no
+  scientific or claim authority.
 - [MUST] OD-AUD-040 A Component implementation-bundle digest closes only when
   the exact bytes hashing to that digest and every source dependency bound by
   the bundle are durable Job artifacts. A digest label or source list without
@@ -1109,6 +1133,11 @@ runtime_eligible; semantic change requires a new source contract.
   it creates no trial, claim, candidate, holdout, satisfaction, or scheduling
   change. Missing admission authority cannot justify repeating a family per
   member.
+- [MUST] OD-AUD-049 StateWriter remains the sole public transition facade and
+  owner of the atomic commit path. Large transition families belong to focused
+  domain modules that can commit only through that facade; they are not
+  independent writers. Public imports remain compatible, and a new large domain
+  family is extracted instead of appended to the central facade.
 
 ## 23. Governing Principle
 
