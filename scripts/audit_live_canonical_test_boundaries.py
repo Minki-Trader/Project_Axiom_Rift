@@ -145,11 +145,15 @@ class SpreadTimeCorrectionCanonicalMaintenanceTests(unittest.TestCase):
         self.assertEqual(result["historical_cost_completion_count"], 501)
         self.assertEqual(
             result["schema"],
-            "spread_time_semantics_correction_read_only_core.v2",
+            "spread_time_semantics_correction_read_only_core.v3",
         )
         self.assertEqual(result["plan_core"]["event_count"], 7)
-        self.assertIsNone(result["final_envelope_artifact_hash"])
-        self.assertFalse(result["final_envelope_exists"])
+        self.assertEqual(
+            result["verification_mode"],
+            "completed_immutable_ancestor",
+        )
+        self.assertIsInstance(result["final_envelope_artifact_hash"], str)
+        self.assertTrue(result["final_envelope_exists"])
         self.assertEqual(
             [item["action"] for item in result["event_inventory"]],
             [

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import axiom_rift.operations.historical_cost_semantics_reader as cost_reader_module
 
+from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.axis_disposition import (
     aggregate_axis_evidence_state,
     derive_axis_evidence_binding,
@@ -72,7 +73,14 @@ MISSION_ID = "MIS-COST-CONSUMPTION"
 AXIS_ID = "AX-COST-CONSUMPTION"
 AXIS_IDENTITY = "axis:" + "6" * 64
 STUDY_ID = "STU-COST-CONSUMPTION"
-EXECUTABLE_ID = "executable:" + "7" * 64
+EXECUTABLE = {
+    "cost_contract": "cost:completed_bar_spread_proxy_v1",
+    "source_contracts": [],
+}
+EXECUTABLE_ID = "executable:" + canonical_digest(
+    domain="executable",
+    payload=EXECUTABLE,
+)
 JOB_ID = "job:" + "8" * 64
 COMPLETION_ID = "9" * 64
 NEGATIVE_MEMORY_ID = "negative-memory:" + "a" * 64
@@ -148,10 +156,7 @@ def _base_records() -> tuple[IndexRecord, ...]:
         kind="trial",
         record_id=EXECUTABLE_ID,
         payload={
-            "executable": {
-                "cost_contract": "cost:completed_bar_spread_proxy_v1",
-                "source_contracts": [],
-            },
+            "executable": dict(EXECUTABLE),
             "mission_id": MISSION_ID,
             "portfolio_axis_id": AXIS_ID,
             "portfolio_axis_identity": AXIS_IDENTITY,

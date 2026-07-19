@@ -267,10 +267,10 @@ class RepairSemanticEquivalenceUnavailable(TransitionError):
 
 
 _EXPECTED_FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID = (
-    "validator:0939ba481119ff698ff4cb0ff9826aaf3f5bc69581be04c8303ca341ec43dcaa"
+    "validator:5bf98acc99a1fef30c9f4f158ce87a3ad1c86f645ab7ba5e0a0b2ae4ece7e48b"
 )
 _EXPECTED_FIXED_HOLD_REPAIR_ATTEMPT_VALIDATOR_ID = (
-    "validator:a785ff972bc1dc40a32d5cfd3709d00ac7e4a05086bf6653b9de0ae3f628c287"
+    "validator:9ae535d13ae0c4e61e1f6a02bd8a737a36e3af204cef3d9c4c9497011475dbc9"
 )
 
 
@@ -12620,85 +12620,20 @@ class StateWriter:
         *,
         study_id: str,
     ) -> tuple[IndexRecord, ...]:
-        """Select disposition-driving completions from durable role authority."""
+        """Compatibility boundary for the read-only Study projection."""
 
-        from axiom_rift.operations.scientific_history import (
-            ScientificHistoryProjectionError,
-            project_study_job_evidence,
+        from axiom_rift.operations.study_diagnosis_projection import (
+            StudyDiagnosisProjectionError,
+            study_primary_scientific_completions,
         )
-        try:
-            job_evidence = project_study_job_evidence(index, study_id=study_id)
-        except ScientificHistoryProjectionError as exc:
-            raise TransitionError(str(exc)) from exc
-        completions = job_evidence.completions
-        study = index.get("study-open", study_id)
-        if study is None:
-            raise TransitionError("Study claim-scoped diagnosis lost its Study")
-        admission_id = study.payload.get("replay_implementation_admission_id")
-        if isinstance(admission_id, str):
-            admission = index.get("replay-implementation-admission", admission_id)
-            semantic = study.payload.get("semantic_proposal")
-            family = (
-                None
-                if not isinstance(semantic, Mapping)
-                else semantic.get("concurrent_family")
-            )
-            target_reference = (
-                None
-                if not isinstance(family, Mapping)
-                else family.get("target_historical_executable_id")
-            )
-            request = None if admission is None else admission.payload.get("request")
-            manifests = (
-                None
-                if not isinstance(request, Mapping)
-                else request.get("executable_manifests")
-            )
-            if (
-                admission is None
-                or not isinstance(target_reference, str)
-                or not isinstance(manifests, list)
-            ):
-                raise TransitionError(
-                    "replay diagnosis target authority is malformed"
-                )
-            from axiom_rift.research.portfolio_projection import (
-                PortfolioProjectionError,
-                executable_from_identity_payload,
-            )
 
-            target_ids: list[str] = []
-            try:
-                for manifest in manifests:
-                    if not isinstance(manifest, Mapping):
-                        raise PortfolioProjectionError(
-                            "replay executable manifest is malformed"
-                        )
-                    parameters = manifest.get("parameters")
-                    if (
-                        isinstance(parameters, Mapping)
-                        and parameters.get("historical_reference_executable_id")
-                        == target_reference
-                    ):
-                        target_ids.append(
-                            executable_from_identity_payload(manifest).identity
-                        )
-            except PortfolioProjectionError as exc:
-                raise TransitionError(str(exc)) from exc
-            if len(target_ids) != 1:
-                raise TransitionError("replay diagnosis target is ambiguous")
-            completions = tuple(
-                completion
-                for completion in completions
-                if isinstance(completion.payload.get("scientific"), Mapping)
-                and completion.payload["scientific"].get("executable_id")
-                == target_ids[0]
+        try:
+            return study_primary_scientific_completions(
+                index,
+                study_id=study_id,
             )
-            if len(completions) != 1:
-                raise TransitionError(
-                    "replay diagnosis target completion is unavailable"
-                )
-        return tuple(completions)
+        except StudyDiagnosisProjectionError as exc:
+            raise TransitionError(str(exc)) from exc
 
     @staticmethod
     def _study_claim_scoped_diagnosis(
@@ -12706,51 +12641,20 @@ class StateWriter:
         *,
         study_id: str,
     ) -> Any | None:
-        """Independently derive a standard primary-question diagnosis."""
+        """Compatibility boundary for the read-only Study projection."""
 
-        from axiom_rift.operations.effective_scientific_diagnosis import (
-            EffectiveScientificDiagnosisError,
-            diagnose_effective_scientific_adjudications,
-        )
-        from axiom_rift.operations.evidence_scope_projection import (
-            EvidenceScopeProjectionError,
-            effective_completion_evidence_scope,
+        from axiom_rift.operations.study_diagnosis_projection import (
+            StudyDiagnosisProjectionError,
+            study_claim_scoped_diagnosis,
         )
 
-        completions = StateWriter._study_primary_scientific_completions(
-            index,
-            study_id=study_id,
-        )
-        scoped_adjudications: list[tuple[Mapping[str, Any], Any]] = []
-        for completion in completions:
-            scientific = completion.payload.get("scientific")
-            adjudication = (
-                None
-                if not isinstance(scientific, Mapping)
-                else scientific.get("adjudication")
-            )
-            if isinstance(adjudication, Mapping):
-                try:
-                    scope = effective_completion_evidence_scope(
-                        index,
-                        completion,
-                    )
-                except EvidenceScopeProjectionError as exc:
-                    raise TransitionError(
-                        "Study claim-scoped diagnosis scope is malformed"
-                    ) from exc
-                scoped_adjudications.append((adjudication, scope))
-        if not scoped_adjudications:
-            return None
         try:
-            pattern = diagnose_effective_scientific_adjudications(
-                tuple(scoped_adjudications)
+            return study_claim_scoped_diagnosis(
+                index,
+                study_id=study_id,
             )
-        except EffectiveScientificDiagnosisError as exc:
-            raise TransitionError(
-                "Study claim-scoped diagnosis evidence is malformed"
-            ) from exc
-        return pattern if pattern.primary_question_recognized else None
+        except StudyDiagnosisProjectionError as exc:
+            raise TransitionError(str(exc)) from exc
 
     def record_study_diagnosis(
         self,
@@ -13045,6 +12949,10 @@ class StateWriter:
             ResearchLayer,
             diagnosis_branch,
         )
+        from axiom_rift.research.portfolio import PortfolioAction
+        from axiom_rift.research.replay_obligation import (
+            ReplayObligationStatus,
+        )
         from axiom_rift.research.study_diagnosis_correction import (
             StudyDiagnosisCorrectionAudit,
         )
@@ -13168,7 +13076,16 @@ class StateWriter:
             state_overrides: dict[str, str] = {}
             architecture_families: set[str] = set()
             decisions_by_diagnosis: dict[str, list[IndexRecord]] = {}
-            for decision in index.records_by_kind("portfolio-decision"):
+            mission_subject = f"Mission:{audit.mission_id}"
+            for decision in (
+                record
+                for action in PortfolioAction
+                for record in index.records_by_subject_status(
+                    mission_subject,
+                    action.value,
+                )
+                if record.kind == "portfolio-decision"
+            ):
                 diagnosis_id = decision.payload.get("study_diagnosis_id")
                 if isinstance(diagnosis_id, str):
                     decisions_by_diagnosis.setdefault(
@@ -13176,8 +13093,18 @@ class StateWriter:
                         [],
                     ).append(decision)
             satisfactions_by_diagnosis: dict[str, list[str]] = {}
-            for resolution in index.records_by_kind(
-                "historical-replay-obligation-resolution"
+            for resolution in (
+                record
+                for status in (
+                    ReplayObligationStatus.DEFERRED,
+                    ReplayObligationStatus.SATISFIED,
+                )
+                for record in index.records_by_subject_status(
+                    mission_subject,
+                    status.value,
+                )
+                if record.kind
+                == "historical-replay-obligation-resolution"
             ):
                 resolution_payload = resolution.payload.get("resolution")
                 diagnosis_id = (

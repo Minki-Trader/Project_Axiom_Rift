@@ -23,6 +23,7 @@ from contextlib import contextmanager
 import ctypes
 from dataclasses import dataclass
 from hashlib import sha256
+from io import BytesIO
 import json
 import importlib.metadata
 from pathlib import Path
@@ -30,6 +31,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, Iterator, Mapping, Sequence, TypeVar
 
@@ -84,6 +86,30 @@ def _require_safe_repository_import_surface(
         )
 
 
+def _argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        allow_abbrev=False,
+        description=(
+            "Plan or explicitly apply the exact seven-event spread/time "
+            "historical correction."
+        ),
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="apply the exact missing StateWriter suffix; never commit or push",
+    )
+    parser.add_argument(
+        "--recover",
+        action="store_true",
+        help=(
+            "explicitly recover only one exact plan-bound trailing Journal "
+            "event before resuming"
+        ),
+    )
+    return parser
+
+
 if _SAFE_STARTUP:
     # ``-I -S`` suppresses every startup hook and .pth file.  Add only the
     # interpreter's resolved package directories so vetted dependencies remain
@@ -119,9 +145,12 @@ if _SAFE_STARTUP:
         Path(_SAFE_BYTECODE_CACHE.name).resolve(strict=True)
     )
     sys.dont_write_bytecode = True
+    _require_safe_repository_import_surface((ROOT / "src",))
+    if any(argument in {"-h", "--help"} for argument in sys.argv[1:]):
+        _argument_parser().parse_args()
+        raise SystemExit("help parser returned unexpectedly")
     import yaml
 
-    _require_safe_repository_import_surface((ROOT / "src",))
     sys.path.insert(0, str(ROOT / "src"))
 else:
     sys.path.insert(0, str(ROOT))
@@ -229,6 +258,7 @@ AUDIT_REPORT_PATH = (
     "2026-07-16_spread_time_semantics_and_historical_validity_audit.md"
 )
 OPERATION_NAMESPACE = "axiom-spread-time-correction"
+CORRECTION_EVENT_COUNT = 7
 AUTHORITY_REASON = (
     "bind completed-period spread timing repair historical correction and "
     "cost qualification"
@@ -3413,9 +3443,275 @@ def _durable_core_from_suffix(
     return core
 
 
+@dataclass(frozen=True, slots=True)
+class _CompletedCorrectionAudit:
+    core: CorrectionPlanCore
+    envelope: CorrectionReceiptEnvelope
+    suffix: tuple[Mapping[str, Any], ...]
+    evidence_ready: Mapping[str, bool]
+
+
+def _require_immutable_checkpoint(core: CorrectionPlanCore) -> None:
+    """Verify the completed correction's exact Git checkpoint in one archive."""
+
+    commit = core.baseline.code_checkpoint_commit
+    try:
+        tree = _git("rev-parse", f"{commit}^{{tree}}").stdout.decode(
+            "ascii"
+        ).strip()
+    except UnicodeDecodeError as exc:
+        raise SpreadTimeCorrectionError(
+            "correction checkpoint tree is non-ASCII"
+        ) from exc
+    if (
+        tree != core.baseline.code_checkpoint_tree
+        or _git(
+            "merge-base",
+            "--is-ancestor",
+            commit,
+            "HEAD",
+            check=False,
+        ).returncode
+        != 0
+        or _git(
+            "merge-base",
+            "--is-ancestor",
+            core.baseline.origin_main_commit,
+            commit,
+            check=False,
+        ).returncode
+        != 0
+    ):
+        raise SpreadTimeCorrectionError(
+            "completed correction lost its Git checkpoint ancestry"
+        )
+    required = {
+        "state/control.json",
+        core.baseline.journal_path,
+        *(item.path for item in core.code_checkpoint_files),
+        *(item.path for item in core.execution_files),
+        *(item.path for item in core.authority_files),
+    }
+    if core.baseline.journal_manifest_sha256 is not None:
+        required.add("records/journal/manifest.json")
+    archive = _git(
+        "archive",
+        "--format=tar",
+        commit,
+        "--",
+        *sorted(required),
+    ).stdout
+    documents: dict[str, bytes] = {}
+    try:
+        with tarfile.open(fileobj=BytesIO(archive), mode="r:") as bundle:
+            for member in bundle:
+                if member.name not in required:
+                    continue
+                if not member.isfile() or member.name in documents:
+                    raise SpreadTimeCorrectionError(
+                        "correction checkpoint archive is ambiguous"
+                    )
+                handle = bundle.extractfile(member)
+                if handle is None:
+                    raise SpreadTimeCorrectionError(
+                        "correction checkpoint archive member is unreadable"
+                    )
+                documents[member.name] = handle.read()
+    except (OSError, tarfile.TarError) as exc:
+        raise SpreadTimeCorrectionError(
+            "correction checkpoint archive cannot be read"
+        ) from exc
+    if set(documents) != required:
+        raise SpreadTimeCorrectionError(
+            "correction checkpoint archive lacks reviewed files"
+        )
+
+    expected: dict[str, str] = {
+        item.path: item.checkpoint_sha256
+        for item in core.code_checkpoint_files
+    }
+    for item in core.execution_files:
+        prior = expected.setdefault(item.path, item.sha256)
+        if prior != item.sha256:
+            raise SpreadTimeCorrectionError(
+                "correction checkpoint file identities disagree"
+            )
+    for item in core.authority_files:
+        prior = expected.setdefault(item.path, item.prospective_sha256)
+        if prior != item.prospective_sha256:
+            raise SpreadTimeCorrectionError(
+                "correction checkpoint authority identities disagree"
+            )
+    expected["state/control.json"] = core.baseline.control_sha256
+    expected[core.baseline.journal_path] = core.baseline.journal_sha256
+    if core.baseline.journal_manifest_sha256 is not None:
+        expected["records/journal/manifest.json"] = (
+            core.baseline.journal_manifest_sha256
+        )
+    if any(
+        sha256(documents[path]).hexdigest() != digest
+        for path, digest in expected.items()
+    ):
+        raise SpreadTimeCorrectionError(
+            "completed correction checkpoint bytes drifted"
+        )
+
+
+def _completed_correction_audit() -> _CompletedCorrectionAudit | None:
+    """Authenticate one completed immutable correction amid later history."""
+
+    writer = _writer()
+    events = writer.journal.read_all()
+    candidates: list[tuple[int, str]] = []
+    for position, event in enumerate(events):
+        operation_id = event.get("operation_id")
+        if type(operation_id) is not str:
+            continue
+        try:
+            core_hash = CorrectionReceiptEnvelope.core_hash_from_operation_id(
+                operation_id,
+                namespace=OPERATION_NAMESPACE,
+            )
+        except ContentAddressedCorrectionError:
+            continue
+        candidates.append((position, core_hash))
+    if not candidates:
+        return None
+    if len(candidates) < CORRECTION_EVENT_COUNT:
+        return None
+    core_hashes = {item[1] for item in candidates}
+    if len(core_hashes) != 1:
+        raise SpreadTimeCorrectionError(
+            "Journal contains multiple spread/time correction cores"
+        )
+    core_hash = next(iter(core_hashes))
+    try:
+        core = CorrectionPlanCore.from_bytes(
+            writer.evidence.read_verified(core_hash),
+            expected_core_hash=core_hash,
+        )
+    except (ContentAddressedCorrectionError, OSError, RuntimeError, ValueError) as exc:
+        raise SpreadTimeCorrectionError(
+            "completed correction core is unavailable"
+        ) from exc
+    start = core.baseline.journal_sequence
+    stop = start + core.event_count
+    positions = [item[0] for item in candidates]
+    if (
+        len(candidates) < core.event_count
+        and positions == list(range(start, start + len(candidates)))
+    ):
+        return None
+    if (
+        stop > len(events)
+        or start < 1
+        or events[start - 1].get("event_id")
+        != core.baseline.journal_event_id
+        or positions != list(range(start, stop))
+    ):
+        raise SpreadTimeCorrectionError(
+            "completed correction events are absent, duplicated, or displaced"
+        )
+    writer.require_stable_head()
+    suffix = tuple(events[start:stop])
+    receipts = tuple(_receipt_binding(event) for event in suffix)
+    envelope = CorrectionReceiptEnvelope(
+        core=core,
+        event_receipts=receipts,
+    )
+    try:
+        stored = writer.evidence.read_verified(envelope.artifact_hash)
+        rebuilt = CorrectionReceiptEnvelope.from_bytes(
+            stored,
+            expected_artifact_hash=envelope.artifact_hash,
+            expected_core_hash=core.core_hash,
+        )
+        require_exact_correction_receipts(rebuilt, suffix)
+    except (ContentAddressedCorrectionError, OSError, RuntimeError, ValueError) as exc:
+        raise SpreadTimeCorrectionError(
+            "completed correction receipt envelope is invalid"
+        ) from exc
+    if rebuilt.artifact_bytes != envelope.artifact_bytes:
+        raise SpreadTimeCorrectionError(
+            "completed correction envelope differs from its Journal"
+        )
+    _require_immutable_checkpoint(core)
+    evidence_ready: dict[str, bool] = {"correction_plan_core": True}
+    for binding in core.evidence_bindings:
+        try:
+            content = writer.evidence.read_verified(binding.sha256)
+        except (FileNotFoundError, OSError, RuntimeError):
+            evidence_ready[binding.role] = False
+        else:
+            evidence_ready[binding.role] = (
+                sha256(content).hexdigest() == binding.sha256
+            )
+    evidence_ready["audit_report"] = evidence_ready.get(
+        "audit-report",
+        False,
+    )
+    evidence_ready["cost_manifest"] = evidence_ready.get(
+        "historical-cost-semantics-manifest",
+        False,
+    )
+    if not all(
+        evidence_ready.get(role, False)
+        for role in (
+            "audit_report",
+            "correction_plan_core",
+            "cost_manifest",
+        )
+    ):
+        raise SpreadTimeCorrectionError(
+            "completed correction lost required durable evidence"
+        )
+    return _CompletedCorrectionAudit(
+        core=core,
+        envelope=envelope,
+        suffix=suffix,
+        evidence_ready=evidence_ready,
+    )
+
+
 def read_only_plan() -> dict[str, Any]:
     """Rebuild the exact seven-event plan without repository mutation."""
 
+    completed = _completed_correction_audit()
+    if completed is not None:
+        core = completed.core
+        return {
+            "apply_mutation_performed": False,
+            "authority_replacement_paths": [
+                item.path for item in core.authority_replacements
+            ],
+            "event_inventory": [item.to_payload() for item in core.events],
+            "evidence_materialized": dict(completed.evidence_ready),
+            "final_envelope_artifact_hash": (
+                completed.envelope.artifact_hash
+            ),
+            "final_envelope_exists": True,
+            "historical_cost_completion_count": core.event(
+                "historical-cost-semantics-latch"
+            ).binding["completion_count"],
+            "historical_invalidation_count": core.event(
+                "completion-validity-invalidations"
+            ).binding["invalidation_count"],
+            "historical_readjudication_count": core.event(
+                "historical-readjudication"
+            ).binding["request_count"],
+            "expected_replay_priority_escalation_ids": core.event(
+                "historical-readjudication"
+            ).binding["replay_priority_escalation_ids"],
+            "plan_core": core.to_payload(),
+            "plan_core_hash": core.core_hash,
+            "replay_satisfaction_invalidation_count": 2,
+            "synthetic_preflight_event_byte_counts": [
+                item.canonical_event_byte_count
+                for item in completed.envelope.event_receipts
+            ],
+            "schema": "spread_time_semantics_correction_read_only_core.v3",
+            "verification_mode": "completed_immutable_ancestor",
+        }
     material = _build_material()
     writer = _writer()
     evidence_ready: dict[str, bool] = {}
@@ -3463,7 +3759,8 @@ def read_only_plan() -> dict[str, Any]:
             receipt.canonical_event_byte_count
             for receipt in material.preview_receipts
         ],
-        "schema": "spread_time_semantics_correction_read_only_core.v2",
+        "schema": "spread_time_semantics_correction_read_only_core.v3",
+        "verification_mode": "prospective_shadow_rebuild",
     }
 
 
@@ -3672,9 +3969,29 @@ def _require_exact_trailing_recovery_boundary(
 def apply(*, explicit_recovery: bool = False) -> dict[str, Any]:
     """Apply only the missing exact suffix; never commit or push it."""
 
-    _require_safe_apply_startup()
     if type(explicit_recovery) is not bool:
         raise SpreadTimeCorrectionError("explicit recovery flag must be bool")
+    _require_safe_apply_startup()
+    try:
+        completed = _completed_correction_audit()
+    except RecoveryRequired:
+        completed = None
+    if completed is not None:
+        return {
+            "already_complete": True,
+            "applied_event_count": 0,
+            "baseline_reconstruction_count": 0,
+            "envelope_candidate_enumeration_count": 0,
+            "final_envelope_artifact_hash": completed.envelope.artifact_hash,
+            "final_prefix_count": completed.core.event_count,
+            "local_main_delivery_boundary": None,
+            "plan_core_hash": completed.core.core_hash,
+            "recovery": {
+                "mode": "not_required_completed_immutable_ancestor",
+                "recovery_requested": explicit_recovery,
+            },
+            "schema": "spread_time_semantics_correction_apply_result.v2",
+        }
     _writer(require_apply_api=True)
     baseline_control = _read_control_bytes(_git_blob("HEAD", "state/control.json"))
     baseline_sequence = baseline_control["heads"]["journal"]["sequence"]
@@ -3867,27 +4184,7 @@ def apply(*, explicit_recovery: bool = False) -> dict[str, Any]:
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        allow_abbrev=False,
-        description=(
-            "Plan or explicitly apply the exact seven-event spread/time "
-            "historical correction."
-        )
-    )
-    parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="apply the exact missing StateWriter suffix; never commit or push",
-    )
-    parser.add_argument(
-        "--recover",
-        action="store_true",
-        help=(
-            "explicitly recover only one exact plan-bound trailing Journal "
-            "event before resuming"
-        ),
-    )
-    return parser.parse_args()
+    return _argument_parser().parse_args()
 
 
 def main() -> None:

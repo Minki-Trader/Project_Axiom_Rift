@@ -9,6 +9,7 @@ from axiom_rift.operations.fixed_hold_repair_equivalence import (
     FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY,
     fixed_hold_authority_correction_verification_manifest,
 )
+from axiom_rift.operations.validation import EvidenceValidationError
 from axiom_rift.core.canonical import parse_canonical
 import numpy as np
 import pytest
@@ -121,13 +122,22 @@ def test_v3_runtime_sources_use_declarative_control_binding() -> None:
     ) == ()
 
 
-def test_v3_runtime_correction_profile_tracks_the_exact_source_closure() -> None:
+def test_v3_runtime_change_cannot_inherit_the_historical_correction() -> None:
     identity = gap_event_fixed_hold_v3_job_implementation_sha256()
-    assert identity == (
+    assert identity != (
         FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY
     )
+    with pytest.raises(
+        EvidenceValidationError,
+        match="implementation pair is not the registered correction",
+    ):
+        fixed_hold_authority_correction_verification_manifest(
+            new_implementation_identity=identity,
+        )
     verification = fixed_hold_authority_correction_verification_manifest(
-        new_implementation_identity=identity,
+        new_implementation_identity=(
+            FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY
+        ),
     )
     assert verification["verdict"] == "passed"
     assert [item["relative_path"] for item in verification["source_artifacts"]] == [

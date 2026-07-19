@@ -1,13 +1,14 @@
-"""Real event-5433 and Git-snapshot inputs for fixed-hold Repair E2E tests."""
+"""Real event-5433 and durable inputs for fixed-hold Repair E2E tests."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 import json
 from pathlib import Path
-import subprocess
 from typing import Any, Mapping
 
+from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.operations.fixed_hold_repair_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
@@ -24,8 +25,6 @@ PREFLIGHT_ID = (
 EXECUTABLE_ID = (
     "executable:6732b3db490f9c7aafc3bb907240fc6546f46f086f56591c0532e0c0154e6a0f"
 )
-OLD_COMMIT = "e80279e3709a018db14a8567b261ed1d951331dd"
-NEW_COMMIT = "6fb3cc3c2857bac609d2adc72e6040d3ff8b4926"
 CALLABLE_IDENTITY = (
     "axiom_rift.research.volatility_duration_fixed_hold_job."
     "execute_volatility_duration_fixed_hold_job.v1"
@@ -82,35 +81,57 @@ def _event_preflight(repo_root: Path) -> dict[str, Any]:
     raise AssertionError("event 5433 is absent from committed Journal")
 
 
-def _git_sources(repo_root: Path, commit: str) -> dict[str, bytes]:
-    request = "".join(
-        f"{commit}:src/{relative_path}\n"
-        for relative_path in _FIXED_HOLD_JOB_SOURCE_PATHS
-    ).encode("ascii")
-    completed = subprocess.run(
-        ("git", "cat-file", "--batch"),
-        cwd=repo_root,
-        input=request,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=True,
+def _evidence_bytes(repo_root: Path, identity: str) -> bytes:
+    path = (
+        repo_root
+        / "local"
+        / "evidence"
+        / "sha256"
+        / identity[:2]
+        / identity
     )
-    cursor = 0
-    sources: dict[str, bytes] = {}
-    for relative_path in _FIXED_HOLD_JOB_SOURCE_PATHS:
-        header_end = completed.stdout.index(b"\n", cursor)
-        header = completed.stdout[cursor:header_end].split()
-        if len(header) < 3 or header[-2] != b"blob":
-            raise AssertionError(f"Git source is absent: {relative_path}")
-        size = int(header[-1])
-        start = header_end + 1
-        end = start + size
-        sources[relative_path] = completed.stdout[start:end]
-        if completed.stdout[end : end + 1] != b"\n":
-            raise AssertionError("Git batch response is malformed")
-        cursor = end + 1
-    if cursor != len(completed.stdout):
-        raise AssertionError("Git batch response has trailing bytes")
+    content = path.read_bytes()
+    if sha256(content).hexdigest() != identity:
+        raise AssertionError("fixed-hold durable evidence identity drifted")
+    return content
+
+
+def _registered_sources(repo_root: Path, identity: str) -> dict[str, bytes]:
+    implementation = parse_canonical(_evidence_bytes(repo_root, identity))
+    if (
+        not isinstance(implementation, dict)
+        or implementation.get("schema") != "job_implementation_evidence.v1"
+        or implementation.get("callable_identity") != CALLABLE_IDENTITY
+        or implementation.get("protocol") != PROTOCOL_ID
+        or not isinstance(implementation.get("artifact_hashes"), list)
+    ):
+        raise AssertionError("fixed-hold implementation evidence drifted")
+    opened = {
+        artifact_hash: _evidence_bytes(repo_root, artifact_hash)
+        for artifact_hash in implementation["artifact_hashes"]
+    }
+    closures: list[dict[str, Any]] = []
+    for content in opened.values():
+        try:
+            candidate = parse_canonical(content)
+        except (TypeError, ValueError):
+            continue
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("schema")
+            == "job_implementation_source_closure.v1"
+        ):
+            closures.append(candidate)
+    if len(closures) != 1 or not isinstance(
+        closures[0].get("dependencies"), list
+    ):
+        raise AssertionError("fixed-hold source closure is absent")
+    sources = {
+        dependency["path"]: opened[dependency["sha256"]]
+        for dependency in closures[0]["dependencies"]
+    }
+    if tuple(sources) != _FIXED_HOLD_JOB_SOURCE_PATHS:
+        raise AssertionError("fixed-hold source snapshot inventory drifted")
     return sources
 
 
@@ -299,8 +320,14 @@ class Event5433RepairFixture:
             baseline_surface,
             implementation_template=executables[0],
         )
-        old_sources = _git_sources(repo_root, OLD_COMMIT)
-        new_sources = _git_sources(repo_root, NEW_COMMIT)
+        old_sources = _registered_sources(
+            repo_root,
+            FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
+        )
+        new_sources = _registered_sources(
+            repo_root,
+            FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
+        )
         return cls(
             preflight=preflight,
             scientific_surface=scientific_surface,

@@ -9,7 +9,7 @@ from typing import Any, Mapping
 import numpy as np
 import pandas as pd
 
-from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.dense_short_synthesis_chassis import (
     calibrate_synthesis_selector,
@@ -50,6 +50,7 @@ from axiom_rift.research.prospective_pair_trace import (
     ProspectivePairWindow,
     prospective_pair_observation_id,
     prospective_pair_trace_implementation_sha256,
+    validate_prospective_pair_scientific_trace,
 )
 from axiom_rift.research.selection_inference import (
     DEFAULT_ALPHA_PPM,
@@ -72,13 +73,41 @@ from axiom_rift.research.volatility_clock_label_discovery import (
 )
 from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
+    ScientificTraceError,
 )
 
 
 HISTORICAL_PRIOR_GLOBAL_EXPOSURE_COUNT = 579
 HISTORICAL_CONTEXT_ID = "historical-context:pre-loss-skip-research-579"
+SLEEVE_LOSS_SKIP_RISK_FAMILY_TRACE_SCHEMA = (
+    "sleeve_loss_skip_risk_family_trace.v1"
+)
 _THIS_FILE = Path(__file__).resolve()
 _MICROPOINTS_PER_POINT = 1_000_000
+_FAMILY_TRACE_FIELDS = {
+    "adapter_implementation_sha256",
+    "attribution",
+    "controls",
+    "dataset_sha256",
+    "eligible_day_observations",
+    "family_id",
+    "invariance_comparisons",
+    "intent_observations",
+    "material_identity",
+    "ordered_family",
+    "protocol_definition",
+    "protocol_id",
+    "schema",
+    "split_artifact_sha256",
+    "trade_observations",
+    "windows",
+}
+_EXECUTION_TRACE_FIELDS = {
+    "job_hash",
+    "job_id",
+    "mission_id",
+    "subject_executable_id",
+}
 
 
 def sleeve_loss_skip_risk_trace_implementation_sha256() -> str:
@@ -460,8 +489,44 @@ def _intent_observation(
     }
 
 
-def compute_sleeve_loss_skip_risk_trace(
-    repository_root: str | Path,
+def validate_sleeve_loss_skip_risk_family_trace(
+    value: bytes | Mapping[str, Any],
+    *,
+    definition: ProspectivePairProtocolDefinition,
+) -> dict[str, object]:
+    try:
+        normalized = (
+            parse_canonical(value)
+            if isinstance(value, bytes)
+            else parse_canonical(canonical_bytes(value))
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("sleeve loss-skip family trace is not canonical") from exc
+    if (
+        not isinstance(normalized, dict)
+        or set(normalized) != _FAMILY_TRACE_FIELDS
+        or normalized.get("schema")
+        != SLEEVE_LOSS_SKIP_RISK_FAMILY_TRACE_SCHEMA
+    ):
+        raise ValueError("sleeve loss-skip family trace schema is invalid")
+    bound = {
+        **normalized,
+        "job_hash": "0" * 64,
+        "job_id": "job:" + "0" * 64,
+        "mission_id": "MIS-FAMILY-TRACE-VALIDATION",
+        "schema": SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
+        "subject_executable_id": definition.control_executable_id,
+    }
+    try:
+        validate_prospective_pair_scientific_trace(bound, definition)
+    except (ScientificTraceError, TypeError, ValueError) as exc:
+        raise ValueError("sleeve loss-skip family trace is invalid") from exc
+    canonical_bytes(normalized)
+    return normalized
+
+
+def bind_sleeve_loss_skip_risk_family_trace(
+    value: bytes | Mapping[str, Any],
     *,
     definition: ProspectivePairProtocolDefinition,
     mission_id: str,
@@ -469,11 +534,60 @@ def compute_sleeve_loss_skip_risk_trace(
     job_id: str,
     job_hash: str,
 ) -> dict[str, object]:
+    family = validate_sleeve_loss_skip_risk_family_trace(
+        value,
+        definition=definition,
+    )
+    bound = {
+        **family,
+        "job_hash": job_hash,
+        "job_id": job_id,
+        "mission_id": mission_id,
+        "schema": SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
+        "subject_executable_id": subject_executable_id,
+    }
+    try:
+        validate_prospective_pair_scientific_trace(bound, definition)
+    except (ScientificTraceError, TypeError, ValueError) as exc:
+        raise ValueError("sleeve loss-skip bound trace is invalid") from exc
+    canonical_bytes(bound)
+    return bound
+
+
+def extract_sleeve_loss_skip_risk_family_trace(
+    value: Mapping[str, Any],
+    *,
+    definition: ProspectivePairProtocolDefinition,
+) -> dict[str, object]:
+    normalized = parse_canonical(canonical_bytes(value))
+    if not isinstance(normalized, dict) or set(normalized) != (
+        _FAMILY_TRACE_FIELDS | _EXECUTION_TRACE_FIELDS
+    ):
+        raise ValueError("sleeve loss-skip bound trace schema is invalid")
+    try:
+        validate_prospective_pair_scientific_trace(normalized, definition)
+    except (ScientificTraceError, TypeError, ValueError) as exc:
+        raise ValueError("sleeve loss-skip bound trace is invalid") from exc
+    family = {
+        key: item
+        for key, item in normalized.items()
+        if key not in _EXECUTION_TRACE_FIELDS
+    }
+    family["schema"] = SLEEVE_LOSS_SKIP_RISK_FAMILY_TRACE_SCHEMA
+    return validate_sleeve_loss_skip_risk_family_trace(
+        family,
+        definition=definition,
+    )
+
+
+def compute_sleeve_loss_skip_risk_family_trace(
+    repository_root: str | Path,
+    *,
+    definition: ProspectivePairProtocolDefinition,
+) -> dict[str, object]:
     current = build_sleeve_loss_skip_risk_protocol_definition(repository_root)
     if current.manifest() != definition.manifest():
         raise ValueError("sleeve loss-skip protocol authority changed")
-    if subject_executable_id not in executable_configuration_map():
-        raise ValueError("sleeve loss-skip subject is not registered")
     data, folds = _load_foundation(repository_root)
     frame = data.frame
     surfaces = _feature_surfaces(frame=frame, folds=folds)
@@ -661,28 +775,54 @@ def compute_sleeve_loss_skip_risk_trace(
         "family_id": definition.family_id,
         "invariance_comparisons": invariance,
         "intent_observations": intent_observations,
-        "job_hash": job_hash,
-        "job_id": job_id,
         "material_identity": definition.material_identity,
-        "mission_id": mission_id,
         "ordered_family": list(definition.prospective_executable_ids),
         "protocol_definition": definition.manifest(),
         "protocol_id": definition.protocol_id,
-        "schema": SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
+        "schema": SLEEVE_LOSS_SKIP_RISK_FAMILY_TRACE_SCHEMA,
         "split_artifact_sha256": definition.split_artifact_sha256,
-        "subject_executable_id": subject_executable_id,
         "trade_observations": trade_observations,
         "windows": [item.manifest() for item in definition.folds],
     }
-    canonical_bytes(trace)
-    return trace
+    return validate_sleeve_loss_skip_risk_family_trace(
+        trace,
+        definition=definition,
+    )
+
+
+def compute_sleeve_loss_skip_risk_trace(
+    repository_root: str | Path,
+    *,
+    definition: ProspectivePairProtocolDefinition,
+    mission_id: str,
+    subject_executable_id: str,
+    job_id: str,
+    job_hash: str,
+) -> dict[str, object]:
+    family = compute_sleeve_loss_skip_risk_family_trace(
+        repository_root,
+        definition=definition,
+    )
+    return bind_sleeve_loss_skip_risk_family_trace(
+        family,
+        definition=definition,
+        mission_id=mission_id,
+        subject_executable_id=subject_executable_id,
+        job_id=job_id,
+        job_hash=job_hash,
+    )
 
 
 __all__ = [
     "HISTORICAL_CONTEXT_ID",
     "HISTORICAL_PRIOR_GLOBAL_EXPOSURE_COUNT",
+    "SLEEVE_LOSS_SKIP_RISK_FAMILY_TRACE_SCHEMA",
+    "bind_sleeve_loss_skip_risk_family_trace",
     "build_sleeve_loss_skip_risk_protocol_definition",
+    "compute_sleeve_loss_skip_risk_family_trace",
     "compute_sleeve_loss_skip_risk_trace",
+    "extract_sleeve_loss_skip_risk_family_trace",
     "preregistered_eligible_intent_rows",
     "sleeve_loss_skip_risk_trace_implementation_sha256",
+    "validate_sleeve_loss_skip_risk_family_trace",
 ]

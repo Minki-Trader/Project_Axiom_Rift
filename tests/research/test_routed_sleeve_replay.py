@@ -384,6 +384,9 @@ class RoutedSleeveReplayTests(unittest.TestCase):
                 implementation_sha256=validator_implementation_sha256(
                     implementation_path=validator.implementation_path,
                     dependency_paths=SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+                    semantic_boundary_paths=(
+                        validator.semantic_boundary_paths
+                    ),
                 ),
             )
             changed_job_implementation = (

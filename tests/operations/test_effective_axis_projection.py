@@ -844,7 +844,7 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
         )
         self.assertEqual(
             deferred_resolution.generic_portfolio_actions,
-            ("prune",),
+            ("preserve", "prune"),
         )
         self.assertEqual(
             action_matrix,
@@ -852,7 +852,7 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
         )
         self.assertEqual(
             resolution.to_projection_payload()["schema"],
-            "effective_portfolio_axis.v5",
+            "effective_portfolio_axis.v6",
         )
 
     def test_writer_rejects_generic_action_excluded_by_latest_diagnosis(

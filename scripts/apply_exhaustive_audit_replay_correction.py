@@ -307,15 +307,50 @@ def _authority_migration_spec(
     paths: tuple[str, ...],
 ) -> dict[str, object]:
     replacements = _authority_replacements(paths)
+    reviewed = _reviewed_authority_migration_spec(paths)
     prospective_digest = _manifest_digest(paths)
+    if prospective_digest != reviewed["prospective_digest"]:
+        raise RuntimeError(
+            "authority replacement manifest differs from the reviewed checkpoint"
+        )
+    return {**reviewed, "replacements": replacements}
+
+
+def _reviewed_authority_migration_spec(
+    paths: tuple[str, ...],
+) -> dict[str, object]:
+    """Rebuild the immutable migration identity without current worktree bytes."""
+
+    if tuple(sorted(REVIEWED_AUTHORITY_REPLACEMENT_SHA256)) != (
+        AUTHORITY_PATHS_CHANGED
+    ):
+        raise RuntimeError("reviewed authority replacement inventory drifted")
+    predecessor_hashes = {
+        relative: sha256(_predecessor_bytes(relative)).hexdigest()
+        for relative in paths
+    }
+    predecessor_digest = canonical_digest(
+        domain="authority-manifest",
+        payload=dict(sorted(predecessor_hashes.items())),
+    )
+    if predecessor_digest != PREDECESSOR_AUTHORITY_DIGEST:
+        raise RuntimeError("Git predecessor does not match canonical authority")
+    prospective_hashes = {
+        **predecessor_hashes,
+        **REVIEWED_AUTHORITY_REPLACEMENT_SHA256,
+    }
+    prospective_digest = canonical_digest(
+        domain="authority-manifest",
+        payload=dict(sorted(prospective_hashes.items())),
+    )
     rows = [
         {
-            "artifact_sha256": sha256(content).hexdigest(),
-            "new_sha256": sha256(content).hexdigest(),
-            "old_sha256": sha256(_predecessor_bytes(relative)).hexdigest(),
+            "artifact_sha256": REVIEWED_AUTHORITY_REPLACEMENT_SHA256[relative],
+            "new_sha256": REVIEWED_AUTHORITY_REPLACEMENT_SHA256[relative],
+            "old_sha256": predecessor_hashes[relative],
             "path": relative,
         }
-        for relative, content in sorted(replacements.items())
+        for relative in AUTHORITY_PATHS_CHANGED
     ]
     payload = {
         "boundary": "active_stable",
@@ -335,7 +370,6 @@ def _authority_migration_spec(
         ),
         "payload": payload,
         "prospective_digest": prospective_digest,
-        "replacements": replacements,
     }
 
 
@@ -833,6 +867,58 @@ def _operation(
         "operation_id": operation_id,
         "result": dict(result),
     }
+
+
+def _reviewed_authority_operation(
+    writer: StateWriter,
+    *,
+    paths: tuple[str, ...],
+) -> dict[str, object] | None:
+    """Validate the exact correction event even after later authority changes."""
+
+    spec = _reviewed_authority_migration_spec(paths)
+    prospective_digest = spec["prospective_digest"]
+    migration_id = spec["migration_id"]
+    migration_payload = spec["payload"]
+    assert isinstance(prospective_digest, str)
+    assert isinstance(migration_id, str)
+    assert isinstance(migration_payload, Mapping)
+    operation = _operation(
+        writer,
+        AUTHORITY_OPERATION_ID,
+        expected_event_kind="authority_migrated",
+        expected_authority_digest=prospective_digest,
+        expected_migration_id=migration_id,
+    )
+    if operation is None:
+        return None
+    with writer._open_authoritative_index() as index:
+        record = index.get("operation", AUTHORITY_OPERATION_ID)
+    if record is None:
+        raise RuntimeError("authority migration operation disappeared")
+    event = writer.journal.read_event_at(
+        offset=record.authority_offset,
+        expected_sequence=record.authority_sequence,
+        expected_event_id=record.authority_event_id,
+    )
+    contents: list[bytes] = []
+    for relative in AUTHORITY_PATHS_CHANGED:
+        digest = REVIEWED_AUTHORITY_REPLACEMENT_SHA256[relative]
+        try:
+            contents.append(writer.evidence.read_verified(digest))
+        except (FileNotFoundError, OSError, RuntimeError) as exc:
+            raise RuntimeError(
+                "completed correction lacks reviewed authority evidence"
+            ) from exc
+    expected_payload = {
+        **dict(migration_payload),
+        "evidence": [_evidence_manifest(content) for content in contents],
+    }
+    if event.get("payload") != expected_payload:
+        raise RuntimeError(
+            "completed authority correction differs from the reviewed event"
+        )
+    return operation
 
 
 def _require_recoverable_suffix(
@@ -1338,12 +1424,16 @@ def _require_local_main_checkpoint(
 def _read_only_plan() -> dict[str, object]:
     control = _control()
     paths = _authority_paths(control)
-    replacements = _authority_replacements(paths)
     active_digest = control["authority"]["manifest_digest"]  # type: ignore[index]
-    prospective_digest = _manifest_digest(paths)
+    reviewed = _reviewed_authority_migration_spec(paths)
+    prospective_digest = reviewed["prospective_digest"]
+    assert isinstance(prospective_digest, str)
     plan: dict[str, object] | None = None
+    authority_operation: dict[str, object] | None = None
     invalidation_operation: dict[str, object] | None = None
+    mode = "pending_correction"
     if active_digest == PREDECESSOR_AUTHORITY_DIGEST:
+        replacements = _authority_replacements(paths)
         with _predecessor_foundation(paths) as foundation_root:
             writer = StateWriter(ROOT, foundation_root=foundation_root)
             writer.require_stable_head()
@@ -1351,29 +1441,42 @@ def _read_only_plan() -> dict[str, object]:
                 obligation_id=REPLAY_OBLIGATION_ID
             )
             _reviewed_invalidation_manifest(plan)
-    elif active_digest == prospective_digest:
+    else:
         writer = StateWriter(ROOT)
         writer.require_stable_head()
+        authority_operation = _reviewed_authority_operation(
+            writer,
+            paths=paths,
+        )
+        if authority_operation is None:
+            raise RuntimeError(
+                "active authority lacks the reviewed correction ancestor"
+            )
         invalidation_operation = _operation(
             writer,
             INVALIDATION_OPERATION_ID,
             expected_event_kind="historical_replay_satisfaction_invalidated",
             expected_obligation_id=REPLAY_OBLIGATION_ID,
         )
-        if invalidation_operation is None:
+        if invalidation_operation is not None:
+            mode = "completed_immutable_ancestor"
+        else:
+            if active_digest != prospective_digest:
+                raise RuntimeError(
+                    "incomplete correction was superseded by later authority"
+                )
+            _authority_replacements(paths)
             plan = writer.plan_historical_replay_satisfaction_invalidation(
                 obligation_id=REPLAY_OBLIGATION_ID
             )
             _reviewed_invalidation_manifest(plan)
-    else:
-        raise RuntimeError("control authority is neither predecessor nor replacement")
     return {
         "active_authority_manifest_digest": active_digest,
+        "authority_operation": authority_operation,
         "authority_operation_id": AUTHORITY_OPERATION_ID,
-        "authority_replacement_sha256": {
-            relative: sha256(content).hexdigest()
-            for relative, content in sorted(replacements.items())
-        },
+        "authority_replacement_sha256": dict(
+            sorted(REVIEWED_AUTHORITY_REPLACEMENT_SHA256.items())
+        ),
         "invalidation_operation": invalidation_operation,
         "invalidation_operation_id": INVALIDATION_OPERATION_ID,
         "historical_family_authority": (
@@ -1382,6 +1485,7 @@ def _read_only_plan() -> dict[str, object]:
         "historical_family_authority_id": (
             _historical_family_authority().identity
         ),
+        "mode": mode,
         "prospective_authority_manifest_digest": prospective_digest,
         "replay_invalidation_plan": plan,
         "replay_obligation_id": REPLAY_OBLIGATION_ID,
@@ -1389,8 +1493,55 @@ def _read_only_plan() -> dict[str, object]:
     }
 
 
+def _completed_apply_result(
+    plan: Mapping[str, object],
+    *,
+    recovery: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        "authority_operation": plan["authority_operation"],
+        "authority_transition": None,
+        "invalidation_operation": plan["invalidation_operation"],
+        "local_main_delivery_boundary": None,
+        "recovery": dict(recovery),
+        "schema": "exhaustive_audit_replay_correction_result.v1",
+        "stable_revision": _control()["revision"],
+    }
+
+
+def _is_superseded_completed_correction(
+    plan: Mapping[str, object],
+) -> bool:
+    """Return whether later authority makes the old delivery path inapplicable."""
+
+    return (
+        plan.get("mode") == "completed_immutable_ancestor"
+        and plan.get("active_authority_manifest_digest")
+        != plan.get("prospective_authority_manifest_digest")
+    )
+
+
 def apply(*, explicit_recovery: bool = False) -> dict[str, object]:
+    before: dict[str, object] | None
+    try:
+        before = _read_only_plan()
+    except RecoveryRequired:
+        if not explicit_recovery:
+            raise
+        before = None
+    if before is not None and _is_superseded_completed_correction(before):
+        return _completed_apply_result(
+            before,
+            recovery={
+                "mode": "not_required_completed_immutable_ancestor",
+                "recovery_requested": explicit_recovery,
+            },
+        )
     recovery = _prepare_projection(explicit_recovery=explicit_recovery)
+    if before is None:
+        before = _read_only_plan()
+    if _is_superseded_completed_correction(before):
+        return _completed_apply_result(before, recovery=recovery)
     control = _control()
     active_digest = control["authority"]["manifest_digest"]  # type: ignore[index]
     paths = _authority_paths(control)
@@ -1401,7 +1552,6 @@ def apply(*, explicit_recovery: bool = False) -> dict[str, object]:
             control=control,
             paths=paths,
         )
-    before = _read_only_plan()
     replacements = _authority_replacements(paths)
     migration_spec = _authority_migration_spec(paths)
     migration_id = migration_spec["migration_id"]

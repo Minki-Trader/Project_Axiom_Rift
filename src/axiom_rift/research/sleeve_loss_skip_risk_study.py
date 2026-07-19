@@ -50,6 +50,11 @@ from axiom_rift.research.selection_inference import (
 from axiom_rift.research.sleeve_loss_skip_risk_chassis import (
     sleeve_loss_skip_risk_chassis_implementation_sha256,
 )
+from axiom_rift.research.sleeve_loss_skip_risk_cache import (
+    sleeve_loss_skip_risk_cache_implementation_sha256,
+    sleeve_loss_skip_risk_cache_output_name,
+    sleeve_loss_skip_risk_cache_provenance_output_name,
+)
 from axiom_rift.research.sleeve_loss_skip_risk_trace import (
     build_sleeve_loss_skip_risk_protocol_definition,
     sleeve_loss_skip_risk_trace_implementation_sha256,
@@ -75,6 +80,16 @@ _THIS_FILE = Path(__file__).resolve()
 
 def sleeve_loss_skip_risk_study_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
+
+
+def _job_input_digest(value: object) -> str:
+    if type(value) is not str or not value or not value.isascii():
+        raise ValueError("sleeve loss-skip Job input identity is invalid")
+    if len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
+    ):
+        return value
+    return sha256(value.encode("ascii")).hexdigest()
 
 
 _EVIDENCE_MODE_BY_CRITERION = {
@@ -261,13 +276,61 @@ class SleeveLossSkipRiskJobPlan:
     def plan_hash(self) -> str:
         return sha256(canonical_bytes(self.plan)).hexdigest()
 
+    @property
+    def producer_executable_id(self) -> str:
+        return self.definition.prospective_executable_ids[0]
+
+    @property
+    def produces_family_cache(self) -> bool:
+        return self.executable_id == self.producer_executable_id
+
+    @property
+    def cache_output_name(self) -> str:
+        return sleeve_loss_skip_risk_cache_output_name(self.definition)
+
+    @property
+    def cache_provenance_output_name(self) -> str:
+        return sleeve_loss_skip_risk_cache_provenance_output_name(
+            self.study_id
+        )
+
     def expected_outputs(self) -> tuple[str, ...]:
-        return tuple(sorted(self.output_names.values()))
+        values = set(self.output_names.values())
+        if self.produces_family_cache:
+            values.update(
+                (self.cache_output_name, self.cache_provenance_output_name)
+            )
+        return tuple(sorted(values))
 
     def expected_output_classes(self) -> dict[str, str]:
-        return {name: "durable_evidence" for name in self.expected_outputs()}
+        return {
+            name: (
+                "reproducible_cache"
+                if name == self.cache_output_name
+                else "durable_evidence"
+            )
+            for name in self.expected_outputs()
+        }
 
-    def job_input_hashes(self) -> tuple[str, ...]:
+    def job_input_hashes(
+        self,
+        *,
+        cache_sha256: str | None = None,
+        cache_provenance_sha256: str | None = None,
+        producer_trace_sha256: str | None = None,
+    ) -> tuple[str, ...]:
+        optional = (
+            cache_sha256,
+            cache_provenance_sha256,
+            producer_trace_sha256,
+        )
+        missing = tuple(value is None for value in optional)
+        if any(missing) and not all(missing):
+            raise ValueError(
+                "sleeve loss-skip cache inputs are inseparable"
+            )
+        if self.produces_family_cache and not all(missing):
+            raise ValueError("sleeve loss-skip producer cannot consume its cache")
         values = {
             self.definition.dataset_sha256,
             self.definition.material_identity,
@@ -278,18 +341,14 @@ class SleeveLossSkipRiskJobPlan:
             prospective_pair_trace_implementation_sha256(),
             selection_inference_implementation_sha256(),
             sleeve_loss_skip_risk_chassis_implementation_sha256(),
+            sleeve_loss_skip_risk_cache_implementation_sha256(),
             sleeve_loss_skip_risk_study_implementation_sha256(),
             sleeve_loss_skip_risk_trace_implementation_sha256(),
             running_job_execution_context_implementation_sha256(),
             *dict(self.definition.producer_implementation_identities).values(),
         }
-        if any(
-            len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-            for value in values
-        ):
-            raise ValueError("sleeve loss-skip Job input identity is invalid")
-        return tuple(sorted(values))
+        values.update(value for value in optional if value is not None)
+        return tuple(sorted(_job_input_digest(value) for value in values))
 
     def scientific_binding(self) -> dict[str, object]:
         return {
@@ -318,8 +377,14 @@ def build_sleeve_loss_skip_risk_job_plan(
     mission_id: str,
     study_id: str,
     executable_id: str,
+    definition: ProspectivePairProtocolDefinition | None = None,
 ) -> SleeveLossSkipRiskJobPlan:
-    definition = build_sleeve_loss_skip_risk_protocol_definition(repository_root)
+    if definition is None:
+        definition = build_sleeve_loss_skip_risk_protocol_definition(
+            repository_root
+        )
+    else:
+        canonical_bytes(definition.manifest())
     if executable_id not in definition.prospective_executable_ids:
         raise ValueError("sleeve loss-skip Job subject is not registered")
     names = output_names(executable_id, study_id=study_id)

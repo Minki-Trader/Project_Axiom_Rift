@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+from hashlib import sha256
 import json
+import os
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -82,10 +84,53 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
             remote_commit=observation_payload["remote_commit"],
             remote_ref=observation_payload["remote_ref"],
         )
-        report_bytes = module._git_blob(
-            core.baseline.code_checkpoint_commit,
-            module.AUDIT_REPORT_PATH,
-        )
+        if os.environ.get("AXIOM_TRACKED_TEST_PARENT_RUNTIME") == "1":
+            report_bytes = module.EvidenceStore(
+                ROOT / "local/evidence"
+            ).read_verified(activation.audit_artifact_hash)
+            predecessor = journal_events[
+                module.EXPECTED_BASELINE_REVISION - 1
+            ]
+            baseline = module.parse_canonical(
+                module.canonical_bytes(dict(predecessor["control"]))
+            )
+            baseline["revision"] = predecessor["sequence"]
+            baseline["heads"] = {
+                "journal": {
+                    "sequence": predecessor["sequence"],
+                    "event_id": predecessor["event_id"],
+                },
+                "index": {
+                    "required_sequence": predecessor["sequence"],
+                    "required_record_count": predecessor[
+                        "index_record_count"
+                    ],
+                    "required_projection_digest": predecessor[
+                        "index_projection_digest"
+                    ],
+                },
+            }
+            baseline["control_hash"] = module.canonical_digest(
+                domain="control",
+                payload=baseline,
+            )
+            baseline_document = module.canonical_bytes(baseline)
+            if (
+                sha256(baseline_document).hexdigest()
+                != core.baseline.control_sha256
+            ):
+                raise AssertionError(
+                    "recorded activation baseline reconstruction drifted"
+                )
+        else:
+            report_bytes = module._git_blob(
+                core.baseline.code_checkpoint_commit,
+                module.AUDIT_REPORT_PATH,
+            )
+            baseline_document = module._git_blob(
+                core.baseline.code_checkpoint_commit,
+                "state/control.json",
+            )
         material = module.ActivationMaterial(
             core=core,
             report_bytes=report_bytes,
@@ -105,10 +150,7 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         cls.recorded_first, cls.recorded_second = suffix
         cls.recorded_receipts = tuple(module._receipt(event) for event in suffix)
         cls.recorded_baseline_control = module._canonical_object(
-            module._git_blob(
-                core.baseline.code_checkpoint_commit,
-                "state/control.json",
-            ),
+            baseline_document,
             label="recorded activation baseline",
         )
 
@@ -117,8 +159,17 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         module = self.module
         core = self.recorded_material.core
         original = module._git_blob
+        isolated = os.environ.get("AXIOM_TRACKED_TEST_PARENT_RUNTIME") == "1"
+        prospective_evidence = {
+            item.path: module.EvidenceStore(ROOT / "local/evidence").read_verified(
+                item.prospective_sha256
+            )
+            for item in core.authority_replacements
+        }
 
         def blob(reference: str, relative: str) -> bytes:
+            if isolated and reference == "HEAD" and relative in prospective_evidence:
+                return prospective_evidence[relative]
             selected = (
                 core.baseline.code_checkpoint_commit
                 if reference == "HEAD"

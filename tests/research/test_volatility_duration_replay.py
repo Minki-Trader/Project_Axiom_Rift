@@ -208,7 +208,7 @@ class VolatilityDurationReplayTests(unittest.TestCase):
             "axiom_rift/research/volatility_duration_replay_job.py",
             paths,
         )
-        self.assertIn("axiom_rift/operations/writer.py", paths)
+        self.assertNotIn("axiom_rift/operations/writer.py", paths)
         self.assertIn("axiom_rift/storage/evidence.py", paths)
         self.assertIn(
             "axiom_rift/research/historical_family_replay.py",

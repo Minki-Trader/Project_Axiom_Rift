@@ -544,6 +544,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
                     mission_id=MISSION_ID,
                     study_id=STUDY_ID,
                     executable_id=executable.identity,
+                    definition=definition,
                 )
             ),
         )
@@ -698,13 +699,67 @@ def _job_implementation_identity() -> str:
     )
 
 
+def _job_cache_contract(
+    writer: StateWriter,
+    design: StudyDesign,
+    member: StudyMember,
+) -> tuple[tuple[str, ...], dict[str, str], tuple[str, ...]]:
+    plan = member.job_plan
+    if plan.produces_family_cache:
+        return (
+            plan.expected_outputs(),
+            plan.expected_output_classes(),
+            plan.job_input_hashes(),
+        )
+    producer = design.control
+    completion = _completion(writer, design.binding, producer)
+    outputs = completion.payload.get("outputs")
+    if (
+        completion.status != "success"
+        or not isinstance(outputs, Mapping)
+        or set(outputs) != set(producer.job_plan.expected_outputs())
+    ):
+        raise RuntimeError(
+            "loss-skip cache consumer lacks exact producer completion"
+        )
+    cache_hash = outputs.get(plan.cache_output_name)
+    provenance_hash = outputs.get(plan.cache_provenance_output_name)
+    producer_trace_hash = outputs.get(producer.job_plan.output_names["trace"])
+    if any(
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in (cache_hash, provenance_hash, producer_trace_hash)
+    ):
+        raise RuntimeError("loss-skip producer cache outputs are malformed")
+    assert isinstance(cache_hash, str)
+    assert isinstance(provenance_hash, str)
+    assert isinstance(producer_trace_hash, str)
+    return (
+        plan.expected_outputs(),
+        plan.expected_output_classes(),
+        plan.job_input_hashes(
+            cache_sha256=cache_hash,
+            cache_provenance_sha256=provenance_hash,
+            producer_trace_sha256=producer_trace_hash,
+        ),
+    )
+
+
 def _job_spec(
+    writer: StateWriter,
+    design: StudyDesign,
     member: StudyMember,
     *,
     binding: StudyRunBinding,
     implementation_identity: str,
     ordinal: int,
 ) -> Mapping[str, Any]:
+    expected_outputs, output_classes, input_hashes = _job_cache_contract(
+        writer,
+        design,
+        member,
+    )
     return {
         "budget": {"compute_seconds": 7200, "wall_seconds": 10800},
         "callable_identity": CALLABLE_IDENTITY,
@@ -712,11 +767,11 @@ def _job_spec(
             "kind": "Executable",
             "id": member.executable.identity,
         },
-        "expected_outputs": list(member.job_plan.expected_outputs()),
+        "expected_outputs": list(expected_outputs),
         "implementation_identity": implementation_identity,
-        "input_hashes": list(member.job_plan.job_input_hashes()),
+        "input_hashes": list(input_hashes),
         "log_path": f"local/jobs/{binding.study_id.lower()}/{member.label}.log",
-        "output_classes": member.job_plan.expected_output_classes(),
+        "output_classes": output_classes,
         "resume_action": "continue_batch" if ordinal == 0 else "stop_batch",
         "scientific_binding": member.job_plan.scientific_binding(),
         "timeout_or_stop_rule": "finish the exact registered loss-skip pair member",
@@ -966,6 +1021,8 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
             stem + "-declare-job",
             lambda member=member, ordinal=ordinal: writer.declare_job(
                 spec=_job_spec(
+                    writer,
+                    design,
                     member,
                     binding=binding,
                     implementation_identity=implementation_identity,
@@ -1140,7 +1197,11 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> None:
     arguments = parse_arguments()
-    registry = EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
+    registry = (
+        EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
+        if arguments.stage == "study-close"
+        else None
+    )
     writer = StateWriter(ROOT, validation_registry=registry)
     writer.require_stable_head()
     design = build_design(writer)

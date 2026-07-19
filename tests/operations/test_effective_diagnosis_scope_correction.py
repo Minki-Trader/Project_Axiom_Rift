@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -87,17 +88,36 @@ def test_replay_derives_exact_diagnosis_semantics_before_mutation() -> None:
 
 def test_audited_origin_checkpoint_is_immutable_ancestor() -> None:
     tree = _tree()
-    assignment = next(
-        node
+    assignments = {
+        target.id: ast.literal_eval(node.value)
         for node in tree.body
         if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name)
-            and target.id == "EXPECTED_ORIGIN_MAIN_COMMIT"
-            for target in node.targets
-        )
-    )
-    expected = ast.literal_eval(assignment.value)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+        and target.id
+        in {
+            "EXPECTED_BASE_EVENT_ID",
+            "EXPECTED_BASE_REVISION",
+            "EXPECTED_ORIGIN_MAIN_COMMIT",
+        }
+    }
+    expected = assignments["EXPECTED_ORIGIN_MAIN_COMMIT"]
+    if os.environ.get("AXIOM_TRACKED_TEST_PARENT_RUNTIME") == "1":
+        # The tracked-test runner intentionally transfers only the Git-index
+        # tree and creates a parentless snapshot.  Preserve exact byte-level
+        # checkpoint bindings here; the normal repository run below owns the
+        # historical ancestry assertion that the isolated repository cannot
+        # represent.
+        assert assignments == {
+            "EXPECTED_BASE_EVENT_ID": (
+                "f95050a5dca1ba2a956a20dfc1a0495f0fda612be35ccb513021ce8e525b7769"
+            ),
+            "EXPECTED_BASE_REVISION": 5708,
+            "EXPECTED_ORIGIN_MAIN_COMMIT": (
+                "57d48c241d7a39cb7e31fc4fda6e4bfc0522b7d5"
+            ),
+        }
+        return
     ancestry = subprocess.run(
         ("git", "merge-base", "--is-ancestor", expected, "HEAD"),
         cwd=ROOT,

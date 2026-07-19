@@ -895,6 +895,24 @@ class ExhaustiveAuditReplayCorrectionTests(unittest.TestCase):
             ["state/control.json", "records/journal.jsonl"],
         )
 
+    def test_completed_correction_reaudits_immutable_events_without_current_bytes(
+        self,
+    ) -> None:
+        with self.fixture.patch_subject():
+            SUBJECT.apply()
+            with patch.object(
+                SUBJECT,
+                "_authority_replacements",
+                side_effect=AssertionError(
+                    "completed audit consulted mutable current authority bytes"
+                ),
+            ):
+                plan = SUBJECT._read_only_plan()
+
+        self.assertEqual(plan["mode"], "completed_immutable_ancestor")
+        self.assertIsNotNone(plan["authority_operation"])
+        self.assertIsNotNone(plan["invalidation_operation"])
+
     def test_canonical_operation_rejects_duplicate_accepted_family_authority(
         self,
     ) -> None:

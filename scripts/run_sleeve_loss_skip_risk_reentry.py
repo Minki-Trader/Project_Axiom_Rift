@@ -17,9 +17,13 @@ from axiom_rift.operations.permits import (  # noqa: E402
     PermitAuthority,
     PermitKeyStore,
 )
+from axiom_rift.operations.study_diagnosis_projection import (  # noqa: E402
+    study_claim_scoped_diagnosis,
+)
 from axiom_rift.operations.validation import EvidenceValidatorRegistry  # noqa: E402
 from axiom_rift.operations.writer import StateWriter  # noqa: E402
 from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID  # noqa: E402
+from axiom_rift.research.governance import StudyDiagnosis  # noqa: E402
 from axiom_rift.research.portfolio import (  # noqa: E402
     BatchSpec,
     ConcurrentFamilyEvaluationMode,
@@ -455,6 +459,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
                     mission_id=MISSION_ID,
                     study_id=STUDY_ID,
                     executable_id=executable.identity,
+                    definition=definition,
                 )
             ),
         )
@@ -505,26 +510,103 @@ def summary(writer: StateWriter, design: StudyDesign) -> Mapping[str, Any]:
     return value
 
 
+def diagnose_study(writer: StateWriter) -> Mapping[str, Any]:
+    operation_id = OPERATION_PREFIX + "diagnose-study"
+    with writer.open_stable_index() as (control, index):
+        existing = index.get("operation", operation_id)
+        pattern = study_claim_scoped_diagnosis(
+            index,
+            study_id=STUDY_ID,
+        )
+        next_action = control["next_action"]
+    if pattern is None:
+        raise RuntimeError("STU-0123 claim-scoped diagnosis is unavailable")
+    if existing is None:
+        if next_action != {
+            "kind": "diagnose_study",
+            "portfolio_snapshot_id": SNAPSHOT_ID,
+            "study_close_record_id": (
+                "d770d99dd51b20e1a9ac908c2e72180144a6329edce4b2e1026a626e20c24e28"
+            ),
+            "study_id": STUDY_ID,
+        }:
+            raise RuntimeError("STU-0123 diagnosis is not the exact next action")
+        result = writer.record_study_diagnosis(
+            diagnosis=StudyDiagnosis(
+                study_id=STUDY_ID,
+                study_close_record_id=next_action["study_close_record_id"],
+                evidence_state=pattern.evidence_state,
+                confidence=pattern.confidence,
+                rationale=(
+                    "the corrected pair is evaluable and preserves absolute "
+                    "activity, after-cost economics, validity, selection-aware, "
+                    "and temporal evidence, but the registered control contrast "
+                    "is uniformly contradicted and the monthly drawdown-share "
+                    "diagnostic also fails; unrelated positives cannot promote "
+                    "the loss-skip mechanism"
+                ),
+                counterfactual=(
+                    "a useful one-entry loss-skip mechanism would produce a "
+                    "positive registered control delta with its synchronized "
+                    "uncertainty supported while retaining acceptable drawdown "
+                    "share; the exact corrected evidence does not"
+                ),
+                reopen_condition=(
+                    "do not repeat the exact skip-next policy; reopen only with "
+                    "new registered material or a materially distinct causal "
+                    "loss-state risk mechanism and a fresh preregistered control "
+                    "contrast"
+                ),
+                diagnosis_reason_code=pattern.reason_code,
+                supported_claim_ids=pattern.supported_claim_ids,
+                contradicted_claim_ids=pattern.contradicted_claim_ids,
+                unresolved_claim_ids=pattern.unresolved_claim_ids,
+                diagnostic_criterion_ids=pattern.diagnostic_criterion_ids,
+            ),
+            operation_id=operation_id,
+        ).result
+    else:
+        result = existing.payload.get("result")
+        if existing.status != "success" or not isinstance(result, Mapping):
+            raise RuntimeError("STU-0123 diagnosis operation is malformed")
+    control = writer.read_control()
+    if control is None:
+        raise RuntimeError("STU-0123 diagnosis lost control")
+    return {
+        "diagnosis_pattern": pattern.to_payload(),
+        "next_action": control["next_action"],
+        "revision": control["revision"],
+        "study_diagnosis_id": result.get("study_diagnosis_id"),
+        "study_id": STUDY_ID,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Plan or run corrected STU-0123 engineering reentry."
     )
     parser.add_argument(
         "--stage",
-        choices=("study-close",),
+        choices=("study-close", "diagnose"),
         help="omit for a read-only exact preregistration plan",
     )
     arguments = parser.parse_args()
+    registry = (
+        EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
+        if arguments.stage == "study-close"
+        else None
+    )
     writer = StateWriter(
         ROOT,
-        validation_registry=EvidenceValidatorRegistry(
-            (ScientificAdjudicationValidatorV2(),)
-        ),
+        validation_registry=registry,
     )
     writer.require_stable_head()
     design = build_design(writer)
     if arguments.stage is None:
         print(json.dumps(summary(writer, design), sort_keys=True))
+        return
+    if arguments.stage == "diagnose":
+        print(json.dumps(diagnose_study(writer), sort_keys=True))
         return
     writer.permit_authority = PermitAuthority(
         PermitKeyStore(ROOT / "local" / "permit.key").load_or_create()

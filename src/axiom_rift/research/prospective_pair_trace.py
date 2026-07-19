@@ -963,6 +963,26 @@ def _validated_parts(
     }
 
 
+def validate_prospective_pair_scientific_trace(
+    value: Mapping[str, Any],
+    definition: ProspectivePairProtocolDefinition,
+) -> dict[str, object]:
+    """Return one canonical, atomically validated prospective-pair trace."""
+
+    try:
+        normalized = parse_canonical(canonical_bytes(value))
+    except (TypeError, ValueError) as exc:
+        raise ScientificTraceError(
+            "prospective pair scientific trace is not canonical"
+        ) from exc
+    if not isinstance(normalized, dict):
+        raise ScientificTraceError(
+            "prospective pair scientific trace is not an object"
+        )
+    _validated_parts(normalized, definition)
+    return normalized
+
+
 def prospective_pair_calculation_parameters(
     definition: ProspectivePairProtocolDefinition,
 ) -> dict[str, object]:
@@ -1353,5 +1373,6 @@ __all__ = [
     "prospective_pair_observation_id",
     "prospective_pair_protocol_definition_from_manifest",
     "prospective_pair_trace_implementation_sha256",
+    "validate_prospective_pair_scientific_trace",
     "validate_prospective_pair_trace_calculation",
 ]

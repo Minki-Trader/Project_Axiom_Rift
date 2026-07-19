@@ -265,6 +265,10 @@ def _source_decision(
     source_ids: list[str],
     token: str,
 ) -> IndexRecord:
+    executable = {
+        "schema": "source_replacement_executable_fixture.v1",
+        "source_contracts": source_ids,
+    }
     return IndexRecord(
         kind="portfolio-decision",
         record_id="decision:" + token * 64,
@@ -272,10 +276,9 @@ def _source_decision(
         status="new_mechanism",
         fingerprint=token * 64,
         payload={
-            "baseline_executable": {
-                "schema": "source_replacement_executable_fixture.v1",
-                "source_contracts": source_ids,
-            },
+            "baseline_executable": executable,
+            "baseline_executable_id": "executable:"
+            + canonical_digest(domain="executable", payload=executable),
             "target_axis_identity": axis["axis_identity"],
         },
     )
@@ -738,6 +741,16 @@ class SourceReplacementWriterTests(unittest.TestCase):
 
             def seed_source_lineage(current, _index):
                 assert current is not None
+                executable_by_axis = {
+                    axis_id: {
+                        "schema": "source_replacement_writer_fixture.v1",
+                        "source_contracts": [source_id],
+                    }
+                    for axis_id, source_id in (
+                        (old_axis.axis_id, old_contract.source_contract_id),
+                        (new_axis.axis_id, new_contract.source_contract_id),
+                    )
+                }
                 records = tuple(
                     IndexRecord(
                         kind="portfolio-decision",
@@ -758,10 +771,12 @@ class SourceReplacementWriterTests(unittest.TestCase):
                             payload=axis_id,
                         ),
                         payload={
-                            "baseline_executable": {
-                                "schema": "source_replacement_writer_fixture.v1",
-                                "source_contracts": [source_id],
-                            },
+                            "baseline_executable": executable_by_axis[axis_id],
+                            "baseline_executable_id": "executable:"
+                            + canonical_digest(
+                                domain="executable",
+                                payload=executable_by_axis[axis_id],
+                            ),
                             "target_axis_identity": axis_payloads[axis_id][
                                 "axis_identity"
                             ],

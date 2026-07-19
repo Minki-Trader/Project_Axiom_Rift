@@ -5,6 +5,7 @@ import importlib
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
+from types import ModuleType
 import unittest
 from unittest.mock import patch
 
@@ -550,6 +551,73 @@ class MidTamperValidator:
                 after_transitive_drift,
                 after_initializer_drift,
             )
+
+    def test_cold_semantic_closure_traverses_once_then_rechecks_bytes(
+        self,
+    ) -> None:
+        semantic_module._IMPORT_ANALYSIS_CACHE.clear()
+        semantic_module._SEMANTIC_CLOSURE_CACHE.clear()
+        self.addCleanup(semantic_module._IMPORT_ANALYSIS_CACHE.clear)
+        self.addCleanup(semantic_module._SEMANTIC_CLOSURE_CACHE.clear)
+        with TemporaryDirectory(
+            dir=REPOSITORY_ROOT,
+            prefix="_validation_single_traversal_fixture_",
+        ) as root:
+            package = Path(root)
+            (package / "__init__.py").write_text("", encoding="ascii")
+            implementation = package / "validator.py"
+            semantic_root = package / "decision.py"
+            transitive = package / "thresholds.py"
+            implementation.write_text("VALIDATOR = 1\n", encoding="ascii")
+            semantic_root.write_text(
+                "from . import thresholds\nDECISION = thresholds.LIMIT\n",
+                encoding="ascii",
+            )
+            transitive.write_text("LIMIT = 1\n", encoding="ascii")
+
+            with patch.object(
+                semantic_module,
+                "_discover_once",
+                wraps=semantic_module._discover_once,
+            ) as discover:
+                validator_implementation_sha256(
+                    implementation_path=implementation,
+                    dependency_paths=(semantic_root,),
+                )
+
+            self.assertEqual(discover.call_count, 1)
+
+    def test_loaded_external_module_makes_project_shadows_inert(self) -> None:
+        with TemporaryDirectory() as root, TemporaryDirectory() as external:
+            project = Path(root)
+            source = project / "src"
+            source.mkdir()
+            module_name = "loaded_external_shadow_fixture"
+            (project / f"{module_name}.py").write_text(
+                "PROJECT = 1\n",
+                encoding="ascii",
+            )
+            (source / f"{module_name}.py").write_text(
+                "SOURCE = 1\n",
+                encoding="ascii",
+            )
+            external_path = Path(external) / f"{module_name}.py"
+            external_path.write_text("EXTERNAL = 1\n", encoding="ascii")
+            loaded = ModuleType(module_name)
+            loaded.__file__ = str(external_path)
+
+            with (
+                patch.object(semantic_module, "_PROJECT_ROOT", project),
+                patch.object(
+                    semantic_module,
+                    "_PROJECT_SOURCE_ROOT",
+                    source,
+                ),
+                patch.dict(sys.modules, {module_name: loaded}),
+            ):
+                self.assertIsNone(
+                    semantic_module._module_resolution(module_name)
+                )
 
     def test_implementation_only_import_drift_is_closure_only(self) -> None:
         with TemporaryDirectory(

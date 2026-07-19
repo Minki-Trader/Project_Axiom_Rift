@@ -2035,10 +2035,8 @@ class WriterTests(unittest.TestCase):
             self.writer,
             "_run_registered_validator",
             return_value=(validated, {"validator_id": binding["validator_id"]}),
-        ), self.assertRaisesRegex(
-            TransitionError, "differs from its exact Batch family"
         ):
-            self.writer._derive_scientific_job_evidence(
+            reordered_scientific = self.writer._derive_scientific_job_evidence(
                 job_id=job_id,
                 job_hash=job_hash,
                 mission_id="MIS-FIXTURE",
@@ -2049,6 +2047,18 @@ class WriterTests(unittest.TestCase):
                 batch_record=reversed_batch,
                 expected_batch_id=reversed_batch.record_id,
             )
+        self.assertEqual(
+            reordered_scientific["multiplicity_batch_binding"][
+                "concurrent_family_identity"
+            ],
+            reversed_family.identity,
+        )
+        self.assertEqual(
+            reordered_scientific["multiplicity_batch_binding"][
+                "ordered_member_ids"
+            ],
+            list(members),
+        )
 
         family_variants = (
             (

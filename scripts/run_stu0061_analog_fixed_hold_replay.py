@@ -27,6 +27,7 @@ from axiom_rift.operations.recorded_transition_authority import (  # noqa: E402
 )
 from axiom_rift.operations.replay_workflow_recovery import (  # noqa: E402
     derive_replay_admission_boundary_identity,
+    replay_operation_namespace_study_id,
 )
 from axiom_rift.operations.scientific_history import (  # noqa: E402
     project_frozen_family_exposure_context,
@@ -67,7 +68,6 @@ from axiom_rift.storage.index import LocalIndex, LocalIndexView  # noqa: E402
 
 
 MISSION_ID = "MIS-0006"
-STUDY_ID = "STU-0112"
 AXIS_ID = "axis-stu0061-analog-state-replay-correction-v3"
 BRIDGE_AXIS_ID = "axis-stu0017-composite-consensus-replay-bridge"
 OPERATION_PREFIX = "p1-stu0061-analog-fixed-hold-replay-v3-"
@@ -483,6 +483,12 @@ def build_design(writer: StateWriter):
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    authority = RunningJobAuthority(ROOT)
+    with authority.open_stable_index() as (_control, index):
+        owned_study_id = replay_operation_namespace_study_id(
+            index,
+            OPERATION_PREFIX,
+        )
     summary = run_fixed_hold_replay_command(
         repository_root=ROOT,
         design_builder=build_design,
@@ -491,7 +497,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             materialize_analog_fixed_hold_replay_job_implementation
         ),
         operation_prefix=OPERATION_PREFIX,
-        study_id=STUDY_ID,
+        study_id=owned_study_id,
         argv=argv,
     )
     print(json.dumps(summary, sort_keys=True))

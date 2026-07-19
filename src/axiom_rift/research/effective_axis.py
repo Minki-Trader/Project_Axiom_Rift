@@ -973,19 +973,23 @@ class EffectiveAxisResolution:
         ``selectable`` describes current axis authority, not carte-blanche
         permission to repeat an old experiment.  The action surface therefore
         intersects status authority with the latest effective diagnosis before
-        design work begins.
+        design work begins.  A deferred historical prune is different: its
+        diagnosis was made under evidence that a later audit removed from
+        scientific authority.  It must retain both structural outcomes so the
+        Portfolio can either preserve it through the typed reopen route or
+        re-establish the prune without silently inheriting that stale diagnosis.
         """
 
         if self.selectable:
             actions = _PORTFOLIO_ACTIONS
+            if self.diagnosis_binding is not None:
+                actions = actions.intersection(
+                    self.diagnosis_binding.allowed_actions
+                )
         elif self.requires_reopen:
             actions = frozenset({"preserve", "prune"})
         else:
             actions = frozenset()
-        if self.diagnosis_binding is not None:
-            actions = actions.intersection(
-                self.diagnosis_binding.allowed_actions
-            )
         return tuple(sorted(actions))
 
     def permits_generic_portfolio_action(self, action: str) -> bool:
@@ -1061,7 +1065,7 @@ class EffectiveAxisResolution:
             "generic_portfolio_actions": list(
                 self.generic_portfolio_actions
             ),
-            "schema": "effective_portfolio_axis.v5",
+            "schema": "effective_portfolio_axis.v6",
             "snapshot_status": self.snapshot_status,
             "source_contract_ids": list(self.source_contract_ids),
             "decision_option_eligible": self.decision_option_eligible,

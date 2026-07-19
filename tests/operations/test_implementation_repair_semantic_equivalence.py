@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import ast
 from contextlib import contextmanager
+from hashlib import sha256
 from pathlib import Path
-import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -581,100 +581,73 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
         required = set(_REQUIRED_CHANGED_PATHS)
         relative_path_list = _FIXED_HOLD_JOB_SOURCE_PATHS
 
-        def git_sources(commit: str) -> dict[str, bytes]:
-            request = "".join(
-                f"{commit}:src/{relative_path}\n"
-                for relative_path in relative_path_list
-            ).encode("ascii")
-            completed = subprocess.run(
-                ("git", "cat-file", "--batch"),
-                cwd=REPO_ROOT,
-                input=request,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True,
+        def read_registered(identity: str) -> bytes:
+            path = (
+                REPO_ROOT
+                / "local"
+                / "evidence"
+                / "sha256"
+                / identity[:2]
+                / identity
             )
-            cursor = 0
-            sources: dict[str, bytes] = {}
-            for relative_path in relative_path_list:
-                header_end = completed.stdout.index(b"\n", cursor)
-                header = completed.stdout[cursor:header_end].split()
-                self.assertEqual(header[-2], b"blob")
-                size = int(header[-1])
-                start = header_end + 1
-                end = start + size
-                sources[relative_path] = completed.stdout[start:end]
-                self.assertEqual(completed.stdout[end : end + 1], b"\n")
-                cursor = end + 1
-            self.assertEqual(cursor, len(completed.stdout))
-            return sources
+            content = path.read_bytes()
+            self.assertEqual(sha256(content).hexdigest(), identity)
+            return content
 
-        old_sources = git_sources(
-            "e80279e3709a018db14a8567b261ed1d951331dd"
-        )
-        new_sources = git_sources(
-            "6fb3cc3c2857bac609d2adc72e6040d3ff8b4926"
-        )
+        def materialize_registered(
+            identity: str,
+        ) -> tuple[dict[str, object], dict[str, bytes]]:
+            implementation_bytes = read_registered(identity)
+            implementation = parse_canonical(implementation_bytes)
+            self.assertIsInstance(implementation, dict)
+            artifact_hashes = implementation.get("artifact_hashes")
+            self.assertIsInstance(artifact_hashes, list)
+            opened: dict[str, bytes] = {}
+            closures: list[dict[str, object]] = []
+            for artifact_hash in artifact_hashes:
+                self.assertIsInstance(artifact_hash, str)
+                content = read_registered(artifact_hash)
+                opened[artifact_hash] = content
+                self.assertEqual(
+                    self.writer.evidence.finalize(content).sha256,
+                    artifact_hash,
+                )
+                try:
+                    candidate = parse_canonical(content)
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    isinstance(candidate, dict)
+                    and candidate.get("schema")
+                    == "job_implementation_source_closure.v1"
+                ):
+                    closures.append(candidate)
+            self.assertEqual(len(closures), 1)
+            dependencies = closures[0].get("dependencies")
+            self.assertIsInstance(dependencies, list)
+            sources = {
+                dependency["path"]: opened[dependency["sha256"]]
+                for dependency in dependencies
+            }
+            self.assertEqual(tuple(sources), relative_path_list)
+            self.assertEqual(
+                self.writer.evidence.finalize(implementation_bytes).sha256,
+                identity,
+            )
+            return implementation, sources
+
+        old_identity = FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
+        new_identity = FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
+        _old_manifest, old_sources = materialize_registered(old_identity)
+        _new_manifest, new_sources = materialize_registered(new_identity)
+        self.assertEqual(set(old_sources), set(new_sources))
+        changed = {
+            path
+            for path in old_sources
+            if old_sources[path] != new_sources[path]
+        }
+        self.assertTrue(required.issubset(changed))
         self._legacy_fixed_hold_new_sources = new_sources
-        relative_paths = set(relative_path_list)
-        self.assertTrue(required.issubset(relative_paths))
-        old_dependencies: list[dict[str, str]] = []
-        new_dependencies: list[dict[str, str]] = []
-        for relative in relative_path_list:
-            current = new_sources[relative]
-            new_artifact = self.writer.evidence.finalize(current)
-            old_document = old_sources[relative]
-            old_artifact = self.writer.evidence.finalize(old_document)
-            old_dependencies.append(
-                {"path": relative, "sha256": old_artifact.sha256}
-            )
-            new_dependencies.append(
-                {"path": relative, "sha256": new_artifact.sha256}
-            )
-
-        def materialize(dependencies: list[dict[str, str]]) -> str:
-            closure = self.writer.evidence.finalize(
-                canonical_bytes(
-                    {
-                        "callable_identity": (
-                            VOLATILITY_RUNTIME_ADAPTER.callable_identity
-                        ),
-                        "dependencies": dependencies,
-                        "schema": "job_implementation_source_closure.v1",
-                    }
-                )
-            )
-            implementation = self.writer.evidence.finalize(
-                canonical_bytes(
-                    {
-                        "artifact_hashes": sorted(
-                            {
-                                closure.sha256,
-                                *(item["sha256"] for item in dependencies),
-                            }
-                        ),
-                        "callable_identity": (
-                            VOLATILITY_RUNTIME_ADAPTER.callable_identity
-                        ),
-                        "protocol": (
-                            VOLATILITY_RUNTIME_ADAPTER.job_implementation_protocol
-                        ),
-                        "schema": "job_implementation_evidence.v1",
-                    }
-                )
-            )
-            return implementation.sha256
-
-        old_identity = materialize(old_dependencies)
-        new_identity = materialize(new_dependencies)
-        self.assertEqual(
-            old_identity,
-            FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
-        )
-        self.assertEqual(
-            new_identity,
-            FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
-        )
         return old_identity, new_identity
 
     @contextmanager

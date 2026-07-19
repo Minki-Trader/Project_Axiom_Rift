@@ -15,6 +15,7 @@ from hashlib import sha256
 import os
 from pathlib import Path
 import stat
+import sys
 from threading import RLock
 from typing import Mapping
 
@@ -157,10 +158,50 @@ def _regular_file(path: Path, *, label: str) -> Path:
     return resolved
 
 
+def _loaded_top_level_is_external(module_name: str) -> bool:
+    """Honor an already-loaded external module's real import resolution."""
+
+    top_level = module_name.partition(".")[0]
+    loaded = sys.modules.get(top_level)
+    if loaded is None:
+        return False
+    spec = getattr(loaded, "__spec__", None)
+    origin = None if spec is None else getattr(spec, "origin", None)
+    if origin in {"built-in", "frozen"}:
+        return True
+    raw_paths: list[object] = [getattr(loaded, "__file__", None)]
+    locations = (
+        None
+        if spec is None
+        else getattr(spec, "submodule_search_locations", None)
+    )
+    if locations is not None:
+        raw_paths.extend(locations)
+    paths: list[Path] = []
+    for raw in raw_paths:
+        if not isinstance(raw, (str, os.PathLike)):
+            continue
+        try:
+            paths.append(Path(raw).resolve(strict=True))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return False
+    if not paths:
+        return False
+    for path in paths:
+        try:
+            path.relative_to(_PROJECT_ROOT)
+        except ValueError:
+            continue
+        return False
+    return True
+
+
 def _module_resolution(module_name: str) -> _ModuleResolution | None:
     if not module_name or any(
         not part.isidentifier() for part in module_name.split(".")
     ):
+        return None
+    if _loaded_top_level_is_external(module_name):
         return None
     relative = Path(*module_name.split("."))
     resolutions: list[_ModuleResolution] = []
@@ -958,6 +999,39 @@ def _discover_once(
     )
 
 
+def _snapshot_is_unchanged(
+    dependencies: tuple[SemanticDependency, ...],
+) -> bool:
+    """Recheck every discovered regular-file byte without graph traversal."""
+
+    try:
+        current: list[SemanticDependency] = []
+        for item in dependencies:
+            before = _regular_file(
+                item.path,
+                label="semantic dependency snapshot",
+            )
+            if before != item.path:
+                return False
+            content = before.read_bytes()
+            after = _regular_file(
+                item.path,
+                label="semantic dependency snapshot",
+            )
+            if after != before:
+                return False
+            current.append(
+                SemanticDependency(
+                    path=before,
+                    project_path=_project_relative(before),
+                    sha256=sha256(content).hexdigest(),
+                )
+            )
+    except (OSError, SemanticDependencyError):
+        return False
+    return tuple(current) == dependencies
+
+
 def semantic_dependency_binding(
     dependency_paths: tuple[str | Path, ...],
     *,
@@ -989,25 +1063,13 @@ def semantic_dependency_binding(
         with _CACHE_LOCK:
             cached = _SEMANTIC_CLOSURE_CACHE.get(cache_key)
         if cached is not None:
-            try:
-                current = tuple(
-                    SemanticDependency(
-                        path=item.path,
-                        project_path=_project_relative(item.path),
-                        sha256=sha256(item.path.read_bytes()).hexdigest(),
-                    )
-                    for item in cached
-                )
-            except OSError:
-                current = ()
-            if current == cached:
+            if _snapshot_is_unchanged(cached):
                 return cached
             with _CACHE_LOCK:
                 if _SEMANTIC_CLOSURE_CACHE.get(cache_key) is cached:
                     _SEMANTIC_CLOSURE_CACHE.pop(cache_key, None)
-        first = _discover_once(roots, boundary_paths=boundaries)
-        second = _discover_once(roots, boundary_paths=boundaries)
-        if first != second:
+        discovered = _discover_once(roots, boundary_paths=boundaries)
+        if not _snapshot_is_unchanged(discovered):
             continue
         if _project_python_inventory_fingerprint() != inventory_digest:
             continue
@@ -1019,8 +1081,8 @@ def semantic_dependency_binding(
             )
             for key in stale:
                 _SEMANTIC_CLOSURE_CACHE.pop(key, None)
-            _SEMANTIC_CLOSURE_CACHE[cache_key] = second
-        return second
+            _SEMANTIC_CLOSURE_CACHE[cache_key] = discovered
+        return discovered
     raise SemanticDependencyError(
         "semantic dependency graph changed during identity construction"
     )

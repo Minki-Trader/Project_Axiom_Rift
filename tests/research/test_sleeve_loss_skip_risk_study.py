@@ -26,6 +26,7 @@ from axiom_rift.research.sleeve_loss_skip_risk_study import (
     SleeveLossSkipRiskJobPlan,
     build_measurement,
     build_result,
+    build_sleeve_loss_skip_risk_job_plan,
     build_sleeve_loss_skip_risk_validation_plan,
     output_names,
     sleeve_loss_skip_risk_multiplicity_registrations,
@@ -95,6 +96,32 @@ def test_selection_registration_uses_canonical_family_order() -> None:
     assert selection["ordered_member_ids"] == sorted(
         definition.prospective_executable_ids
     )
+
+
+def test_job_plan_accepts_one_verified_family_definition(monkeypatch) -> None:
+    definition = _definition()
+    calls = 0
+
+    def current_definition(_repository_root):
+        nonlocal calls
+        calls += 1
+        return definition
+
+    monkeypatch.setattr(
+        "axiom_rift.research.sleeve_loss_skip_risk_study."
+        "build_sleeve_loss_skip_risk_protocol_definition",
+        current_definition,
+    )
+    plan = build_sleeve_loss_skip_risk_job_plan(
+        repository_root=".",
+        mission_id=MISSION_ID,
+        study_id="STU-PROSPECTIVE-PAIR",
+        executable_id=definition.prospective_executable_ids[0],
+        definition=definition,
+    )
+
+    assert calls == 0
+    assert plan.definition == definition
 
 
 def test_prospective_pair_plan_and_atomic_proofs_validate_end_to_end(
