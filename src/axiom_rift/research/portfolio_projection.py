@@ -40,6 +40,9 @@ from axiom_rift.research.portfolio import (
 from axiom_rift.research.axis_protocol_revision import (
     AxisProtocolRevisionProposal,
 )
+from axiom_rift.research.prospective_engineering_reentry import (
+    ProspectiveEngineeringReentry,
+)
 
 
 class PortfolioProjectionError(ValueError):
@@ -195,6 +198,17 @@ def portfolio_decision_from_projection(
             "quant_team_review",
             "replay_obligation_ids",
         },
+        base_fields
+        | {
+            "engineering_reentry",
+            "engineering_reentry_id",
+        },
+        base_fields
+        | {
+            "engineering_reentry",
+            "engineering_reentry_id",
+            "quant_team_review",
+        },
     )
     if (
         not isinstance(normalized, dict)
@@ -204,6 +218,7 @@ def portfolio_decision_from_projection(
             "portfolio_decision.v2",
             "portfolio_decision.v3",
             "portfolio_decision.v4",
+            "portfolio_decision.v6",
         }
         or (
             normalized.get("schema") == "portfolio_decision.v3"
@@ -218,6 +233,10 @@ def portfolio_decision_from_projection(
             normalized.get("schema") == "portfolio_decision.v4"
         )
         != ("protocol_revision" in normalized)
+        or (
+            normalized.get("schema") == "portfolio_decision.v6"
+        )
+        != ("engineering_reentry" in normalized)
         or not isinstance(normalized.get("options"), list)
     ):
         raise PortfolioProjectionError("Portfolio Decision fields are malformed")
@@ -321,6 +340,20 @@ def portfolio_decision_from_projection(
             raise PortfolioProjectionError(
                 "axis protocol revision identity drifted"
             )
+        reentry_payload = normalized.get("engineering_reentry")
+        engineering_reentry = (
+            None
+            if reentry_payload is None
+            else ProspectiveEngineeringReentry.from_mapping(reentry_payload)
+        )
+        if (
+            engineering_reentry is not None
+            and normalized.get("engineering_reentry_id")
+            != engineering_reentry.identity
+        ):
+            raise PortfolioProjectionError(
+                "prospective engineering reentry identity drifted"
+            )
         decision = PortfolioDecision(
             decision_id=normalized["decision_id"],
             chosen_option_id=normalized["chosen_option_id"],
@@ -333,6 +366,7 @@ def portfolio_decision_from_projection(
                 normalized.get("replay_obligation_ids", ())
             ),
             protocol_revision=protocol_revision,
+            engineering_reentry=engineering_reentry,
             recent_positive_lineage_id=normalized["recent_positive_lineage_id"],
             locks_future_portfolio=normalized["locks_future_portfolio"],
         )

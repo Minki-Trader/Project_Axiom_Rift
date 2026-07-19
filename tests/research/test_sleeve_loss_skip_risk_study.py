@@ -28,6 +28,7 @@ from axiom_rift.research.sleeve_loss_skip_risk_study import (
     build_result,
     build_sleeve_loss_skip_risk_validation_plan,
     output_names,
+    sleeve_loss_skip_risk_multiplicity_registrations,
 )
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
@@ -76,6 +77,23 @@ def test_job_implementation_closes_current_callable_source() -> None:
         callable_identity=CALLABLE_IDENTITY,
         protocol=JOB_IMPLEMENTATION_PROTOCOL,
         source_root=source_root,
+    )
+
+
+def test_selection_registration_uses_canonical_family_order() -> None:
+    definition = _definition()
+    subject_id = definition.prospective_executable_ids[0]
+    registrations = sleeve_loss_skip_risk_multiplicity_registrations(
+        definition=definition,
+        subject_executable_id=subject_id,
+    )
+    selection = next(
+        item
+        for item in registrations
+        if item["criterion_id"] == "E01-familywise-selection"
+    )
+    assert selection["ordered_member_ids"] == sorted(
+        definition.prospective_executable_ids
     )
 
 

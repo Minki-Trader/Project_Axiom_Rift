@@ -55,6 +55,11 @@ from axiom_rift.research.sleeve_loss_skip_risk_chassis import (  # noqa: E402
 from axiom_rift.research.sleeve_loss_skip_risk_study import (  # noqa: E402
     build_sleeve_loss_skip_risk_job_plan,
 )
+from axiom_rift.research.governance import (  # noqa: E402
+    DiagnosisConfidence,
+    EvidenceState,
+    StudyDiagnosis,
+)
 from axiom_rift.research.validation_v2 import (  # noqa: E402
     ScientificAdjudicationValidatorV2,
 )
@@ -508,12 +513,64 @@ def conclude_and_close(writer: StateWriter) -> dict[str, Any]:
     }
 
 
+def diagnose_engineering_gap(writer: StateWriter) -> dict[str, Any]:
+    operation_id = OPERATION_PREFIX + "diagnose-engineering-gap"
+    result = _operation_result(writer, operation_id)
+    if result is None:
+        control = writer.read_control()
+        if control is None:
+            raise RuntimeError("STU-0122 diagnosis lost control state")
+        next_action = control.get("next_action")
+        if (
+            not isinstance(next_action, Mapping)
+            or next_action.get("kind") != "diagnose_study"
+            or next_action.get("study_id") != STUDY_ID
+            or not isinstance(next_action.get("study_close_record_id"), str)
+        ):
+            raise RuntimeError("STU-0122 diagnosis is not the exact next action")
+        result = writer.record_study_diagnosis(
+            diagnosis=StudyDiagnosis(
+                study_id=STUDY_ID,
+                study_close_record_id=next_action["study_close_record_id"],
+                evidence_state=EvidenceState.ENGINEERING_GAP,
+                confidence=DiagnosisConfidence.HIGH,
+                rationale=(
+                    "no scientific result was admitted because the frozen "
+                    "intent calendar rejected out-of-calendar gap rows; the "
+                    "typed engineering disposition requires a distinct "
+                    "successor protocol"
+                ),
+                counterfactual=(
+                    "the corrected eligible-day-only successor can answer the "
+                    "unchanged primary question without counting this "
+                    "engineering failure as scientific evidence"
+                ),
+                reopen_condition=(
+                    "continue only through a preregistered successor Study "
+                    "bound to the requires_scientific_change disposition and "
+                    "the corrected Executable identities"
+                ),
+            ),
+            operation_id=operation_id,
+        ).result
+    control = writer.read_control()
+    if control is None:
+        raise RuntimeError("STU-0122 diagnosis lost terminal control state")
+    return {
+        "next_action": control["next_action"],
+        "revision": control["revision"],
+        "schema": "stu0122_intent_calendar_diagnosis.v1",
+        "study_diagnosis_id": result.get("study_diagnosis_id"),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--open", action="store_true")
     parser.add_argument("--terminal", action="store_true")
+    parser.add_argument("--diagnose", action="store_true")
     arguments = parser.parse_args()
-    if arguments.open and arguments.terminal:
+    if sum((arguments.open, arguments.terminal, arguments.diagnose)) > 1:
         raise SystemExit("choose one STU-0122 Repair action")
     writer = _writer()
     result = (
@@ -521,6 +578,8 @@ def main() -> None:
         if arguments.open
         else conclude_and_close(writer)
         if arguments.terminal
+        else diagnose_engineering_gap(writer)
+        if arguments.diagnose
         else plan_repair(writer)
     )
     print(json.dumps(result, ensure_ascii=True, sort_keys=True))

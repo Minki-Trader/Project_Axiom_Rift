@@ -374,6 +374,22 @@ produces its own valid result. A successor never inherits or rewrites prior
 evidence; semantic revision remains a distinct estimand and cannot resolve the
 predecessor question.
 
+For a prospective non-replay `engineering_gap`, do not turn the diagnosis's
+generic `preserve` projection into a permanent dead end. When the exact closed
+Study, diagnosis, zero-credit completion, `requires_scientific_change`
+disposition, registered successor artifact, distinct baseline Executable, and
+same-core `engineering_reentry` lineage join, build
+`ProspectiveEngineeringReentry` and compare `contrast` or `deepen` against a
+materially diversifying forest option through the plural quant-team review.
+Select reentry only when that review supports its information value and
+opportunity cost. Bind the exact plan in the Portfolio Decision and revalidate
+it at Study open. A same-architecture protocol correction is valid typed
+reentry; an architecture change additionally needs its exact replacement
+equivalence. Neither path inherits predecessor trials, claims, KPI, negative
+memory, failure credit, or candidate authority. Use `preserve` with an exact
+reopen condition only when no currently executable typed successor authority
+exists or the team chooses the competing forest opportunity.
+
 Interpret the validator independently of Job status. An operationally
 successful Job may carry a failed scientific verdict, while an engineering or
 source failure carries no scientific verdict. Use component-aware evidence to

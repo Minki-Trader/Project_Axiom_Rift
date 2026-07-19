@@ -173,6 +173,13 @@ unbound scientific work.
   `requires_scientific_change` disposition leaves the family and creates
   distinct scientific work only when a registered validator positively proves
   the semantic change; inability to validate is not that proof.
+  After the predecessor Study closes and is diagnosed, a validated prospective
+  non-replay successor routes back through the research Portfolio as typed
+  `ProspectiveEngineeringReentry`. Do not leave it trapped behind a generic
+  `preserve`-only diagnosis projection. The Portfolio must still compare the
+  corrected same-axis work with a materially diversifying option through the
+  plural quant-team review; Mission routing restores authority but never
+  preselects the successor or grants scientific credit.
 - Keep operational Job outcome separate from scientific verdict. A Job that
   produced and validated its declared outputs is operationally `success` even
   when the scientific validator returns `failed` or `not_evaluable`. Reserve

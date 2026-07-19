@@ -86,6 +86,9 @@ from axiom_rift.research.sleeve_loss_skip_risk_study import (  # noqa: E402
     SleeveLossSkipRiskJobPlan,
     build_sleeve_loss_skip_risk_job_plan,
 )
+from axiom_rift.research.semantic_question import (  # noqa: E402
+    SemanticQuestionLineageProposal,
+)
 from axiom_rift.research.trials import NegativeMemory  # noqa: E402
 from axiom_rift.research.validation_v2 import (  # noqa: E402
     ScientificAdjudicationValidatorV2,
@@ -124,16 +127,29 @@ class StudyMember:
 
 
 @dataclass(frozen=True, slots=True)
+class StudyRunBinding:
+    study_id: str
+    initiative_id: str
+    operation_prefix: str
+    permit_expiry_utc: str
+    portfolio_snapshot_id: str
+    study_permit_suffix: str
+    superseded_operation_suffixes: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class StudyDesign:
+    binding: StudyRunBinding
     prior_axes: tuple[PortfolioAxis, ...]
     axis: PortfolioAxis
-    structural_decision: PortfolioDecision
+    structural_decision: PortfolioDecision | None
     expanded_snapshot: PortfolioSnapshot
     work_decision: PortfolioDecision
     question: Mapping[str, Any]
     proposal: Mapping[str, Any]
     batch_spec: BatchSpec
     members: tuple[StudyMember, ...]
+    semantic_question_lineage: SemanticQuestionLineageProposal | None
 
     @property
     def control(self) -> StudyMember:
@@ -481,7 +497,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
     )
     concurrent_family = ConcurrentFamilyManifest(
         evaluation_mode=ConcurrentFamilyEvaluationMode.VECTORIZED,
-        executable_ids=definition.prospective_executable_ids,
+        executable_ids=tuple(sorted(definition.prospective_executable_ids)),
     )
     batch_spec = BatchSpec(
         batch_id=BATCH_DISPLAY_ID,
@@ -539,6 +555,15 @@ def build_design(writer: StateWriter) -> StudyDesign:
     ):
         raise RuntimeError("loss-skip member definitions differ")
     return StudyDesign(
+        binding=StudyRunBinding(
+            study_id=STUDY_ID,
+            initiative_id=INITIATIVE_ID,
+            operation_prefix=OPERATION_PREFIX,
+            permit_expiry_utc=PERMIT_EXPIRY_UTC,
+            portfolio_snapshot_id=BASE_SNAPSHOT_ID,
+            study_permit_suffix="study-permit",
+            superseded_operation_suffixes=(),
+        ),
         prior_axes=prior_axes,
         axis=axis,
         structural_decision=structural_decision,
@@ -548,6 +573,7 @@ def build_design(writer: StateWriter) -> StudyDesign:
         proposal=proposal,
         batch_spec=batch_spec,
         members=members,
+        semantic_question_lineage=None,
     )
 
 
@@ -564,6 +590,23 @@ def _operation_result(writer: StateWriter, operation_id: str) -> Mapping[str, An
     return result
 
 
+def _durable_or_planned_batch_id(
+    writer: StateWriter,
+    design: StudyDesign,
+) -> str:
+    operation = _operation_record(
+        writer,
+        design.binding.operation_prefix + "open-batch",
+    )
+    if operation is None:
+        return design.batch_spec.identity
+    result = _operation_result(writer, operation.record_id)
+    batch_id = result.get("batch_id")
+    if not isinstance(batch_id, str):
+        raise RuntimeError("loss-skip Batch operation is malformed")
+    return batch_id
+
+
 def _permit_from_operation(writer: StateWriter, operation_id: str) -> Permit:
     raw = _operation_result(writer, operation_id).get("permit")
     if not isinstance(raw, Mapping):
@@ -573,10 +616,11 @@ def _permit_from_operation(writer: StateWriter, operation_id: str) -> Permit:
 
 def _ensure_operation(
     writer: StateWriter,
+    binding: StudyRunBinding,
     suffix: str,
     action: Callable[[], Any],
 ) -> Mapping[str, Any]:
-    operation_id = OPERATION_PREFIX + suffix
+    operation_id = binding.operation_prefix + suffix
     existing = _operation_record(writer, operation_id)
     if existing is None:
         print(json.dumps({"operation": operation_id, "status": "starting"}), flush=True)
@@ -587,11 +631,13 @@ def _ensure_operation(
 
 
 def _study_permit(writer: StateWriter, design: StudyDesign) -> Permit:
+    binding = design.binding
     chassis = sleeve_loss_skip_risk_controlled_chassis()
     study_hash = writer.study_input_hash(
         question=design.question,
         material_identity=OBSERVED_MATERIAL_ID,
         semantic_proposal=design.proposal,
+        semantic_question_lineage=design.semantic_question_lineage,
         controlled_chassis=chassis,
         portfolio_axis_id=design.axis.axis_id,
         portfolio_axis_identity=design.axis.identity,
@@ -600,7 +646,7 @@ def _study_permit(writer: StateWriter, design: StudyDesign) -> Permit:
     return writer.issue_permit(
         kind=PermitKind.STUDY,
         subject_kind=SubjectKind.INITIATIVE,
-        subject_id=INITIATIVE_ID,
+        subject_id=binding.initiative_id,
         input_hash=study_hash,
         actions=("open_study",),
         scope=tuple(
@@ -615,9 +661,11 @@ def _study_permit(writer: StateWriter, design: StudyDesign) -> Permit:
                 }
             )
         ),
-        expires_at_utc=PERMIT_EXPIRY_UTC,
+        expires_at_utc=binding.permit_expiry_utc,
         one_shot=True,
-        operation_id=OPERATION_PREFIX + "study-permit",
+        operation_id=(
+            binding.operation_prefix + binding.study_permit_suffix
+        ),
     )
 
 
@@ -653,6 +701,7 @@ def _job_implementation_identity() -> str:
 def _job_spec(
     member: StudyMember,
     *,
+    binding: StudyRunBinding,
     implementation_identity: str,
     ordinal: int,
 ) -> Mapping[str, Any]:
@@ -666,7 +715,7 @@ def _job_spec(
         "expected_outputs": list(member.job_plan.expected_outputs()),
         "implementation_identity": implementation_identity,
         "input_hashes": list(member.job_plan.job_input_hashes()),
-        "log_path": f"local/jobs/{STUDY_ID.lower()}/{member.label}.log",
+        "log_path": f"local/jobs/{binding.study_id.lower()}/{member.label}.log",
         "output_classes": member.job_plan.expected_output_classes(),
         "resume_action": "continue_batch" if ordinal == 0 else "stop_batch",
         "scientific_binding": member.job_plan.scientific_binding(),
@@ -675,8 +724,15 @@ def _job_spec(
     }
 
 
-def _completion(writer: StateWriter, member: StudyMember) -> Any:
-    result = _operation_result(writer, f"{OPERATION_PREFIX}{member.label}-complete-job")
+def _completion(
+    writer: StateWriter,
+    binding: StudyRunBinding,
+    member: StudyMember,
+) -> Any:
+    result = _operation_result(
+        writer,
+        f"{binding.operation_prefix}{member.label}-complete-job",
+    )
     completion_id = result.get("completion_record_id")
     with writer.open_stable_index() as (_control, index):
         completion = (
@@ -691,16 +747,17 @@ def _completion(writer: StateWriter, member: StudyMember) -> Any:
 
 def _record_negative_memory_if_required(
     writer: StateWriter,
+    binding: StudyRunBinding,
     member: StudyMember,
 ) -> str | None:
-    completion = _completion(writer, member)
+    completion = _completion(writer, binding, member)
     scientific = completion.payload.get("scientific")
     failed = (
         isinstance(scientific, Mapping)
         and scientific.get("scientific_eligible") is True
         and scientific.get("verdict") == "failed"
     )
-    operation_id = OPERATION_PREFIX + member.label + "-negative-memory"
+    operation_id = binding.operation_prefix + member.label + "-negative-memory"
     existing = _operation_record(writer, operation_id)
     if not failed:
         if existing is not None:
@@ -708,7 +765,10 @@ def _record_negative_memory_if_required(
         return None
     memory = NegativeMemory(
         executable_identity=member.executable.identity,
-        scope=f"stu0122_{member.label.replace('-', '_')}_discovery",
+        scope=(
+            f"{binding.study_id.lower().replace('-', '')}_"
+            f"{member.label.replace('-', '_')}_discovery"
+        ),
         evidence_references=(completion.record_id,),
         reason=(
             "The exact registered member contradicted the decisive component paths "
@@ -721,6 +781,7 @@ def _record_negative_memory_if_required(
     )
     result = _ensure_operation(
         writer,
+        binding,
         member.label + "-negative-memory",
         lambda: writer.record_negative_memory(
             memory=memory,
@@ -748,20 +809,21 @@ def _close_outcome(completion: Any) -> str:
     raise RuntimeError("loss-skip subject adjudication state is malformed")
 
 
-def _known_operation_ids() -> set[str]:
+def _known_operation_ids(design: StudyDesign) -> set[str]:
     suffixes = {
         "batch-permit",
         "close-study",
         "dispose-batch",
         "open-batch",
         "open-study",
-        "record-snapshot",
         "register-control",
         "register-loss-skip",
-        "structural-decision",
-        "study-permit",
         "work-decision",
     }
+    suffixes.add(design.binding.study_permit_suffix)
+    suffixes.update(design.binding.superseded_operation_suffixes)
+    if design.structural_decision is not None:
+        suffixes.update({"record-snapshot", "structural-decision"})
     for label in ("control", "loss-skip"):
         suffixes.update(
             {
@@ -773,96 +835,125 @@ def _known_operation_ids() -> set[str]:
                 f"{label}-start-job",
             }
         )
-    return {OPERATION_PREFIX + suffix for suffix in suffixes}
+    return {design.binding.operation_prefix + suffix for suffix in suffixes}
 
 
-def _require_operation_ownership(writer: StateWriter) -> None:
+def _require_operation_ownership(
+    writer: StateWriter,
+    design: StudyDesign,
+) -> None:
     with writer.open_stable_index() as (_control, index):
         observed = {
             record.record_id
-            for record in index.records_by_kind_prefix("operation", OPERATION_PREFIX)
+            for record in index.records_by_kind_prefix(
+                "operation",
+                design.binding.operation_prefix,
+            )
         }
-    unknown = sorted(observed.difference(_known_operation_ids()))
+    unknown = sorted(observed.difference(_known_operation_ids(design)))
     if unknown:
         raise RuntimeError("unknown loss-skip operation ids: " + ", ".join(unknown))
 
 
 def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, Any]:
-    _require_operation_ownership(writer)
+    binding = design.binding
+    _require_operation_ownership(writer, design)
+    if design.structural_decision is not None:
+        _ensure_operation(
+            writer,
+            binding,
+            "structural-decision",
+            lambda: writer.record_portfolio_decision(
+                decision=design.structural_decision,
+                operation_id=binding.operation_prefix + "structural-decision",
+            ),
+        )
+        _ensure_operation(
+            writer,
+            binding,
+            "record-snapshot",
+            lambda: writer.record_portfolio_snapshot(
+                snapshot=design.expanded_snapshot,
+                operation_id=binding.operation_prefix + "record-snapshot",
+            ),
+        )
     _ensure_operation(
         writer,
-        "structural-decision",
-        lambda: writer.record_portfolio_decision(
-            decision=design.structural_decision,
-            operation_id=OPERATION_PREFIX + "structural-decision",
-        ),
-    )
-    _ensure_operation(
-        writer,
-        "record-snapshot",
-        lambda: writer.record_portfolio_snapshot(
-            snapshot=design.expanded_snapshot,
-            operation_id=OPERATION_PREFIX + "record-snapshot",
-        ),
-    )
-    _ensure_operation(
-        writer,
+        binding,
         "work-decision",
         lambda: writer.record_portfolio_decision(
             decision=design.work_decision,
-            operation_id=OPERATION_PREFIX + "work-decision",
+            operation_id=binding.operation_prefix + "work-decision",
         ),
     )
-    _ensure_operation(writer, "study-permit", lambda: _study_permit(writer, design))
+    _ensure_operation(
+        writer,
+        binding,
+        binding.study_permit_suffix,
+        lambda: _study_permit(writer, design),
+    )
     chassis = sleeve_loss_skip_risk_controlled_chassis()
     _ensure_operation(
         writer,
+        binding,
         "open-study",
         lambda: writer.open_study(
-            study_id=STUDY_ID,
+            study_id=binding.study_id,
             question=design.question,
             material_identity=OBSERVED_MATERIAL_ID,
             material_display_name="foundation observed development material",
             semantic_proposal=design.proposal,
+            semantic_question_lineage=design.semantic_question_lineage,
             controlled_chassis=chassis,
             portfolio_axis_id=design.axis.axis_id,
             portfolio_axis_identity=design.axis.identity,
             portfolio_decision_id=design.work_decision.identity,
-            permit=_permit_from_operation(writer, OPERATION_PREFIX + "study-permit"),
-            operation_id=OPERATION_PREFIX + "open-study",
+            permit=_permit_from_operation(
+                writer,
+                binding.operation_prefix + binding.study_permit_suffix,
+            ),
+            operation_id=binding.operation_prefix + "open-study",
         ),
     )
     _ensure_operation(
         writer,
+        binding,
         "batch-permit",
         lambda: writer.issue_permit(
             kind=PermitKind.BATCH,
             subject_kind=SubjectKind.STUDY,
-            subject_id=STUDY_ID,
+            subject_id=binding.study_id,
             input_hash=design.batch_spec.identity.removeprefix("batch:"),
             actions=("open_batch",),
             scope=("batch",),
-            expires_at_utc=PERMIT_EXPIRY_UTC,
+            expires_at_utc=binding.permit_expiry_utc,
             one_shot=True,
-            operation_id=OPERATION_PREFIX + "batch-permit",
+            operation_id=binding.operation_prefix + "batch-permit",
         ),
     )
     _ensure_operation(
         writer,
+        binding,
         "open-batch",
         lambda: writer.open_batch(
             batch_spec=design.batch_spec,
-            permit=_permit_from_operation(writer, OPERATION_PREFIX + "batch-permit"),
-            operation_id=OPERATION_PREFIX + "open-batch",
+            permit=_permit_from_operation(
+                writer,
+                binding.operation_prefix + "batch-permit",
+            ),
+            operation_id=binding.operation_prefix + "open-batch",
         ),
     )
     for member in design.members:
         _ensure_operation(
             writer,
+            binding,
             "register-" + member.label,
             lambda member=member: writer.register_trial(
                 executable=member.executable,
-                operation_id=OPERATION_PREFIX + "register-" + member.label,
+                operation_id=(
+                    binding.operation_prefix + "register-" + member.label
+                ),
             ),
         )
 
@@ -871,14 +962,18 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
         stem = member.label
         declaration = _ensure_operation(
             writer,
+            binding,
             stem + "-declare-job",
             lambda member=member, ordinal=ordinal: writer.declare_job(
                 spec=_job_spec(
                     member,
+                    binding=binding,
                     implementation_identity=implementation_identity,
                     ordinal=ordinal,
                 ),
-                operation_id=OPERATION_PREFIX + stem + "-declare-job",
+                operation_id=(
+                    binding.operation_prefix + stem + "-declare-job"
+                ),
             ),
         )
         if declaration.get("disposition") == "reuse_success":
@@ -889,6 +984,7 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
             raise RuntimeError("loss-skip Job declaration is malformed")
         _ensure_operation(
             writer,
+            binding,
             stem + "-job-permit",
             lambda job_id=job_id, job_hash=job_hash, stem=stem: writer.issue_permit(
                 kind=PermitKind.JOB,
@@ -897,25 +993,32 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
                 input_hash=job_hash,
                 actions=("start_job",),
                 scope=("job",),
-                expires_at_utc=PERMIT_EXPIRY_UTC,
+                expires_at_utc=binding.permit_expiry_utc,
                 one_shot=True,
-                operation_id=OPERATION_PREFIX + stem + "-job-permit",
+                operation_id=(
+                    binding.operation_prefix + stem + "-job-permit"
+                ),
             ),
         )
         _ensure_operation(
             writer,
+            binding,
             stem + "-start-job",
             lambda stem=stem: writer.start_job(
                 permit=_permit_from_operation(
-                    writer, OPERATION_PREFIX + stem + "-job-permit"
+                    writer,
+                    binding.operation_prefix + stem + "-job-permit",
                 ),
-                operation_id=OPERATION_PREFIX + stem + "-start-job",
+                operation_id=(
+                    binding.operation_prefix + stem + "-start-job"
+                ),
             ),
         )
 
         def complete(member: StudyMember = member, stem: str = stem) -> Any:
             execution_payload = _operation_result(
-                writer, OPERATION_PREFIX + stem + "-start-job"
+                writer,
+                binding.operation_prefix + stem + "-start-job",
             ).get("execution")
             if not isinstance(execution_payload, Mapping):
                 raise RuntimeError("loss-skip running Job execution is absent")
@@ -926,54 +1029,68 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
             return writer.complete_job(
                 outcome="success",
                 output_manifest=packet.outputs(),
-                operation_id=OPERATION_PREFIX + stem + "-complete-job",
+                operation_id=(
+                    binding.operation_prefix + stem + "-complete-job"
+                ),
             )
 
-        _ensure_operation(writer, stem + "-complete-job", complete)
-        completion = _completion(writer, member)
+        _ensure_operation(writer, binding, stem + "-complete-job", complete)
+        completion = _completion(writer, binding, member)
         scientific = completion.payload.get("scientific")
         if not isinstance(scientific, Mapping):
             raise RuntimeError("loss-skip completion lacks scientific adjudication")
-        negative_memory_id = _record_negative_memory_if_required(writer, member)
+        negative_memory_id = _record_negative_memory_if_required(
+            writer,
+            binding,
+            member,
+        )
         _ensure_operation(
             writer,
+            binding,
             stem + "-judge-job",
             lambda completion=completion, negative_memory_id=negative_memory_id, ordinal=ordinal, stem=stem: writer.judge_job_evidence(
                 completion_record_id=completion.record_id,
                 disposition="continue_batch" if ordinal == 0 else "stop_batch",
                 negative_memory_id=negative_memory_id,
-                operation_id=OPERATION_PREFIX + stem + "-judge-job",
+                operation_id=(
+                    binding.operation_prefix + stem + "-judge-job"
+                ),
             ),
         )
     _ensure_operation(
         writer,
+        binding,
         "dispose-batch",
         lambda: writer.dispose_batch(
             outcome="completed",
-            operation_id=OPERATION_PREFIX + "dispose-batch",
+            operation_id=binding.operation_prefix + "dispose-batch",
         ),
     )
-    subject_completion = _completion(writer, design.subject)
+    subject_completion = _completion(writer, binding, design.subject)
     outcome = _close_outcome(subject_completion)
     _ensure_operation(
         writer,
+        binding,
         "close-study",
         lambda: writer.close_study(
             outcome=outcome,
             kpi_completion_record_id=subject_completion.record_id,
-            operation_id=OPERATION_PREFIX + "close-study",
+            operation_id=binding.operation_prefix + "close-study",
         ),
     )
-    close_operation = _operation_record(writer, OPERATION_PREFIX + "close-study")
+    close_operation = _operation_record(
+        writer,
+        binding.operation_prefix + "close-study",
+    )
     if close_operation is None:
         raise RuntimeError("loss-skip Study close operation is absent")
     return {
-        "batch_id": design.batch_spec.identity,
+        "batch_id": _durable_or_planned_batch_id(writer, design),
         "control_executable_id": design.control.executable.identity,
         "outcome": outcome,
         "study_close_event_id": close_operation.authority_event_id,
         "study_close_revision": close_operation.authority_sequence,
-        "study_id": STUDY_ID,
+        "study_id": binding.study_id,
         "subject_executable_id": design.subject.executable.identity,
     }
 
@@ -981,13 +1098,16 @@ def run_study_close(writer: StateWriter, design: StudyDesign) -> Mapping[str, An
 def read_only_summary(writer: StateWriter, design: StudyDesign) -> Mapping[str, Any]:
     with writer.open_stable_index() as (control, index):
         operations = tuple(
-            index.records_by_kind_prefix("operation", OPERATION_PREFIX)
+            index.records_by_kind_prefix(
+                "operation",
+                design.binding.operation_prefix,
+            )
         )
     return {
         "axis_id": design.axis.axis_id,
         "axis_identity": design.axis.identity,
-        "base_snapshot_id": BASE_SNAPSHOT_ID,
-        "batch_id": design.batch_spec.identity,
+        "base_snapshot_id": design.binding.portfolio_snapshot_id,
+        "batch_id": _durable_or_planned_batch_id(writer, design),
         "control_executable_id": design.control.executable.identity,
         "expanded_snapshot_id": design.expanded_snapshot.identity,
         "job_implementation_identity": _job_implementation_identity(),
@@ -995,8 +1115,12 @@ def read_only_summary(writer: StateWriter, design: StudyDesign) -> Mapping[str, 
         "next_action": control["next_action"],
         "operation_count": len(operations),
         "revision": control["revision"],
-        "structural_decision_id": design.structural_decision.identity,
-        "study_id": STUDY_ID,
+        "structural_decision_id": (
+            None
+            if design.structural_decision is None
+            else design.structural_decision.identity
+        ),
+        "study_id": design.binding.study_id,
         "subject_executable_id": design.subject.executable.identity,
         "work_decision_id": design.work_decision.identity,
     }
@@ -1020,7 +1144,7 @@ def main() -> None:
     writer = StateWriter(ROOT, validation_registry=registry)
     writer.require_stable_head()
     design = build_design(writer)
-    _require_operation_ownership(writer)
+    _require_operation_ownership(writer, design)
     if arguments.stage is None:
         print(json.dumps(read_only_summary(writer, design), sort_keys=True))
         return

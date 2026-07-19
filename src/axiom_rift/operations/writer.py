@@ -5478,12 +5478,23 @@ class StateWriter:
         replacement_equivalence = decision.payload.get(
             "replacement_architecture_equivalence"
         )
+        prospective_equivalence = decision.payload.get(
+            "prospective_reentry_equivalence"
+        )
+        prospective_plan = decision.payload.get("engineering_reentry")
+        prospective_validation = decision.payload.get(
+            "engineering_reentry_validation"
+        )
         replacement_provenance = (
             provenance.get("kind") == "accepted_replay_replacement"
         )
+        prospective_reentry_provenance = (
+            provenance.get("kind")
+            == "accepted_prospective_engineering_reentry"
+        )
         prior = (
             None
-            if replacement_provenance
+            if replacement_provenance or prospective_reentry_provenance
             else self._prior_scientific_baseline(
                 index,
                 baseline,
@@ -5527,6 +5538,56 @@ class StateWriter:
             ):
                 raise TransitionError(
                     "controlled chassis replacement baseline authority is invalid"
+                )
+        elif prospective_reentry_provenance:
+            reentry_id = decision.payload.get("engineering_reentry_id")
+            if (
+                not isinstance(prospective_plan, Mapping)
+                or prospective_plan.get("schema")
+                != "prospective_engineering_reentry.v1"
+                or not isinstance(prospective_validation, Mapping)
+                or prospective_validation.get("schema")
+                != "prospective_engineering_reentry_validation.v1"
+                or provenance
+                != {
+                    "kind": "accepted_prospective_engineering_reentry",
+                    "record_id": reentry_id,
+                }
+                or prospective_validation.get("engineering_reentry_id")
+                != reentry_id
+                or prospective_plan.get("successor_baseline_executable_id")
+                != baseline.identity
+                or prospective_validation.get(
+                    "successor_baseline_executable_id"
+                )
+                != baseline.identity
+                or prospective_plan.get("target_axis_identity")
+                != target_axis_identity
+                or index.get("trial", baseline.identity) is not None
+                or (
+                    prospective_equivalence is not None
+                    and (
+                        not isinstance(prospective_equivalence, Mapping)
+                        or prospective_equivalence.get("schema")
+                        != "prospective_engineering_reentry_equivalence.v1"
+                        or prospective_equivalence.get(
+                            "engineering_reentry_id"
+                        )
+                        != reentry_id
+                        or prospective_equivalence.get(
+                            "replacement_baseline_executable_id"
+                        )
+                        != baseline.identity
+                        or prospective_equivalence.get(
+                            "target_axis_identity"
+                        )
+                        != target_axis_identity
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "controlled chassis prospective reentry baseline "
+                    "authority is invalid"
                 )
         elif provenance.get("kind") == "trial":
             if prior is None or provenance.get("record_id") != prior.record_id:
@@ -7661,13 +7722,142 @@ class StateWriter:
                     isinstance(typed_axis_chassis, str)
                     and resolved_axis_family != resolved_controlled_family
                 )
+                prospective_reentry_plan = None
+                prospective_reentry_validation = None
+                raw_prospective_reentry = decision.payload.get(
+                    "engineering_reentry"
+                )
+                if isinstance(raw_prospective_reentry, Mapping):
+                    from axiom_rift.operations.prospective_engineering_reentry import (
+                        ProspectiveEngineeringReentryValidationError,
+                        require_prospective_engineering_reentry,
+                    )
+                    from axiom_rift.research.prospective_engineering_reentry import (
+                        ProspectiveEngineeringReentry,
+                        ProspectiveEngineeringReentryError,
+                    )
+
+                    try:
+                        prospective_reentry_plan = (
+                            ProspectiveEngineeringReentry.from_mapping(
+                                raw_prospective_reentry
+                            )
+                        )
+                        prospective_reentry_validation = (
+                            require_prospective_engineering_reentry(
+                                _index,
+                                artifact_reader=self.evidence.read_verified,
+                                plan=prospective_reentry_plan,
+                                mission_id=science["active_mission"],
+                                portfolio_snapshot_id=portfolio_snapshot_id,
+                                portfolio_action=portfolio_action,
+                                target_axis=axis,
+                                baseline_executable_id=(
+                                    controlled_chassis
+                                    .baseline_executable.identity
+                                ),
+                            )
+                        )
+                    except (
+                        ProspectiveEngineeringReentryError,
+                        ProspectiveEngineeringReentryValidationError,
+                    ) as exc:
+                        raise TransitionError(str(exc)) from exc
+                    if (
+                        prospective_reentry_plan.successor_study_id
+                        != study_id
+                        or semantic_question_lineage
+                        != prospective_reentry_plan
+                        .semantic_question_lineage
+                        or prospective_reentry_plan.semantic_question_lineage
+                        .successor_core_id
+                        != semantic_question_core.identity
+                        or decision.payload.get("engineering_reentry_id")
+                        != prospective_reentry_plan.identity
+                        or next_action.get("engineering_reentry_id")
+                        != prospective_reentry_plan.identity
+                        or decision.payload.get(
+                            "engineering_reentry_validation"
+                        )
+                        != prospective_reentry_validation
+                        or next_action.get("engineering_reentry_validation")
+                        != prospective_reentry_validation
+                    ):
+                        raise TransitionError(
+                            "Study prospective engineering reentry differs "
+                            "from its accepted Decision"
+                        )
+                elif (
+                    decision.payload.get("engineering_reentry_id") is not None
+                    or decision.payload.get(
+                        "engineering_reentry_validation"
+                    )
+                    is not None
+                    or next_action.get("engineering_reentry_id") is not None
+                    or next_action.get("engineering_reentry_validation")
+                    is not None
+                ):
+                    raise RecoveryRequired(
+                        "Study prospective engineering reentry authority is "
+                        "malformed"
+                    )
                 recorded_replacement_equivalence = decision.payload.get(
                     "replacement_architecture_equivalence"
                 )
                 action_replacement_equivalence = next_action.get(
                     "replacement_architecture_equivalence"
                 )
-                if axis_family_mismatch:
+                recorded_prospective_equivalence = decision.payload.get(
+                    "prospective_reentry_equivalence"
+                )
+                action_prospective_equivalence = next_action.get(
+                    "prospective_reentry_equivalence"
+                )
+                if axis_family_mismatch and prospective_reentry_plan is not None:
+                    expected_prospective_equivalence = {
+                        "accepted_axis_architecture_family": (
+                            resolved_axis_family
+                        ),
+                        "engineering_gap_diagnosis_id": (
+                            prospective_reentry_plan.study_diagnosis_id
+                        ),
+                        "engineering_reentry_id": (
+                            prospective_reentry_plan.identity
+                        ),
+                        "replacement_architecture_family": (
+                            resolved_controlled_family
+                        ),
+                        "replacement_baseline_executable_id": (
+                            controlled_chassis.baseline_executable.identity
+                        ),
+                        "schema": (
+                            "prospective_engineering_reentry_equivalence.v1"
+                        ),
+                        "semantic_question_lineage_id": (
+                            prospective_reentry_plan
+                            .semantic_question_lineage.identity
+                        ),
+                        "successor_artifact_hash": (
+                            prospective_reentry_plan.successor_artifact_hash
+                        ),
+                        "successor_study_id": (
+                            prospective_reentry_plan.successor_study_id
+                        ),
+                        "target_axis_identity": axis["axis_identity"],
+                    }
+                    if (
+                        recorded_prospective_equivalence
+                        != expected_prospective_equivalence
+                        or action_prospective_equivalence
+                        != expected_prospective_equivalence
+                        or recorded_replacement_equivalence is not None
+                        or action_replacement_equivalence is not None
+                    ):
+                        raise TransitionError(
+                            "Study prospective replacement chassis differs "
+                            "from its accepted reentry authority"
+                        )
+                elif axis_family_mismatch:
                     from axiom_rift.operations.replay_job_implementation_preflight import (
                         ReplayJobImplementationPreflightError,
                         ReplayJobImplementationPreflightRequest,
@@ -7883,6 +8073,8 @@ class StateWriter:
                 elif (
                     recorded_replacement_equivalence is not None
                     or action_replacement_equivalence is not None
+                    or recorded_prospective_equivalence is not None
+                    or action_prospective_equivalence is not None
                 ):
                     raise RecoveryRequired(
                         "Study carries unnecessary replacement architecture authority"
@@ -18701,6 +18893,12 @@ class StateWriter:
                 and not chosen_effective_axis.permits_generic_portfolio_action(
                     decision.chosen.action.value
                 )
+                and not (
+                    diagnosis_binding.evidence_state == "engineering_gap"
+                    and decision.engineering_reentry is not None
+                    and decision.engineering_reentry.study_diagnosis_id
+                    == diagnosis_binding.original_diagnosis_id
+                )
             ):
                 raise TransitionError(
                     "Portfolio Decision action is excluded by the latest "
@@ -18887,6 +19085,8 @@ class StateWriter:
             baseline_provenance: dict[str, Any] | None = None
             resolved_architecture_family: str | None = None
             replacement_architecture_equivalence: dict[str, Any] | None = None
+            prospective_reentry_equivalence: dict[str, Any] | None = None
+            prospective_reentry_validation: dict[str, Any] | None = None
             replacement_replay_study: dict[str, Any] | None = None
             replacement_trigger_for_decision: IndexRecord | None = None
             source_authority_subject_ids: tuple[str, ...] = ()
@@ -18922,6 +19122,42 @@ class StateWriter:
                     index=_index,
                     architecture_payload=architecture.to_identity_payload(),
                 )
+                if decision.engineering_reentry is not None:
+                    from axiom_rift.operations.prospective_engineering_reentry import (
+                        ProspectiveEngineeringReentryValidationError,
+                        require_prospective_engineering_reentry,
+                    )
+
+                    try:
+                        prospective_reentry_validation = (
+                            require_prospective_engineering_reentry(
+                                _index,
+                                artifact_reader=self.evidence.read_verified,
+                                plan=decision.engineering_reentry,
+                                mission_id=science["active_mission"],
+                                portfolio_snapshot_id=snapshot.record_id,
+                                portfolio_action=(
+                                    decision.chosen.action.value
+                                ),
+                                target_axis=target_axis,
+                                baseline_executable_id=baseline.identity,
+                            )
+                        )
+                    except ProspectiveEngineeringReentryValidationError as exc:
+                        raise TransitionError(str(exc)) from exc
+                    required_reentry_basis = {
+                        (item["kind"], item["record_id"])
+                        for item in prospective_reentry_validation[
+                            "required_review_basis"
+                        ]
+                    }
+                    if review is None or not required_reentry_basis.issubset(
+                        review_basis
+                    ):
+                        raise TransitionError(
+                            "quant-team review omits prospective engineering "
+                            "reentry authority"
+                        )
                 if isinstance(typed_axis_identity, str):
                     if not isinstance(typed_axis_payload, dict):
                         raise RecoveryRequired(
@@ -18931,7 +19167,47 @@ class StateWriter:
                         index=_index,
                         architecture_payload=typed_axis_payload,
                     )
-                    if typed_axis_family != resolved_architecture_family:
+                    if (
+                        typed_axis_family != resolved_architecture_family
+                        and prospective_reentry_validation is not None
+                    ):
+                        prospective_reentry_equivalence = {
+                            "accepted_axis_architecture_family": (
+                                typed_axis_family
+                            ),
+                            "engineering_reentry_id": (
+                                decision.engineering_reentry.identity
+                            ),
+                            "replacement_architecture_family": (
+                                resolved_architecture_family
+                            ),
+                            "replacement_baseline_executable_id": (
+                                baseline.identity
+                            ),
+                            "schema": (
+                                "prospective_engineering_reentry_"
+                                "equivalence.v1"
+                            ),
+                            "semantic_question_lineage_id": (
+                                decision.engineering_reentry
+                                .semantic_question_lineage.identity
+                            ),
+                            "successor_artifact_hash": (
+                                decision.engineering_reentry
+                                .successor_artifact_hash
+                            ),
+                            "successor_study_id": (
+                                decision.engineering_reentry
+                                .successor_study_id
+                            ),
+                            "target_axis_identity": target_axis[
+                                "axis_identity"
+                            ],
+                        }
+                    if (
+                        typed_axis_family != resolved_architecture_family
+                        and prospective_reentry_validation is None
+                    ):
                         replacement_preflight = (
                             self._current_accepted_replay_replacement_preflight(
                                 _index,
@@ -19242,6 +19518,7 @@ class StateWriter:
                     not isinstance(typed_axis_identity, str)
                     and prior_anchor is not None
                     and replacement_architecture_equivalence is None
+                    and prospective_reentry_equivalence is None
                     and (
                         prior_anchor.get("baseline_executable_id")
                         != baseline.identity
@@ -19255,7 +19532,10 @@ class StateWriter:
                     )
                 prior_baseline = (
                     None
-                    if replacement_architecture_equivalence is not None
+                    if (
+                        replacement_architecture_equivalence is not None
+                        or prospective_reentry_validation is not None
+                    )
                     else self._prior_scientific_baseline(
                         _index,
                         baseline,
@@ -19313,6 +19593,12 @@ class StateWriter:
                     _index.has_controlled_chassis_study()
                 )
                 baseline_provenance = (
+                    {
+                        "kind": "accepted_prospective_engineering_reentry",
+                        "record_id": decision.engineering_reentry.identity,
+                    }
+                    if prospective_reentry_validation is not None
+                    else
                     {
                         "kind": "accepted_replay_replacement",
                         "record_id": replacement_architecture_equivalence[
@@ -19407,6 +19693,7 @@ class StateWriter:
                 diagnosis_authority.diagnosis_correction_audit_id
             )
             diagnosis = None
+            prospective_engineering_reentry = False
             if isinstance(diagnosis_id, str):
                 from axiom_rift.operations.effective_study_diagnosis import (
                     EffectiveStudyDiagnosisError,
@@ -19570,6 +19857,20 @@ class StateWriter:
                     )
                     in diagnosis_basis
                 )
+                prospective_engineering_reentry = (
+                    prospective_reentry_validation is not None
+                    and decision.engineering_reentry is not None
+                    and diagnosis.payload.get("evidence_state")
+                    == "engineering_gap"
+                    and decision.engineering_reentry.study_diagnosis_id
+                    == diagnosis_id
+                    and decision.engineering_reentry.predecessor_study_id
+                    == diagnosis.payload.get("study_id")
+                    and decision.chosen.target_id == source_axis_id
+                    and chosen_action in {item.value for item in work_actions}
+                    and target_axis["primary_research_layer"]
+                    in allowed_layers
+                )
                 replay_protocol_revision = (
                     is_exact_replay_protocol_revision_selection(
                         constraints=replay_constraints,
@@ -19590,6 +19891,7 @@ class StateWriter:
                     or forest_diversion
                     or diagnosis_structural_forest_exit
                     or engineering_reentry
+                    or prospective_engineering_reentry
                     or replay_protocol_revision
                 ):
                     raise TransitionError(
@@ -19598,6 +19900,13 @@ class StateWriter:
                 if engineering_reentry:
                     assert replacement_architecture_equivalence is not None
                     replacement_architecture_equivalence[
+                        "engineering_gap_diagnosis_id"
+                    ] = diagnosis_id
+                if (
+                    prospective_engineering_reentry
+                    and prospective_reentry_equivalence is not None
+                ):
+                    prospective_reentry_equivalence[
                         "engineering_gap_diagnosis_id"
                     ] = diagnosis_id
                 if (
@@ -19631,6 +19940,14 @@ class StateWriter:
                     raise TransitionError(
                         "quant-team review omits its diagnosis correction audit"
                     )
+            if (
+                decision.engineering_reentry is not None
+                and not prospective_engineering_reentry
+            ):
+                raise TransitionError(
+                    "prospective engineering reentry is not the exact "
+                    "diagnosis continuation"
+                )
             architecture_review_id = next_action.get("architecture_review_id")
             architecture_review = (
                 None
@@ -19862,6 +20179,21 @@ class StateWriter:
                     body["next_action"][
                         "replacement_architecture_equivalence"
                     ] = replacement_architecture_equivalence
+                if prospective_reentry_validation is not None:
+                    body["next_action"].update(
+                        {
+                            "engineering_reentry_id": (
+                                decision.engineering_reentry.identity
+                            ),
+                            "engineering_reentry_validation": (
+                                prospective_reentry_validation
+                            ),
+                        }
+                    )
+                    if prospective_reentry_equivalence is not None:
+                        body["next_action"][
+                            "prospective_reentry_equivalence"
+                        ] = prospective_reentry_equivalence
             if next_kind == "record_portfolio_snapshot" and (
                 decision.chosen.action == PortfolioAction.NEW_MECHANISM
             ):
@@ -19935,6 +20267,12 @@ class StateWriter:
                     "resolved_architecture_family": resolved_architecture_family,
                     "replacement_architecture_equivalence": (
                         replacement_architecture_equivalence
+                    ),
+                    "engineering_reentry_validation": (
+                        prospective_reentry_validation
+                    ),
+                    "prospective_reentry_equivalence": (
+                        prospective_reentry_equivalence
                     ),
                 },
             )

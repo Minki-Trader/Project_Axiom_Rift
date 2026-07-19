@@ -680,7 +680,10 @@ def _validate_execute_portfolio_decision(
             *architecture,
             *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
             "diagnosis_correction_audit_id",
+            "engineering_reentry_id",
+            "engineering_reentry_validation",
             "post_holdout_development_id",
+            "prospective_reentry_equivalence",
             "study_diagnosis_id",
             "study_diagnosis_correction_id",
             "replacement_architecture_equivalence",
@@ -836,6 +839,172 @@ def _validate_execute_portfolio_decision(
             _fail(
                 "replacement architecture equivalence differs from its action"
             )
+    reentry_id = action.get("engineering_reentry_id")
+    reentry_validation = action.get("engineering_reentry_validation")
+    if (reentry_id is None) != (reentry_validation is None):
+        _fail("prospective engineering reentry action is incomplete")
+    if reentry_id is not None:
+        _prefixed(
+            "prospective engineering reentry",
+            reentry_id,
+            "prospective-engineering-reentry:",
+        )
+        if not isinstance(reentry_validation, Mapping):
+            _fail("prospective engineering reentry validation must be an object")
+        _exact(
+            "prospective engineering reentry validation",
+            reentry_validation,
+            {
+                "engineering_reentry_id",
+                "portfolio_action",
+                "required_review_basis",
+                "schema",
+                "scientific_claim_delta",
+                "scientific_failure_delta",
+                "scientific_trial_delta",
+                "semantic_question_lineage_id",
+                "successor_artifact_hash",
+                "successor_baseline_executable_id",
+                "successor_study_id",
+            },
+        )
+        if (
+            reentry_validation["schema"]
+            != "prospective_engineering_reentry_validation.v1"
+            or reentry_validation["engineering_reentry_id"] != reentry_id
+            or reentry_validation["portfolio_action"] != action["action"]
+            or any(
+                reentry_validation[name] != 0
+                for name in (
+                    "scientific_claim_delta",
+                    "scientific_failure_delta",
+                    "scientific_trial_delta",
+                )
+            )
+        ):
+            _fail("prospective engineering reentry validation is invalid")
+        _prefixed(
+            "prospective reentry semantic lineage",
+            reentry_validation["semantic_question_lineage_id"],
+            "semantic-question-lineage:",
+        )
+        _digest(
+            "prospective reentry successor artifact",
+            reentry_validation["successor_artifact_hash"],
+        )
+        baseline_id = _prefixed(
+            "prospective reentry baseline",
+            reentry_validation["successor_baseline_executable_id"],
+            "executable:",
+        )
+        _ascii(
+            "prospective reentry successor Study",
+            reentry_validation["successor_study_id"],
+        )
+        if not reentry_validation["successor_study_id"].startswith("STU-"):
+            _fail("prospective reentry successor Study identity is invalid")
+        basis = reentry_validation["required_review_basis"]
+        if (
+            type(basis) is not list
+            or not basis
+            or any(
+                not isinstance(item, Mapping)
+                or set(item) != {"kind", "record_id"}
+                or type(item["kind"]) is not str
+                or type(item["record_id"]) is not str
+                for item in basis
+            )
+            or basis
+            != sorted(
+                basis,
+                key=lambda item: (item["kind"], item["record_id"]),
+            )
+            or len({(item["kind"], item["record_id"]) for item in basis})
+            != len(basis)
+        ):
+            _fail("prospective reentry review basis is malformed")
+        if (
+            present != architecture
+            or baseline_id != action["baseline_executable_id"]
+            or diagnosis_id is None
+            or replacement is not None
+            or bool(action.get("replay_obligation_ids"))
+        ):
+            _fail("prospective reentry baseline differs from its action")
+    prospective_equivalence = action.get(
+        "prospective_reentry_equivalence"
+    )
+    if prospective_equivalence is not None:
+        if reentry_id is None or not isinstance(
+            prospective_equivalence,
+            Mapping,
+        ):
+            _fail("prospective reentry equivalence lacks its authority")
+        _exact(
+            "prospective reentry equivalence",
+            prospective_equivalence,
+            {
+                "accepted_axis_architecture_family",
+                "engineering_gap_diagnosis_id",
+                "engineering_reentry_id",
+                "replacement_architecture_family",
+                "replacement_baseline_executable_id",
+                "schema",
+                "semantic_question_lineage_id",
+                "successor_artifact_hash",
+                "successor_study_id",
+                "target_axis_identity",
+            },
+        )
+        accepted_family = _prefixed(
+            "prospective reentry accepted architecture",
+            prospective_equivalence["accepted_axis_architecture_family"],
+            "architecture-family:",
+        )
+        replacement_family = _prefixed(
+            "prospective reentry replacement architecture",
+            prospective_equivalence["replacement_architecture_family"],
+            "architecture-family:",
+        )
+        replacement_baseline = _prefixed(
+            "prospective reentry replacement baseline",
+            prospective_equivalence["replacement_baseline_executable_id"],
+            "executable:",
+        )
+        _prefixed(
+            "prospective reentry diagnosis",
+            prospective_equivalence["engineering_gap_diagnosis_id"],
+            "diagnosis:",
+        )
+        _prefixed(
+            "prospective reentry equivalence lineage",
+            prospective_equivalence["semantic_question_lineage_id"],
+            "semantic-question-lineage:",
+        )
+        _digest(
+            "prospective reentry equivalence artifact",
+            prospective_equivalence["successor_artifact_hash"],
+        )
+        if (
+            prospective_equivalence["schema"]
+            != "prospective_engineering_reentry_equivalence.v1"
+            or prospective_equivalence["engineering_reentry_id"]
+            != reentry_id
+            or accepted_family == replacement_family
+            or replacement_family != action["resolved_architecture_family"]
+            or replacement_baseline != action["baseline_executable_id"]
+            or prospective_equivalence["target_axis_identity"]
+            != action["target_axis_identity"]
+            or prospective_equivalence["engineering_gap_diagnosis_id"]
+            != diagnosis_id
+            or prospective_equivalence["semantic_question_lineage_id"]
+            != reentry_validation["semantic_question_lineage_id"]
+            or prospective_equivalence["successor_artifact_hash"]
+            != reentry_validation["successor_artifact_hash"]
+            or prospective_equivalence["successor_study_id"]
+            != reentry_validation["successor_study_id"]
+        ):
+            _fail("prospective reentry equivalence differs from its action")
 
 
 def _validate_freeze_batch(

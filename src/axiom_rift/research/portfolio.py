@@ -20,6 +20,9 @@ from axiom_rift.research.governance import (
 from axiom_rift.research.axis_protocol_revision import (
     AxisProtocolRevisionProposal,
 )
+from axiom_rift.research.prospective_engineering_reentry import (
+    ProspectiveEngineeringReentry,
+)
 
 
 class BatchSpecError(ValueError):
@@ -773,6 +776,7 @@ class PortfolioDecision:
     quant_team_review: QuantTeamDecisionReview | None = None
     baseline_executable: ExecutableSpec | None = field(default=None, repr=False)
     proposed_axis: PortfolioAxis | None = field(default=None, repr=False)
+    engineering_reentry: ProspectiveEngineeringReentry | None = None
     replay_obligation_ids: tuple[str, ...] = ()
     protocol_revision: AxisProtocolRevisionProposal | None = None
     recent_positive_lineage_id: str | None = None
@@ -838,6 +842,26 @@ class PortfolioDecision:
             raise PortfolioDecisionError(
                 "Portfolio Decision baseline must be an ExecutableSpec"
             )
+        if self.engineering_reentry is not None:
+            if not isinstance(
+                self.engineering_reentry,
+                ProspectiveEngineeringReentry,
+            ):
+                raise PortfolioDecisionError(
+                    "Portfolio Decision engineering reentry is not typed"
+                )
+            if (
+                self.chosen.action.value
+                != self.engineering_reentry.portfolio_action
+                or self.chosen.target_id
+                != self.engineering_reentry.target_axis_id
+                or self.baseline_executable is None
+                or self.baseline_executable.identity
+                != self.engineering_reentry.successor_baseline_executable_id
+            ):
+                raise PortfolioDecisionError(
+                    "Portfolio Decision engineering reentry binding is not exact"
+                )
         if self.proposed_axis is not None:
             if not isinstance(self.proposed_axis, PortfolioAxis):
                 raise PortfolioDecisionError(
@@ -888,6 +912,14 @@ class PortfolioDecision:
         elif self.protocol_revision is not None:
             raise PortfolioDecisionError(
                 "protocol revision authority requires its exact action"
+            )
+        if self.engineering_reentry is not None and (
+            self.proposed_axis is not None
+            or self.protocol_revision is not None
+            or self.replay_obligation_ids
+        ):
+            raise PortfolioDecisionError(
+                "prospective engineering reentry cannot mix structural or replay work"
             )
         architecture = (
             None
@@ -959,21 +991,32 @@ class PortfolioDecision:
             "rationale": self.rationale,
             "recent_positive_lineage_id": self.recent_positive_lineage_id,
             "schema": (
-                "portfolio_decision.v5"
-                if self.proposed_axis is not None
+                "portfolio_decision.v6"
+                if self.engineering_reentry is not None
                 else (
-                    "portfolio_decision.v4"
-                    if self.protocol_revision is not None
-                    else "portfolio_decision.v3"
-                    if self.quant_team_review is not None
+                    "portfolio_decision.v5"
+                    if self.proposed_axis is not None
                     else (
-                        "portfolio_decision.v1"
-                        if self.baseline_executable is None
-                        else "portfolio_decision.v2"
+                        "portfolio_decision.v4"
+                        if self.protocol_revision is not None
+                        else "portfolio_decision.v3"
+                        if self.quant_team_review is not None
+                        else (
+                            "portfolio_decision.v1"
+                            if self.baseline_executable is None
+                            else "portfolio_decision.v2"
+                        )
                     )
                 )
             ),
         }
+        if self.engineering_reentry is not None:
+            payload["engineering_reentry"] = (
+                self.engineering_reentry.to_identity_payload()
+            )
+            payload["engineering_reentry_id"] = (
+                self.engineering_reentry.identity
+            )
         if self.proposed_axis is not None:
             payload["proposed_axis"] = self.proposed_axis.to_snapshot_payload()
             payload["proposed_axis_identity"] = self.proposed_axis.identity

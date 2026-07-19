@@ -402,6 +402,11 @@ def _bind_selection_registration_to_batch(
             "concurrent Batch requires one exact E01 multiplicity registration"
         )
     selection = selection_registrations[0]
+    # Concurrent-family membership is exact, while the runner's control/subject
+    # iteration order is not multiplicity authority.  E01 uses the canonical
+    # Executable-identity order so a role-oriented Batch tuple cannot create a
+    # false engineering failure for the same frozen family.
+    canonical_batch_family = tuple(sorted(batch_family))
     batch_spec = batch_record.payload.get("spec")
     acceptance = (
         None
@@ -415,8 +420,9 @@ def _bind_selection_registration_to_batch(
     )
     if (
         not isinstance(concurrent, Mapping)
-        or selection["ordered_member_ids"] != list(batch_family)
-        or set(selection["ordered_member_ids"]) != set(batch_family)
+        or selection["ordered_member_ids"] != list(canonical_batch_family)
+        or set(selection["ordered_member_ids"])
+        != set(canonical_batch_family)
         or selection["family_size"] != len(batch_family)
         or selection["member_id"] != executable_id
         or executable_id not in batch_family
@@ -429,7 +435,7 @@ def _bind_selection_registration_to_batch(
         concurrent_family=concurrent,
         selection_registration=selection,
         executable_id=executable_id,
-        ordered_member_ids=batch_family,
+        ordered_member_ids=canonical_batch_family,
     )
 
 

@@ -933,6 +933,26 @@ research_protocol:
   authority_migration_requires_additive_rebinding_before_scientific_job: true
   same_authority_duplicate_activation_allowed: false
   trial_holdout_and_candidate_delta: 0
+prospective_engineering_reentry:
+  single_writer: axiom_rift.operations.writer.StateWriter
+  authority_schema: prospective_engineering_reentry.v1
+  validation_schema: prospective_engineering_reentry_validation.v1
+  exact_closed_study_diagnosis_completion_and_disposition_join_required: true
+  requires_scientific_change_disposition_required: true
+  registered_successor_artifact_and_baseline_executable_required: true
+  successor_study_and_baseline_are_preregistered_before_outcomes: true
+  same_semantic_question_requires_engineering_reentry_lineage: true
+  predecessor_and_successor_study_identities_are_distinct: true
+  predecessor_trial_executable_cannot_be_successor_baseline: true
+  same_architecture_protocol_correction_supported: true
+  changed_architecture_requires_exact_typed_equivalence: true
+  accepted_actions:
+    - contrast
+    - deepen
+  quant_team_review_binds_gap_disposition_and_successor: true
+  unrelated_forest_options_remain_materially_selectable: true
+  engineering_reentry_is_diagnosis_continuation_not_diagnosis_override: true
+  scientific_trial_claim_failure_candidate_holdout_and_terminal_delta: 0
 replay_implementation_admission:
   single_writer: axiom_rift.operations.writer.StateWriter
   schemas:

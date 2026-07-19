@@ -29,6 +29,9 @@ from axiom_rift.research.portfolio_projection import (
     portfolio_decision_from_projection,
 )
 from axiom_rift.research.selection_inference import HistoricalSearchContext
+from axiom_rift.research.prospective_engineering_reentry import (
+    ProspectiveEngineeringReentry,
+)
 from axiom_rift.research.semantic_question import (
     SemanticQuestionLineageProposal,
     SemanticQuestionRelation,
@@ -336,6 +339,73 @@ class PortfolioProjectionTests(unittest.TestCase):
         rebuilt = portfolio_decision_from_projection(payload)
         self.assertEqual(rebuilt.identity, decision.identity)
         self.assertEqual(rebuilt.protocol_revision, revision)
+        self.assertEqual(rebuilt.to_identity_payload(), payload)
+
+    def test_prospective_engineering_reentry_decision_round_trips(self) -> None:
+        core_id = "semantic-question-core:" + "7" * 64
+        lineage = SemanticQuestionLineageProposal(
+            predecessor_study_id="STU-PROJECTION-GAP",
+            successor_study_id="STU-PROJECTION-REENTRY",
+            predecessor_core_id=core_id,
+            successor_core_id=core_id,
+            relation=SemanticQuestionRelation.ENGINEERING_REENTRY,
+            rationale="retain the same question under the corrected protocol",
+            basis_record_ids=(
+                "job-completed:" + "1" * 64,
+                "study-close:" + "2" * 64,
+                "study-diagnosis:diagnosis:" + "3" * 64,
+                "study-open:STU-PROJECTION-GAP",
+            ),
+        )
+        reentry = ProspectiveEngineeringReentry(
+            mission_id="MIS-PORTFOLIO-PROJECTION",
+            portfolio_snapshot_id="portfolio:" + "4" * 64,
+            target_axis_id=self.axis.axis_id,
+            target_axis_identity=self.axis.identity,
+            predecessor_study_id="STU-PROJECTION-GAP",
+            successor_study_id="STU-PROJECTION-REENTRY",
+            study_diagnosis_id="diagnosis:" + "3" * 64,
+            study_close_record_id="2" * 64,
+            completion_record_id="1" * 64,
+            disposition_record_id="5" * 64,
+            disposition_hash="6" * 64,
+            successor_artifact_hash="8" * 64,
+            successor_baseline_executable_id=(
+                self.plan.baseline_executable.identity
+            ),
+            portfolio_action="deepen",
+            semantic_question_lineage=lineage,
+        )
+        decision = PortfolioDecision(
+            decision_id="DEC-PROSPECTIVE-ENGINEERING-REENTRY",
+            chosen_option_id="deepen-corrected",
+            options=(
+                DecisionOption(
+                    option_id="deepen-corrected",
+                    action=PortfolioAction.DEEPEN,
+                    target_id=self.axis.axis_id,
+                    expected_information_value="recover the blocked comparison",
+                    opportunity_cost="one bounded corrected Batch",
+                ),
+                DecisionOption(
+                    option_id="rotate-independent",
+                    action=PortfolioAction.ROTATE,
+                    target_id=self.axis.axis_id,
+                    expected_information_value="sample another mechanism",
+                    opportunity_cost="leave the repair unresolved",
+                    omission_reason="the corrected comparison is ready now",
+                ),
+            ),
+            rationale="recover one non-scientific gap without awarding credit",
+            commitment_batches=1,
+            baseline_executable=self.plan.baseline_executable,
+            engineering_reentry=reentry,
+        )
+        payload = decision.to_identity_payload()
+        self.assertEqual(payload["schema"], "portfolio_decision.v6")
+        rebuilt = portfolio_decision_from_projection(payload)
+        self.assertEqual(rebuilt.identity, decision.identity)
+        self.assertEqual(rebuilt.engineering_reentry, reentry)
         self.assertEqual(rebuilt.to_identity_payload(), payload)
 
 

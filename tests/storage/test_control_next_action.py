@@ -873,6 +873,96 @@ class ControlNextActionTests(unittest.TestCase):
         with self.assertRaisesRegex(ControlNextActionError, "schema is not exact"):
             validate_control_next_action(missing, scientific)
 
+    def test_prospective_engineering_reentry_is_exact_and_cross_bound(
+        self,
+    ) -> None:
+        action, scientific = _fixtures()["execute_portfolio_decision"]
+        action = deepcopy(action)
+        action.pop("replay_obligation_ids")
+        reentry_id = "prospective-engineering-reentry:" + D0
+        validation = {
+            "engineering_reentry_id": reentry_id,
+            "portfolio_action": action["action"],
+            "required_review_basis": [
+                {"kind": "study-close", "record_id": D1},
+                {"kind": "study-diagnosis", "record_id": DIAGNOSIS},
+            ],
+            "schema": "prospective_engineering_reentry_validation.v1",
+            "scientific_claim_delta": 0,
+            "scientific_failure_delta": 0,
+            "scientific_trial_delta": 0,
+            "semantic_question_lineage_id": (
+                "semantic-question-lineage:" + D0
+            ),
+            "successor_artifact_hash": D1,
+            "successor_baseline_executable_id": EXECUTABLE,
+            "successor_study_id": "STU-PROSPECTIVE-REENTRY",
+        }
+        action["engineering_reentry_id"] = reentry_id
+        action["engineering_reentry_validation"] = validation
+        validate_control_next_action(action, scientific)
+
+        equivalence = {
+            "accepted_axis_architecture_family": "architecture-family:" + D1,
+            "engineering_gap_diagnosis_id": DIAGNOSIS,
+            "engineering_reentry_id": reentry_id,
+            "replacement_architecture_family": "architecture-family:" + D0,
+            "replacement_baseline_executable_id": EXECUTABLE,
+            "schema": "prospective_engineering_reentry_equivalence.v1",
+            "semantic_question_lineage_id": (
+                validation["semantic_question_lineage_id"]
+            ),
+            "successor_artifact_hash": validation["successor_artifact_hash"],
+            "successor_study_id": validation["successor_study_id"],
+            "target_axis_identity": AXIS,
+        }
+        action["prospective_reentry_equivalence"] = equivalence
+        validate_control_next_action(action, scientific)
+
+        mutations = {
+            "credit": {
+                "engineering_reentry_validation": {
+                    **validation,
+                    "scientific_trial_delta": 1,
+                }
+            },
+            "wrong_lineage": {
+                "prospective_reentry_equivalence": {
+                    **equivalence,
+                    "semantic_question_lineage_id": (
+                        "semantic-question-lineage:" + D1
+                    ),
+                }
+            },
+            "wrong_artifact": {
+                "prospective_reentry_equivalence": {
+                    **equivalence,
+                    "successor_artifact_hash": D2,
+                }
+            },
+            "wrong_diagnosis": {
+                "prospective_reentry_equivalence": {
+                    **equivalence,
+                    "engineering_gap_diagnosis_id": "diagnosis:" + D1,
+                }
+            },
+            "replay_mix": {"replay_obligation_ids": [REPLAY_0]},
+        }
+        for name, updates in mutations.items():
+            with self.subTest(name=name):
+                mutated = deepcopy(action)
+                mutated.update(updates)
+                with self.assertRaises(ControlNextActionError):
+                    validate_control_next_action(mutated, scientific)
+
+        incomplete = deepcopy(action)
+        incomplete.pop("engineering_reentry_validation")
+        with self.assertRaisesRegex(
+            ControlNextActionError,
+            "incomplete",
+        ):
+            validate_control_next_action(incomplete, scientific)
+
     def test_all_nested_resume_actions_fail_closed(self) -> None:
         cases = (
             ("await_external_change", "mission_resume_next_action"),

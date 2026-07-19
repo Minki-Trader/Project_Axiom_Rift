@@ -156,6 +156,8 @@ semantic_question_registry:
   equivalence_is_transitive_authority: false
   executable_trial_evidence_claim_kpi_and_negative_memory_transfer: false
   engineering_reentry_requires_exact_non_scientific_gap_and_successor_evidence: true
+  prospective_non_replay_engineering_reentry_supported: true
+  exact_gap_disposition_and_registered_successor_are_reentry_authority: true
   not_identifiable_label_alone_is_reentry_authority: false
   semantic_revision_resolves_predecessor_estimand: false
   historical_correction_requires_current_protocol_review_artifact: true
@@ -197,6 +199,21 @@ portfolio:
     - recombine
     - synthesize
     - revise_protocol
+  prospective_engineering_reentry:
+    same_axis_only: true
+    accepted_actions:
+      - contrast
+      - deepen
+    exact_effective_engineering_gap_diagnosis_required: true
+    requires_scientific_change_disposition_required: true
+    quant_team_review_binds_diagnosis_close_completion_disposition_and_successor: true
+    corrected_baseline_is_content_addressed_and_distinct: true
+    same_architecture_protocol_correction_supported: true
+    architecture_change_requires_explicit_equivalence: true
+    successor_study_is_preregistered_before_result_access: true
+    predecessor_science_or_negative_memory_is_inherited: false
+    zero_credit_until_successor_produces_valid_evidence: true
+    diversifying_option_remains_selectable: true
 batch:
   operator_selects_adaptive_bound: true
   frozen_before_evidence: true
