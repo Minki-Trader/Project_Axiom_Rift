@@ -49,6 +49,79 @@ class PortfolioProjectionError(ValueError):
     """Raised when durable Portfolio identity cannot be reconstructed exactly."""
 
 
+# Freeze routine reader schema tables once; do not rebuild them per record.
+_PORTFOLIO_DECISION_BASE_FIELDS = frozenset(
+    {
+        "architecture_chassis",
+        "architecture_chassis_identity",
+        "baseline_executable",
+        "baseline_executable_id",
+        "chosen_option_id",
+        "commitment_batches",
+        "decision_id",
+        "locks_future_portfolio",
+        "options",
+        "rationale",
+        "recent_positive_lineage_id",
+        "schema",
+    }
+)
+_PORTFOLIO_DECISION_PROPOSED_AXIS_FIELDS = frozenset(
+    {"proposed_axis", "proposed_axis_identity"}
+)
+_PORTFOLIO_DECISION_ALLOWED_FIELDS = frozenset(
+    {
+        _PORTFOLIO_DECISION_BASE_FIELDS,
+        _PORTFOLIO_DECISION_BASE_FIELDS | {"replay_obligation_ids"},
+        _PORTFOLIO_DECISION_BASE_FIELDS | {"quant_team_review"},
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | {"quant_team_review", "replay_obligation_ids"},
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | _PORTFOLIO_DECISION_PROPOSED_AXIS_FIELDS,
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | _PORTFOLIO_DECISION_PROPOSED_AXIS_FIELDS
+        | {"replay_obligation_ids"},
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | _PORTFOLIO_DECISION_PROPOSED_AXIS_FIELDS
+        | {"quant_team_review"},
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | _PORTFOLIO_DECISION_PROPOSED_AXIS_FIELDS
+        | {"quant_team_review", "replay_obligation_ids"},
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | {
+            "protocol_revision",
+            "protocol_revision_id",
+            "replay_obligation_ids",
+        },
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | {
+            "protocol_revision",
+            "protocol_revision_id",
+            "quant_team_review",
+            "replay_obligation_ids",
+        },
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | {"engineering_reentry", "engineering_reentry_id"},
+        _PORTFOLIO_DECISION_BASE_FIELDS
+        | {
+            "engineering_reentry",
+            "engineering_reentry_id",
+            "quant_team_review",
+        },
+    }
+)
+_PORTFOLIO_DECISION_SCHEMAS = frozenset(
+    {
+        "portfolio_decision.v1",
+        "portfolio_decision.v2",
+        "portfolio_decision.v3",
+        "portfolio_decision.v4",
+        "portfolio_decision.v5",
+        "portfolio_decision.v6",
+    }
+)
+
+
 def component_from_identity_payload(value: Mapping[str, Any]) -> ComponentSpec:
     """Rebuild one ComponentSpec and prove exact identity-payload equivalence."""
 
@@ -159,67 +232,20 @@ def executable_from_identity_payload(value: Mapping[str, Any]) -> ExecutableSpec
 
 def portfolio_decision_from_projection(
     value: Mapping[str, Any],
+    *,
+    components_by_surface: Mapping[str, ComponentSpec] | None = None,
 ) -> PortfolioDecision:
-    """Rebuild a legacy or replay-bound Portfolio Decision exactly."""
+    """Rebuild a legacy, replay-bound, or structural Decision exactly."""
 
     try:
         normalized = parse_canonical(canonical_bytes(dict(value)))
     except (TypeError, ValueError) as exc:
         raise PortfolioProjectionError("Portfolio Decision is not canonical") from exc
-    base_fields = {
-        "architecture_chassis",
-        "architecture_chassis_identity",
-        "baseline_executable",
-        "baseline_executable_id",
-        "chosen_option_id",
-        "commitment_batches",
-        "decision_id",
-        "locks_future_portfolio",
-        "options",
-        "rationale",
-        "recent_positive_lineage_id",
-        "schema",
-    }
-    allowed_fields = (
-        base_fields,
-        base_fields | {"replay_obligation_ids"},
-        base_fields | {"quant_team_review"},
-        base_fields | {"quant_team_review", "replay_obligation_ids"},
-        base_fields
-        | {
-            "protocol_revision",
-            "protocol_revision_id",
-            "replay_obligation_ids",
-        },
-        base_fields
-        | {
-            "protocol_revision",
-            "protocol_revision_id",
-            "quant_team_review",
-            "replay_obligation_ids",
-        },
-        base_fields
-        | {
-            "engineering_reentry",
-            "engineering_reentry_id",
-        },
-        base_fields
-        | {
-            "engineering_reentry",
-            "engineering_reentry_id",
-            "quant_team_review",
-        },
-    )
+    fields = frozenset(normalized) if isinstance(normalized, dict) else frozenset()
     if (
         not isinstance(normalized, dict)
-        or set(normalized) not in allowed_fields
-        or normalized.get("schema") not in {
-            "portfolio_decision.v1",
-            "portfolio_decision.v2",
-            "portfolio_decision.v3",
-            "portfolio_decision.v4",
-            "portfolio_decision.v6",
-        }
+        or fields not in _PORTFOLIO_DECISION_ALLOWED_FIELDS
+        or normalized.get("schema") not in _PORTFOLIO_DECISION_SCHEMAS
         or (
             normalized.get("schema") == "portfolio_decision.v3"
             and "quant_team_review" not in normalized
@@ -233,6 +259,10 @@ def portfolio_decision_from_projection(
             normalized.get("schema") == "portfolio_decision.v4"
         )
         != ("protocol_revision" in normalized)
+        or (
+            normalized.get("schema") == "portfolio_decision.v5"
+        )
+        != ("proposed_axis" in normalized)
         or (
             normalized.get("schema") == "portfolio_decision.v6"
         )
@@ -326,6 +356,20 @@ def portfolio_decision_from_projection(
                 ],
             )
         )
+        proposed_axis_payload = normalized.get("proposed_axis")
+        proposed_axis = (
+            None
+            if proposed_axis_payload is None
+            else portfolio_axis_from_projection(
+                proposed_axis_payload,
+                {} if components_by_surface is None else components_by_surface,
+            )
+        )
+        if (
+            proposed_axis is not None
+            and normalized.get("proposed_axis_identity") != proposed_axis.identity
+        ):
+            raise PortfolioProjectionError("proposed Portfolio axis identity drifted")
         revision_payload = normalized.get("protocol_revision")
         protocol_revision = (
             None
@@ -362,6 +406,7 @@ def portfolio_decision_from_projection(
             commitment_batches=normalized["commitment_batches"],
             quant_team_review=review,
             baseline_executable=baseline,
+            proposed_axis=proposed_axis,
             replay_obligation_ids=tuple(
                 normalized.get("replay_obligation_ids", ())
             ),
